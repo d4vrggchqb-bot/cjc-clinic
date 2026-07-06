@@ -5,7 +5,6 @@ export async function renderDashboard() {
     }
     const data = await response.json();
     const metrics = data.metrics;
-    const requests = data.items;
     const consultations = data.consultations || [];
     document.getElementById('metricVisits').textContent = String(metrics.today_visits ?? 4);
     document.getElementById('metricConsultations').textContent = String(metrics.active_consultations ?? 2);
@@ -21,14 +20,16 @@ export async function renderDashboard() {
         ];
         active.forEach((item) => {
             const node = document.createElement('div');
-            node.className = 'rounded-3xl border border-slate-200 bg-slate-50 p-4';
+            node.className = 'card border-0 shadow-sm rounded-4 mb-3';
             node.innerHTML = `
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <p class="text-sm font-semibold text-slate-900">${item.title}</p>
-            <p class="mt-1 text-sm text-slate-500">Provider: ${item.provider}</p>
+        <div class="card-body p-3">
+          <div class="d-flex align-items-start justify-content-between gap-3">
+            <div>
+              <p class="mb-1 small fw-semibold text-dark">${item.title}</p>
+              <p class="mb-0 small text-secondary">Provider: ${item.provider}</p>
+            </div>
+            <span class="badge rounded-pill bg-light text-dark">${item.status}</span>
           </div>
-          <span class="rounded-full bg-[#f44b38]/10 px-3 py-1 text-xs font-semibold text-[#f44b38]">${item.status}</span>
         </div>
       `;
             consultationsContainer.appendChild(node);
@@ -39,11 +40,13 @@ export async function renderDashboard() {
         inventoryBreakdown.innerHTML = '';
         (data.items ?? []).slice(0, 3).forEach((item) => {
             const block = document.createElement('div');
-            block.className = 'rounded-3xl border border-slate-200 bg-white p-4';
+            block.className = 'card border-0 shadow-sm rounded-4 mb-3';
             block.innerHTML = `
-        <p class="text-sm text-slate-500">${item.category.toUpperCase()}</p>
-        <p class="mt-2 text-lg font-semibold text-slate-900">${item.brand_name}</p>
-        <p class="text-sm text-slate-500">${item.generic_name || 'Generic'} • Stock ${item.stock}</p>
+        <div class="card-body p-3">
+          <p class="small text-uppercase text-secondary mb-2">${item.category}</p>
+          <p class="h6 mb-1 text-dark">${item.brand_name}</p>
+          <p class="small text-secondary mb-0">${item.generic_name || 'Generic'} � Stock ${item.stock}</p>
+        </div>
       `;
             inventoryBreakdown.appendChild(block);
         });

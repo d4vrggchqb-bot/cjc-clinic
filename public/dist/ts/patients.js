@@ -10,12 +10,12 @@ export async function loadPatientTable(profileType = 'all') {
         return;
     }
     body.innerHTML = rows.map((profile) => `
-    <tr class="border-b border-slate-100">
-      <td class="px-6 py-4 text-sm text-slate-700">${profile.id}</td>
-      <td class="px-6 py-4 text-sm font-semibold text-slate-900">${profile.name}</td>
-      <td class="px-6 py-4 text-sm text-slate-600">${profile.contact}</td>
-      <td class="px-6 py-4 text-sm text-slate-600">${profile.program_department}</td>
-      <td class="px-6 py-4 text-sm text-slate-600">${profile.blood_type}</td>
+    <tr class="border-bottom">
+      <td class="py-3 align-middle text-secondary">${profile.id}</td>
+      <td class="py-3 align-middle fw-semibold text-dark">${profile.name}</td>
+      <td class="py-3 align-middle text-secondary">${profile.contact}</td>
+      <td class="py-3 align-middle text-secondary">${profile.program_department}</td>
+      <td class="py-3 align-middle text-secondary">${profile.blood_type}</td>
     </tr>
   `).join('');
 }

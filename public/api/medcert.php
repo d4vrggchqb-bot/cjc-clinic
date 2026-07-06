@@ -44,12 +44,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 function generateMedCertPreview(array $payload, int $id): string
 {
     $issuedAt = date('F j, Y');
-    $preview = "<div class='space-y-4 text-sm text-slate-700'>";
-    $preview .= "<div class='border-b border-slate-200 pb-4'><p class='text-xs uppercase tracking-[0.24em] text-slate-400'>Official Medical Certificate</p><h2 class='mt-2 text-xl font-semibold text-slate-900'>CJC School Clinic</h2></div>";
-    $preview .= "<div class='space-y-2'><p><span class='font-semibold'>Patient:</span> " . cjcEscape($payload['issued_to']) . "</p><p><span class='font-semibold'>Provider:</span> " . cjcEscape($payload['issued_by']) . "</p><p><span class='font-semibold'>Date Issued:</span> {$issuedAt}</p><p><span class='font-semibold'>Valid Until:</span> " . cjcEscape($payload['valid_until']) . "</p></div>";
-    $preview .= "<div class='rounded-3xl border border-slate-200 bg-slate-50 p-4'><p class='text-slate-600'>" . nl2br(cjcEscape($payload['reason'])) . "</p></div>";
-    $preview .= "<div class='grid gap-4 md:grid-cols-2'><div class='rounded-3xl border border-slate-200 p-4'><p class='text-xs uppercase tracking-[0.24em] text-slate-400'>Signature</p><p class='mt-6 h-8 border-b border-slate-300'></p></div><div class='rounded-3xl border border-slate-200 p-4'><p class='text-xs uppercase tracking-[0.24em] text-slate-400'>Clinic Seal</p><div class='mt-6 h-20 rounded-3xl bg-white'></div></div></div>";
-    $preview .= "<p class='text-xs text-slate-400'>Certificate ID: MC-" . str_pad((string)$id, 5, '0', STR_PAD_LEFT) . "</p>";
+    $preview = "<div class='small text-secondary'>";
+    $preview .= "<div class='border-bottom border-secondary pb-3 mb-3'><p class='small text-uppercase text-secondary letter-spacing-2 mb-1'>Official Medical Certificate</p><h2 class='h5 fw-semibold mb-0 text-dark'>CJC School Clinic</h2></div>";
+    $preview .= "<div class='mb-3'><p><span class='fw-semibold text-dark'>Patient:</span> " . cjcEscape($payload['issued_to']) . "</p><p><span class='fw-semibold text-dark'>Provider:</span> " . cjcEscape($payload['issued_by']) . "</p><p><span class='fw-semibold text-dark'>Date Issued:</span> {$issuedAt}</p><p><span class='fw-semibold text-dark'>Valid Until:</span> " . cjcEscape($payload['valid_until']) . "</p></div>";
+    $preview .= "<div class='rounded-4 border border-secondary bg-light p-3 mb-3'><p class='text-secondary mb-0'>" . nl2br(cjcEscape($payload['reason'])) . "</p></div>";
+    $preview .= "<div class='row g-3 mb-3'><div class='col-md-6'><div class='rounded-4 border border-secondary p-3'><p class='small text-uppercase text-secondary mb-2 letter-spacing-2'>Signature</p><div class='mt-3 border-bottom border-secondary' style='min-height:2rem;'></div></div></div><div class='col-md-6'><div class='rounded-4 border border-secondary p-3'><p class='small text-uppercase text-secondary mb-2 letter-spacing-2'>Clinic Seal</p><div class='mt-3 rounded-4 bg-white' style='height:5rem;'></div></div></div></div>";
+    $preview .= "<p class='small text-secondary mb-0'>Certificate ID: MC-" . str_pad((string)$id, 5, '0', STR_PAD_LEFT) . "</p>";
     $preview .= "</div>";
     return $preview;
 }

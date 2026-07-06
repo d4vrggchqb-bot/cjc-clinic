@@ -10,16 +10,20 @@ export async function loadInventory(category: string = 'all'): Promise<void> {
   const listContainer = document.getElementById('inventoryList');
   if (listContainer) {
     listContainer.innerHTML = items.map((item) => `
-      <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p class="text-sm uppercase tracking-[0.24em] text-slate-500">${item.category}</p>
-            <p class="mt-1 text-lg font-semibold text-slate-900">${item.brand_name}</p>
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-body p-3">
+          <div class="row align-items-center gy-3 gx-4">
+            <div class="col">
+              <p class="small text-uppercase text-secondary mb-1">${item.category}</p>
+              <p class="h6 mb-1 text-dark">${item.brand_name}</p>
+            </div>
+            <div class="col-auto">
+              <p class="mb-0 small text-secondary">Stock: ${item.stock}</p>
+            </div>
           </div>
-          <p class="text-sm text-slate-600">Stock: ${item.stock}</p>
+          <p class="mt-3 mb-1 small text-secondary">Generic: ${item.generic_name || 'N/A'}</p>
+          <p class="mb-0 small text-secondary">Status: ${item.status}</p>
         </div>
-        <p class="mt-3 text-sm text-slate-500">Generic: ${item.generic_name || 'N/A'}</p>
-        <p class="mt-1 text-sm text-slate-500">Status: ${item.status}</p>
       </div>
     `).join('');
   }
@@ -28,17 +32,25 @@ export async function loadInventory(category: string = 'all'): Promise<void> {
   if (timelineContainer) {
     const requests = data.requests as RequestTimeline[];
     timelineContainer.innerHTML = requests.map((request) => `
-      <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p class="text-sm font-semibold text-slate-900">${request.item_name}</p>
-            <p class="text-sm text-slate-500">Requested: ${request.requested_date}</p>
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-body p-3">
+          <div class="row align-items-center gy-3 gx-4">
+            <div class="col">
+              <p class="mb-1 small fw-semibold text-dark">${request.item_name}</p>
+              <p class="mb-0 small text-secondary">Requested: ${request.requested_date}</p>
+            </div>
+            <div class="col-auto">
+              <span class="badge rounded-pill ${request.transit_status === 'delivered' ? 'badge-status-delivered' : request.transit_status === 'in transit' ? 'badge-status-in-transit' : 'badge-status-default'} text-uppercase small">${request.transit_status}</span>
+            </div>
           </div>
-          <span class="rounded-full ${request.transit_status === 'delivered' ? 'bg-emerald-100 text-emerald-700' : request.transit_status === 'in transit' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'} px-3 py-1 text-xs font-semibold uppercase">${request.transit_status}</span>
-        </div>
-        <div class="mt-3 grid gap-3 sm:grid-cols-2">
-          <p class="text-sm text-slate-500">Delivery date: ${request.delivery_date || 'TBD'}</p>
-          <p class="text-sm text-slate-500">Manifest: ${request.manifest_details || 'Pending details'}</p>
+          <div class="row mt-3 gx-3 gy-2">
+            <div class="col-sm-6">
+              <p class="mb-0 small text-secondary">Delivery date: ${request.delivery_date || 'TBD'}</p>
+            </div>
+            <div class="col-sm-6">
+              <p class="mb-0 small text-secondary">Manifest: ${request.manifest_details || 'Pending details'}</p>
+            </div>
+          </div>
         </div>
       </div>
     `).join('');

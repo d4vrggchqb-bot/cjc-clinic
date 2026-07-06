@@ -17,284 +17,289 @@ $staffRole = cjcEscape($user['role']);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CJC-Clinic+ Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="dist/app.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>body { font-family: 'Inter', sans-serif; }</style>
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-900">
-    <div class="flex min-h-screen">
-        <aside class="hidden w-96 flex-col bg-[#f44b38] px-8 py-10 text-white xl:flex">
-            <div class="flex items-center gap-4 border-b border-white/10 pb-8">
-                <img src="assets/logo.png" alt="CJC Logo" class="h-12 w-12 object-contain rounded-full border border-white/20 bg-white/10 p-1">
+<body class="min-vh-100 bg-light text-dark">
+    <div class="d-flex min-vh-100">
+        <aside class="d-none d-xl-flex flex-column bg-danger text-white p-4 sidebar-panel" style="width: 24rem;">
+            <div class="d-flex align-items-center gap-3 border-bottom border-white-25 pb-4 mb-4">
+                <img src="assets/logo.png" alt="CJC Logo" class="rounded-circle border border-white-25 bg-white-10 p-2" style="width: 3rem; height: 3rem; object-fit: contain;">
                 <div>
-                    <p class="text-sm uppercase tracking-[0.24em] text-slate-100/80">CJC Clinic+</p>
-                    <h1 class="text-2xl font-bold">CJC-Clinic+</h1>
+                    <p class="text-uppercase small text-white-75">CJC Clinic+</p>
+                    <h1 class="h4 fw-bold mb-0">CJC-Clinic+</h1>
                 </div>
             </div>
-            <nav class="mt-10 space-y-3">
-                <button data-view="dashboard" class="w-full rounded-3xl bg-white px-5 py-4 text-left text-slate-900 shadow-sm transition hover:bg-slate-100">📊 Dashboard</button>
-                <button data-view="patients" class="w-full rounded-3xl bg-white/10 px-5 py-4 text-left text-slate-100 transition hover:bg-white/15">👥 Patient List</button>
-                <button data-view="consultations" class="w-full rounded-3xl bg-white/10 px-5 py-4 text-left text-slate-100 transition hover:bg-white/15">🩺 Consultation</button>
-                <button data-view="history" class="w-full rounded-3xl bg-white/10 px-5 py-4 text-left text-slate-100 transition hover:bg-white/15">📄 Visitation History</button>
-                <button data-view="inventory" class="w-full rounded-3xl bg-white/10 px-5 py-4 text-left text-slate-100 transition hover:bg-white/15">📦 Inventory</button>
+            <nav class="nav flex-column gap-3 mb-4 sidebar-nav">
+                <button data-view="dashboard" class="btn btn-light text-dark rounded-4 text-start py-3">📊 Dashboard</button>
+                <button data-view="patients" class="btn btn-outline-light text-white rounded-4 text-start py-3">👥 Patient List</button>
+                <button data-view="consultations" class="btn btn-outline-light text-white rounded-4 text-start py-3">🩺 Consultation</button>
+                <button data-view="history" class="btn btn-outline-light text-white rounded-4 text-start py-3">📄 Visitation History</button>
+                <button data-view="inventory" class="btn btn-outline-light text-white rounded-4 text-start py-3">📦 Inventory</button>
             </nav>
-            <div class="mt-auto rounded-3xl border border-white/15 bg-white/10 p-5 text-sm text-white/90 shadow-sm">
-                <p class="text-xs uppercase tracking-[0.24em] text-white/60">Signed in as</p>
-                <p class="mt-2 font-semibold"><?php echo $staffName; ?></p>
-                <p class="text-slate-100/80"><?php echo $staffRole; ?></p>
+            <div class="mt-auto rounded-4 border border-white-25 bg-white-10 p-4 text-sm text-white-75 shadow-sm">
+                <p class="text-uppercase small text-white-50 mb-1">Signed in as</p>
+                <p class="fw-semibold mb-1"><?php echo $staffName; ?></p>
+                <p class="small text-white-75"><?php echo $staffRole; ?></p>
             </div>
         </aside>
 
-        <main class="flex-1 px-6 py-6 xl:px-10">
-            <header class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <main class="flex-fill px-4 py-4 px-xl-5">
+            <header class="mb-5 d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-3">
                 <div>
-                    <h2 class="text-3xl font-semibold tracking-tight text-slate-900">Dashboard</h2>
-                    <p class="mt-2 text-sm text-slate-500">Overview of clinic activity</p>
+                    <h2 class="h2 fw-semibold mb-1">Dashboard</h2>
+                    <p class="text-secondary mb-0">Overview of clinic activity</p>
                 </div>
-                <div class="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                    <div class="rounded-2xl bg-slate-100 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-500">Attending Staff</div>
-                    <div class="flex items-center gap-3">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f44b38]/10 text-[#f44b38]">MS</div>
+                <div class="d-flex align-items-center gap-3 rounded-4 border border-secondary bg-white px-3 py-2 shadow-sm">
+                    <div class="rounded-4 bg-light px-3 py-2 text-uppercase small text-secondary">Attending Staff</div>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="d-flex align-items-center justify-content-center rounded-4" style="width:3rem;height:3rem;background-color:rgba(244,75,56,.1);color:#f44b38;">MS</div>
                         <div>
-                            <p class="text-sm font-semibold"><?php echo $staffName; ?></p>
-                            <p class="text-xs text-slate-500"><?php echo $staffRole; ?></p>
+                            <p class="mb-0 fw-semibold"><?php echo $staffName; ?></p>
+                            <p class="small text-secondary"><?php echo $staffRole; ?></p>
                         </div>
                     </div>
                 </div>
             </header>
 
-            <section id="dashboardView" class="space-y-6">
-                <div class="grid gap-4 xl:grid-cols-5">
-                    <article class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                        <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Today's Visits</p>
-                        <p id="metricVisits" class="mt-4 text-3xl font-semibold text-slate-900">0</p>
-                    </article>
-                    <article class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                        <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Active Consultations</p>
-                        <p id="metricConsultations" class="mt-4 text-3xl font-semibold text-slate-900">0</p>
-                    </article>
-                    <article class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                        <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Low Stock Items</p>
-                        <p id="metricLowStock" class="mt-4 text-3xl font-semibold text-slate-900">0</p>
-                    </article>
-                    <article class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                        <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Expired Items</p>
-                        <p id="metricExpired" class="mt-4 text-3xl font-semibold text-slate-900">0</p>
-                    </article>
-                    <article class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                        <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Issued MedCerts</p>
-                        <p id="metricMedCerts" class="mt-4 text-3xl font-semibold text-slate-900">0</p>
-                    </article>
-                </div>
-
-                <div class="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-                    <div class="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                        <div class="mb-5 flex items-center justify-between">
-                            <div>
-                                <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Active Consultation Feed</p>
-                                <h3 class="mt-2 text-xl font-semibold text-slate-900">Patient care snapshot</h3>
+            <section id="dashboardView" class="mb-5">
+                <div class="row g-4 mb-4 dashboard-metrics">
+                    <div class="col-sm-6 col-xl-2">
+                        <div class="card border-0 shadow-sm rounded-4 h-100 hero-panel">
+                            <div class="card-body">
+                                <p class="small text-uppercase text-secondary mb-2">Today's Visits</p>
+                                <p id="metricVisits" class="h3 fw-semibold mb-0 text-dark">0</p>
                             </div>
                         </div>
-                        <div id="activeConsultations" class="space-y-4"></div>
                     </div>
-                    <div class="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                        <div class="mb-5">
-                            <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Inventory Breakdown</p>
-                            <h3 class="mt-2 text-xl font-semibold text-slate-900">Stock levels by category</h3>
+                    <div class="col-sm-6 col-xl-2">
+                        <div class="card border-0 shadow-sm rounded-4 h-100">
+                            <div class="card-body">
+                                <p class="small text-uppercase text-secondary mb-2">Active Consultations</p>
+                                <p id="metricConsultations" class="h3 fw-semibold mb-0 text-dark">0</p>
+                            </div>
                         </div>
-                        <div id="inventoryBreakdown" class="space-y-4"></div>
+                    </div>
+                    <div class="col-sm-6 col-xl-2">
+                        <div class="card border-0 shadow-sm rounded-4 h-100">
+                            <div class="card-body">
+                                <p class="small text-uppercase text-secondary mb-2">Low Stock Items</p>
+                                <p id="metricLowStock" class="h3 fw-semibold mb-0 text-dark">0</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-2">
+                        <div class="card border-0 shadow-sm rounded-4 h-100">
+                            <div class="card-body">
+                                <p class="small text-uppercase text-secondary mb-2">Expired Items</p>
+                                <p id="metricExpired" class="h3 fw-semibold mb-0 text-dark">0</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-2">
+                        <div class="card border-0 shadow-sm rounded-4 h-100">
+                            <div class="card-body">
+                                <p class="small text-uppercase text-secondary mb-2">Issued MedCerts</p>
+                                <p id="metricMedCerts" class="h3 fw-semibold mb-0 text-dark">0</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card border-0 shadow-sm rounded-4 hero-panel">
+                            <div class="card-body">
+                                <div class="mb-4">
+                                    <p class="small text-uppercase text-secondary mb-1">Active Consultation Feed</p>
+                                    <h3 class="h5 mb-0 text-dark">Patient care snapshot</h3>
+                                </div>
+                                <div id="activeConsultations" class="row g-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card border-0 shadow-sm rounded-4 h-100 hero-panel">
+                            <div class="card-body">
+                                <div class="mb-4">
+                                    <p class="small text-uppercase text-secondary mb-1">Inventory Breakdown</p>
+                                    <h3 class="h5 mb-0 text-dark">Stock levels by category</h3>
+                                </div>
+                                <div id="inventoryBreakdown" class="row g-3"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            <section id="patientsView" class="hidden space-y-6">
-                <div class="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Patient Profiles</p>
-                            <h3 class="mt-2 text-2xl font-semibold text-slate-900">Students & Employees</h3>
-                        </div>
-                        <div class="inline-flex items-center gap-3 rounded-2xl bg-slate-100 p-3 text-sm text-slate-600">
-                            <span class="font-semibold">Filter</span>
-                            <select id="patientTypeFilter" class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10">
-                                <option value="all">All Profiles</option>
-                                <option value="student">Students</option>
-                                <option value="employee">Employees</option>
-                            </select>
+            <section id="patientsView" class="d-none">
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-body">
+                        <div class="row align-items-center gy-3">
+                            <div class="col-md-8">
+                                <p class="small text-uppercase text-secondary mb-1">Patient Profiles</p>
+                                <h3 class="h5 mb-0 text-dark">Students & Employees</h3>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <label class="small text-secondary me-2 mb-1 d-inline-block">Filter</label>
+                                <select id="patientTypeFilter" class="form-select d-inline-block w-auto rounded-4">
+                                    <option value="all">All Profiles</option>
+                                    <option value="student">Students</option>
+                                    <option value="employee">Employees</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    <div class="overflow-hidden rounded-3xl border border-slate-200">
-                        <table class="min-w-full divide-y divide-slate-200 text-sm">
-                            <thead class="bg-slate-50 text-left text-slate-500">
+                </div>
+                <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+                    <div class="table-responsive">
+                        <table class="table mb-0">
+                            <thead class="table-light text-secondary small text-uppercase">
                                 <tr>
-                                    <th class="px-6 py-4">ID</th>
-                                    <th class="px-6 py-4">Name</th>
-                                    <th class="px-6 py-4">Contact</th>
-                                    <th class="px-6 py-4">Program / Department</th>
-                                    <th class="px-6 py-4">Blood Type</th>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Contact</th>
+                                    <th>Program / Department</th>
+                                    <th>Blood Type</th>
                                 </tr>
                             </thead>
-                            <tbody id="patientTableBody" class="divide-y divide-slate-100 bg-white"></tbody>
+                            <tbody id="patientTableBody"></tbody>
                         </table>
                     </div>
-                    <div class="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-6 text-slate-500">
-                        <p class="font-semibold text-slate-800">Attachment Upload Zone</p>
-                        <p class="mt-2 text-sm">Drag and drop patient PDFs or images here to store consultation documents and lab summaries.</p>
-                        <form id="patientUploadForm" class="mt-4 flex flex-col gap-3 sm:flex-row">
-                            <input id="patientUploadFile" name="attachment" type="file" accept="application/pdf,image/*" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 outline-none" />
-                            <button type="submit" class="w-full rounded-2xl bg-[#f44b38] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#d03c2f]">Upload File</button>
-                        </form>
-                        <p id="patientUploadStatus" class="mt-3 text-xs text-slate-400"></p>
-                    </div>
+                </div>
+                <div class="card border-0 shadow-sm rounded-4 p-4 bg-light text-secondary mb-4">
+                    <p class="fw-semibold text-dark">Attachment Upload Zone</p>
+                    <p class="mb-3 small">Drag and drop patient PDFs or images here to store consultation documents and lab summaries.</p>
+                    <form id="patientUploadForm" class="row g-3">
+                        <div class="col-12 col-sm-8">
+                            <input id="patientUploadFile" name="attachment" type="file" accept="application/pdf,image/*" class="form-control rounded-4" />
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <button type="submit" class="btn brand-btn w-100 rounded-4">Upload File</button>
+                        </div>
+                    </form>
+                    <p id="patientUploadStatus" class="mt-3 small"></p>
                 </div>
             </section>
 
-            <section id="consultationsView" class="hidden space-y-6">
-                <div class="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                    <div class="mb-5">
-                        <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Prescription & Consultation Logs</p>
-                        <h3 class="mt-2 text-2xl font-semibold text-slate-900">Active medical workflows</h3>
-                    </div>
-                    <div id="consultationFeed" class="space-y-4"></div>
-                </div>
-                <div class="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
-                    <div class="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                        <div class="mb-5">
-                            <p class="text-sm uppercase tracking-[0.24em] text-slate-400">E-MedCert Workspace</p>
-                            <h3 class="mt-2 text-2xl font-semibold text-slate-900">Generate certificates</h3>
-                        </div>
-                        <form id="medcertForm" class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-slate-600">Patient Name</label>
-                                <input name="issued_to" required class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10" />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-600">Provider</label>
-                                <input name="issued_by" required class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10" value="<?php echo $staffName; ?>" />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-600">Reason</label>
-                                <textarea name="reason" required rows="4" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10"></textarea>
-                            </div>
-                            <div class="grid gap-4 sm:grid-cols-2">
-                                <div>
-                                    <label class="block text-sm font-medium text-slate-600">Valid Until</label>
-                                    <input type="date" name="valid_until" required class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10" />
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-slate-600">Profile ID</label>
-                                    <input name="profile_id" type="number" required class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10" placeholder="e.g. 1" />
-                                </div>
-                            </div>
-                            <button type="submit" class="w-full rounded-2xl bg-[#f44b38] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#d03c2f]">Generate Certificate</button>
-                        </form>
-                        <p id="medcertStatus" class="mt-3 text-sm text-slate-500"></p>
-                    </div>
-                    <div class="rounded-3xl border border-slate-100 bg-slate-50 p-6 shadow-sm">
-                        <div class="mb-5">
-                            <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Live Certificate Preview</p>
-                            <h3 class="mt-2 text-2xl font-semibold text-slate-900">Official layout</h3>
-                        </div>
-                        <div id="medcertPreview" class="rounded-3xl border border-slate-200 bg-white p-6 text-slate-700 shadow-sm">
-                            <p class="text-sm text-slate-500">Fill in the form to preview an official medical certificate here.</p>
-                        </div>
+            <section id="consultationsView" class="d-none">
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-body">
+                        <p class="small text-uppercase text-secondary mb-1">Prescription & Consultation Logs</p>
+                        <h3 class="h5 mb-0 text-dark">Active medical workflows</h3>
+                        <div id="consultationFeed" class="mt-3 row g-3"></div>
                     </div>
                 </div>
-            </section>
-
-            <section id="historyView" class="hidden space-y-6">
-                <div class="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                    <div class="mb-5">
-                        <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Visitation History</p>
-                        <h3 class="mt-2 text-2xl font-semibold text-slate-900">Records by date</h3>
-                    </div>
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                            <p class="text-sm text-slate-500">Recent visits</p>
-                            <p class="mt-3 text-3xl font-semibold text-slate-900">28</p>
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="card border-0 shadow-sm rounded-4">
+                            <div class="card-body">
+                                <p class="small text-uppercase text-secondary mb-1">E-MedCert Workspace</p>
+                                <h3 class="h5 mb-4 text-dark">Generate certificates</h3>
+                                <form id="medcertForm" class="row g-3">
+                                    <div class="col-12">
+                                        <label class="form-label">Patient Name</label>
+                                        <input name="issued_to" required class="form-control rounded-4" />
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Provider</label>
+                                        <input name="issued_by" required class="form-control rounded-4" value="<?php echo $staffName; ?>" />
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Reason</label>
+                                        <textarea name="reason" required rows="4" class="form-control rounded-4"></textarea>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label">Valid Until</label>
+                                        <input type="date" name="valid_until" required class="form-control rounded-4" />
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label">Profile ID</label>
+                                        <input name="profile_id" type="number" required class="form-control rounded-4" placeholder="e.g. 1" />
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="submit" class="btn brand-btn w-100 rounded-4">Generate Certificate</button>
+                                    </div>
+                                </form>
+                                <p id="medcertStatus" class="mt-3 small text-secondary"></p>
+                            </div>
                         </div>
-                        <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                            <p class="text-sm text-slate-500">Follow-ups</p>
-                            <p class="mt-3 text-3xl font-semibold text-slate-900">6</p>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card border-0 shadow-sm rounded-4 h-100">
+                            <div class="card-body">
+                                <p class="small text-uppercase text-secondary mb-1">Live Certificate Preview</p>
+                                <h3 class="h5 mb-4 text-dark">Official layout</h3>
+                                <div id="medcertPreview" class="border rounded-4 p-4 bg-white text-secondary">
+                                    <p class="small mb-0">Fill in the form to preview an official medical certificate here.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <section id="inventoryView" class="hidden space-y-6">
-                <div class="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Inventory Catalog</p>
-                            <h3 class="mt-2 text-2xl font-semibold text-slate-900">Medicines, Supplies & Equipment</h3>
-                        </div>
-                        <div class="grid gap-3 sm:grid-cols-3">
-                            <select id="inventoryCategoryFilter" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10">
-                                <option value="all">All Categories</option>
-                                <option value="medicine">Medicines</option>
-                                <option value="supply">Supplies</option>
-                                <option value="equipment">Equipment</option>
-                            </select>
+            <section id="historyView" class="d-none">
+                <div class="card border-0 shadow-sm rounded-4">
+                    <div class="card-body">
+                        <p class="small text-uppercase text-secondary mb-1">Visitation History</p>
+                        <h3 class="h5 mb-4 text-dark">Records by date</h3>
+                        <div class="row g-4">
+                            <div class="col-sm-6">
+                                <div class="card rounded-4 border-0 bg-light h-100">
+                                    <div class="card-body">
+                                        <p class="small text-secondary mb-1">Recent visits</p>
+                                        <p class="h3 fw-semibold mb-0 text-dark">28</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="card rounded-4 border-0 bg-light h-100">
+                                    <div class="card-body">
+                                        <p class="small text-secondary mb-1">Follow-ups</p>
+                                        <p class="h3 fw-semibold mb-0 text-dark">6</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div id="inventoryList" class="space-y-4"></div>
                 </div>
-                <div class="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                    <div class="mb-5">
-                        <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Purchase Request Timeline</p>
-                        <h3 class="mt-2 text-2xl font-semibold text-slate-900">Delivery status and manifests</h3>
+            </section>
+
+            <section id="inventoryView" class="d-none">
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-body">
+                        <div class="row align-items-center gy-3">
+                            <div class="col-md-8">
+                                <p class="small text-uppercase text-secondary mb-1">Inventory Catalog</p>
+                                <h3 class="h5 mb-0 text-dark">Medicines, Supplies & Equipment</h3>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <select id="inventoryCategoryFilter" class="form-select rounded-4 w-auto d-inline-block"> 
+                                    <option value="all">All Categories</option>
+                                    <option value="medicine">Medicines</option>
+                                    <option value="supply">Supplies</option>
+                                    <option value="equipment">Equipment</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <div id="timelineRequests" class="space-y-4"></div>
+                </div>
+                <div id="inventoryList" class="row g-3 mb-4"></div>
+                <div class="card border-0 shadow-sm rounded-4">
+                    <div class="card-body">
+                        <p class="small text-uppercase text-secondary mb-1">Purchase Request Timeline</p>
+                        <h3 class="h5 mb-0 text-dark">Delivery status and manifests</h3>
+                        <div id="timelineRequests" class="row g-3 mt-3"></div>
+                    </div>
                 </div>
             </section>
 
-            <section id="medcertView" class="hidden space-y-6">
-                <div class="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
-                    <div class="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                        <div class="mb-5">
-                            <p class="text-sm uppercase tracking-[0.24em] text-slate-400">E-MedCert Workspace</p>
-                            <h3 class="mt-2 text-2xl font-semibold text-slate-900">Generate certificates</h3>
-                        </div>
-                        <form id="medcertForm" class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-slate-600">Patient Name</label>
-                                <input name="issued_to" required class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10" />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-600">Provider</label>
-                                <input name="issued_by" required class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10" value="<?php echo $staffName; ?>" />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-600">Reason</label>
-                                <textarea name="reason" required rows="4" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10"></textarea>
-                            </div>
-                            <div class="grid gap-4 sm:grid-cols-2">
-                                <div>
-                                    <label class="block text-sm font-medium text-slate-600">Valid Until</label>
-                                    <input type="date" name="valid_until" required class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10" />
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-slate-600">Profile ID</label>
-                                    <input name="profile_id" type="number" required class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#f44b38] focus:ring-2 focus:ring-[#f44b38]/10" placeholder="e.g. 1" />
-                                </div>
-                            </div>
-                            <button type="submit" class="w-full rounded-2xl bg-[#f44b38] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#d03c2f]">Generate Certificate</button>
-                        </form>
-                        <p id="medcertStatus" class="mt-3 text-sm text-slate-500"></p>
-                    </div>
-                    <div class="rounded-3xl border border-slate-100 bg-slate-50 p-6 shadow-sm">
-                        <div class="mb-5">
-                            <p class="text-sm uppercase tracking-[0.24em] text-slate-400">Live Certificate Preview</p>
-                            <h3 class="mt-2 text-2xl font-semibold text-slate-900">Official layout</h3>
-                        </div>
-                        <div id="medcertPreview" class="rounded-3xl border border-slate-200 bg-white p-6 text-slate-700 shadow-sm">
-                            <p class="text-sm text-slate-500">Fill in the form to preview an official medical certificate here.</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <section id="medcertView" class="d-none"></section>
         </main>
     </div>
     <script>

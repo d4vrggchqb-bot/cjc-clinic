@@ -15,16 +15,16 @@ async function updateInventory(category = 'all') {
 }
 function setActiveView(viewId) {
     views.forEach((view) => {
-        view.classList.toggle('hidden', view.id !== `${viewId}View`);
+        view.classList.toggle('d-none', view.id !== `${viewId}View`);
     });
     tabs.forEach((button) => {
         if (button.dataset.view === viewId) {
-            button.classList.add('bg-white', 'text-slate-900');
-            button.classList.remove('bg-white/10', 'text-slate-100');
+            button.classList.add('btn-light', 'text-dark');
+            button.classList.remove('btn-outline-light', 'text-white');
         }
         else {
-            button.classList.remove('bg-white', 'text-slate-900');
-            button.classList.add('bg-white/10', 'text-slate-100');
+            button.classList.remove('btn-light', 'text-dark');
+            button.classList.add('btn-outline-light', 'text-white');
         }
     });
 }
