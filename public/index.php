@@ -24,178 +24,213 @@ $currentUser = $_SESSION['cjc_user'];
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f2f2f2;
+            background-color: #f8fafc;
+            color: #1e293b;
         }
 
         .app-shell {
             min-height: 100vh;
         }
 
-        /* Sidebar */
+        /* Sidebar styling */
         .sidebar {
-            width: 240px;
-            background-color: #8b0000;
-            padding: 2rem 1rem;
+            width: 260px;
+            background: linear-gradient(180deg, #800016 0%, #5c0010 100%);
+            padding: 2.5rem 1.25rem;
             flex-shrink: 0;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
         }
 
         .sidebar .brand-logo {
-            width: 4.25rem;
-            height: 4.25rem;
+            width: 4.5rem;
+            height: 4.5rem;
             object-fit: contain;
             background: #ffffff;
             border-radius: 50%;
-            padding: 0.35rem;
+            padding: 0.4rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
         .sidebar .brand-title {
             color: #ffffff;
-            font-weight: 700;
-            font-size: 1.25rem;
-            margin-top: 0.75rem;
+            font-weight: 800;
+            font-size: 1.4rem;
+            margin-top: 1rem;
+            letter-spacing: -0.02em;
         }
 
         .sidebar .brand-title sup {
-            font-size: 0.55em;
-            top: -0.6em;
+            font-size: 0.6em;
+            color: #ffa3b1;
+            font-weight: 600;
         }
 
         .sidebar .brand-subtitle {
-            color: rgba(255, 255, 255, 0.85);
-            font-size: 0.62rem;
-            letter-spacing: 0.02em;
+            color: rgba(255, 255, 255, 0.75);
+            font-size: 0.68rem;
+            font-weight: 500;
+            line-height: 1.4;
+            margin-top: 0.25rem;
         }
 
         .sidebar-divider {
-            border-top: 1px solid rgba(255, 255, 255, 0.35);
-            margin: 1rem 0 1.25rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            margin: 1.5rem 0;
         }
 
         .nav-pill {
             display: flex;
             align-items: center;
-            gap: 0.6rem;
+            gap: 0.75rem;
             width: 100%;
-            border: none;
-            text-align: left;
-            padding: 0.65rem 1rem;
-            border-radius: 0.6rem;
-            margin-bottom: 0.6rem;
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.03em;
+            padding: 0.8rem 1.2rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
             text-decoration: none;
-            background-color: #c31d3a;
+            color: rgba(255, 255, 255, 0.8);
+            transition: all 0.2s ease;
+        }
+
+        .nav-pill:hover {
+            background-color: rgba(255, 255, 255, 0.1);
             color: #ffffff;
         }
 
         .nav-pill .bullet {
-            width: 0.6rem;
-            height: 0.6rem;
+            width: 0.4rem;
+            height: 0.4rem;
             border-radius: 50%;
-            background-color: rgba(255, 255, 255, 0.85);
+            background-color: rgba(255, 255, 255, 0.4);
+            transition: all 0.2s ease;
             flex-shrink: 0;
+        }
+
+        .nav-pill:hover .bullet {
+            background-color: #ffffff;
         }
 
         .nav-pill.active {
             background-color: #ffffff;
-            color: #c31d3a;
+            color: #800016;
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .nav-pill.active .bullet {
-            background-color: #d9d9d9;
+            background-color: #800016;
         }
 
-        /* Main content */
+        /* Main Content Layout */
         .main-content {
             flex: 1;
-            padding: 2rem 2.5rem;
+            padding: 2.5rem 3rem;
+            max-width: 1400px;
         }
 
         .page-title {
-            color: #c1123f;
-            font-weight: 700;
+            color: #0f172a;
+            font-weight: 800;
+            letter-spacing: -0.02em;
         }
 
         .page-subtitle {
-            color: #9aa0a6;
+            color: #64748b;
+            font-weight: 500;
         }
 
+        /* Metric Cards */
         .metric-card {
             background-color: #ffffff;
-            border-radius: 0.6rem;
-            padding: 1rem 0.75rem;
+            border-radius: 0.75rem;
+            padding: 1.5rem 1rem;
             text-align: center;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
 
         .metric-label {
-            font-size: 0.6rem;
+            font-size: 0.68rem;
             text-transform: uppercase;
-            letter-spacing: 0.03em;
-            color: #9aa0a6;
-            font-weight: 600;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            font-weight: 700;
         }
 
         .metric-value {
-            font-size: 1.6rem;
-            font-weight: 700;
-            margin: 0.25rem 0;
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 0.35rem 0;
+            letter-spacing: -0.03em;
         }
 
         .metric-sub {
-            font-size: 0.62rem;
-            color: #b5b8bc;
+            font-size: 0.72rem;
+            color: #94a3b8;
+            font-weight: 500;
         }
 
+        /* Metric Colors Variants */
         .metric-visits {
-            color: #c94f6a;
+            color: #dc2626;
         }
 
         .metric-consultations {
-            color: #4f8fdd;
+            color: #2563eb;
         }
 
         .metric-lowstock {
-            color: #e37a3f;
+            color: #ea580c;
         }
 
         .metric-expired {
-            color: #c98fb4;
+            color: #9333ea;
         }
 
         .metric-medcerts {
-            color: #6f7376;
+            color: #475569;
         }
 
+        /* Panels styling */
         .dashboard-panel {
             background-color: #ffffff;
-            border-radius: 0.6rem;
-            min-height: 80px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            border-radius: 0.75rem;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
         }
 
         .dashboard-list-card {
-            background-color: #f8f8f9;
+            background-color: #f8fafc;
             border-radius: 0.5rem;
+            border: 1px solid #e2e8f0;
         }
 
         .status-pill {
-            background-color: #fdecef;
-            color: #c1123f;
-            font-size: 0.68rem;
+            background-color: #fee2e2;
+            color: #991b1b;
+            font-size: 0.72rem;
             font-weight: 600;
-            padding: 0.25rem 0.65rem;
+            padding: 0.25rem 0.75rem;
             border-radius: 999px;
             white-space: nowrap;
         }
 
         .stock-pill {
-            background-color: #eef2f7;
-            color: #4f6f96;
-            font-size: 0.68rem;
+            background-color: #f1f5f9;
+            color: #334155;
+            font-size: 0.72rem;
             font-weight: 600;
-            padding: 0.25rem 0.65rem;
+            padding: 0.25rem 0.75rem;
             border-radius: 999px;
             white-space: nowrap;
         }
@@ -207,9 +242,9 @@ $currentUser = $_SESSION['cjc_user'];
         <aside class="sidebar text-center">
             <img src="assets/logo.png" alt="CJC Logo" class="brand-logo mx-auto d-block">
             <h1 class="brand-title mb-0">CJC-Clinic<sup>+</sup></h1>
-            <p class="brand-subtitle mb-0">Clinic Patient Records System and Inventory</p>
+            <p class="brand-subtitle mb-0">Clinic Patient Records System<br>and Inventory</p>
             <div class="sidebar-divider"></div>
-            <nav>
+            <nav class="w-100">
                 <a href="index.php" class="nav-pill active"><span class="bullet"></span>DASHBOARD</a>
                 <a href="patients.php" class="nav-pill"><span class="bullet"></span>PATIENT LIST</a>
                 <a href="consultation.php" class="nav-pill"><span class="bullet"></span>CONSULTATION</a>
@@ -219,10 +254,12 @@ $currentUser = $_SESSION['cjc_user'];
         </aside>
 
         <main class="main-content">
-            <h2 class="page-title mb-0">Dashboard</h2>
-            <p class="page-subtitle small mb-4">Overview of clinic activity</p>
+            <div class="mb-4">
+                <h2 class="page-title mb-1">Dashboard</h2>
+                <p class="page-subtitle small mb-0">Overview of clinic activity</p>
+            </div>
 
-            <div class="row g-3 mb-4">
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-5 g-4 mb-4">
                 <div class="col">
                     <div class="metric-card">
                         <div class="metric-label">Today's Patient Visits</div>
@@ -260,8 +297,8 @@ $currentUser = $_SESSION['cjc_user'];
                 </div>
             </div>
 
-            <div class="dashboard-panel p-3 mb-3" id="activeConsultations"></div>
-            <div class="dashboard-panel p-3" id="inventoryBreakdown"></div>
+            <div class="dashboard-panel p-4 mb-4" id="activeConsultations"></div>
+            <div class="dashboard-panel p-4" id="inventoryBreakdown"></div>
         </main>
     </div>
 
