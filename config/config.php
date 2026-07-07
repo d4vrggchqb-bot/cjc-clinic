@@ -6,7 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 const CJC_SESSION_TIMEOUT = 1800; // 30 minutes
 const CJC_BASE_URL = '/';
 const CJC_UPLOAD_DIR = __DIR__ . '/../public/uploads';
-const CJC_BRAND_COLOR = '#f44b38';
+const CJC_BRAND_COLOR = '#f26b4a';
 
 function cjcSessionValidate(): void
 {

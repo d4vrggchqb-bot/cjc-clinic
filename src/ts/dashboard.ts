@@ -25,16 +25,14 @@ export async function renderDashboard(): Promise<void> {
     ];
     active.forEach((item: any) => {
       const node = document.createElement('div');
-      node.className = 'card border-0 shadow-sm rounded-4 mb-3';
+      node.className = 'dashboard-list-card mb-3 p-3';
       node.innerHTML = `
-        <div class="card-body p-3">
-          <div class="d-flex align-items-start justify-content-between gap-3">
-            <div>
-              <p class="mb-1 small fw-semibold text-dark">${item.title}</p>
-              <p class="mb-0 small text-secondary">Provider: ${item.provider}</p>
-            </div>
-            <span class="badge rounded-pill bg-light text-dark">${item.status}</span>
+        <div class="d-flex align-items-start justify-content-between gap-3">
+          <div>
+            <p class="mb-1 small fw-semibold text-dark">${item.title}</p>
+            <p class="mb-0 small text-secondary">Provider: ${item.provider}</p>
           </div>
+          <span class="status-pill">${item.status}</span>
         </div>
       `;
       consultationsContainer.appendChild(node);
@@ -46,12 +44,15 @@ export async function renderDashboard(): Promise<void> {
     inventoryBreakdown.innerHTML = '';
     (data.items ?? []).slice(0, 3).forEach((item: Medicine) => {
       const block = document.createElement('div');
-      block.className = 'card border-0 shadow-sm rounded-4 mb-3';
+      block.className = 'dashboard-list-card mb-3 p-3';
       block.innerHTML = `
-        <div class="card-body p-3">
-          <p class="small text-uppercase text-secondary mb-2">${item.category}</p>
-          <p class="h6 mb-1 text-dark">${item.brand_name}</p>
-          <p class="small text-secondary mb-0">${item.generic_name || 'Generic'} • Stock ${item.stock}</p>
+        <div class="d-flex align-items-start justify-content-between gap-3">
+          <div>
+            <p class="small text-uppercase text-secondary mb-2">${item.category}</p>
+            <p class="h6 mb-1 text-dark">${item.brand_name}</p>
+            <p class="small text-secondary mb-0">${item.generic_name || 'Generic'} â€¢ Stock ${item.stock}</p>
+          </div>
+          <span class="stock-pill">${item.stock} in stock</span>
         </div>
       `;
       inventoryBreakdown.appendChild(block);

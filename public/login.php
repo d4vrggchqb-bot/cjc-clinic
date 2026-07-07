@@ -58,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -68,39 +69,125 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="dist/app.css">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .auth-shell {
+            background-color: #ffffff;
+        }
+
+        .auth-left {
+            background-color: #ffffff;
+        }
+
+        .brand-title {
+            color: #c1123f;
+            font-weight: 700;
+        }
+
+        .brand-title sup {
+            color: #c1123f;
+            font-size: 0.55em;
+            top: -0.6em;
+        }
+
+        .brand-subtitle {
+            color: #2b2f42;
+            letter-spacing: 0.06em;
+        }
+
+        .brand-divider {
+            border-top: 1px solid #dcdde1;
+        }
+
+        .brand-credits {
+            color: #6c757d;
+        }
+
+        .brand-credits .credit-names {
+            font-size: 0.72rem;
+        }
+
+        .brand-credits .credit-origin {
+            font-size: 0.62rem;
+            font-style: italic;
+        }
+
+        .auth-right {
+            background-color: #f4f6f8;
+        }
+
+        .hero-panel {
+            border: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+        }
+
+        .hero-panel h2 {
+            color: #c1123f;
+            font-weight: 700;
+        }
+
+        .brand-btn {
+            background-color: #c1123f;
+            border-color: #c1123f;
+            color: #ffffff;
+        }
+
+        .brand-btn:hover {
+            background-color: #a30f36;
+            border-color: #a30f36;
+            color: #ffffff;
+        }
+
+        .footer-copy {
+            color: #9aa0a6;
+            font-size: 0.72rem;
+        }
     </style>
 </head>
-<body class="min-vh-100 bg-light text-dark">
-    <div class="container-fluid min-vh-100 d-flex p-0">
-        <section class="d-none d-lg-flex col-lg-6 align-items-center justify-content-center bg-white p-5">
-            <div class="text-center" style="max-width: 520px;">
-                <img src="assets/logo.png" alt="CJC Logo" class="mx-auto d-block mb-4" style="width: 12rem; height: 12rem; object-fit: contain;">
-                <h1 class="display-5 fw-bold text-danger">CJC-Clinic+</h1>
-                <p class="mt-3 text-secondary text-uppercase small letter-spacing-2">Clinic Patient Records System and Inventory</p>
-                <div class="my-4 border-top border-secondary opacity-25"></div>
-                <p class="text-muted small">A polished, responsive prototype for secure student and staff clinic interactions.</p>
+
+<body class="min-vh-100 bg-white text-dark">
+    <div class="auth-shell container-fluid min-vh-100 d-flex p-0">
+        <section class="d-none d-lg-flex col-lg-6 align-items-center justify-content-center auth-left p-5">
+            <div class="text-center" style="max-width: 480px;">
+                <img src="assets/logo.png" alt="CJC Logo" class="mx-auto d-block mb-3"
+                    style="width: 11rem; height: 11rem; object-fit: contain;">
+                <h1 class="display-5 brand-title mb-0">CJC-Clinic<sup>+</sup></h1>
+                <p class="mt-3 text-uppercase small brand-subtitle">Clinic Patient Records System and Inventory</p>
+                <div class="my-4 brand-divider"></div>
+                <div class="brand-credits">
+                    <div class="credit-names">Powered by</div>
+                    <div class="credit-names fw-semibold">Rhea Balatero &amp; John Mark Limsan</div>
+                    <div class="credit-origin mt-1">
+                        <!-- Best-effort transcription from the screenshot; please confirm/correct these names -->
+                        Originally conceived and developed by Margarilyn Zosa, Elgin Manlisig
+                    </div>
+                </div>
             </div>
         </section>
 
-        <section class="d-flex align-items-center justify-content-center bg-light p-5 col-12 col-lg-6">
-            <div class="card shadow-lg hero-panel rounded-4 w-100" style="max-width: 32rem;">
+        <section class="d-flex flex-column align-items-center justify-content-center auth-right p-5 col-12 col-lg-6">
+            <div class="auth-panel card hero-panel rounded-4 w-100" style="max-width: 32rem;">
                 <div class="card-body p-5">
                     <div class="mb-4 text-center">
                         <h2 class="fw-semibold">Sign In</h2>
                         <p class="text-muted small mb-0">Access your patient information</p>
                     </div>
                     <?php if ($errorMessage): ?>
-                        <div class="alert alert-danger rounded-4 py-3 px-4 mb-4 small"><?php echo cjcEscape($errorMessage); ?></div>
+                        <div class="alert alert-danger rounded-4 py-3 px-4 mb-4 small">
+                            <?php echo cjcEscape($errorMessage); ?></div>
                     <?php endif; ?>
                     <form method="POST">
                         <div class="mb-3">
                             <label class="form-label" for="username">Username</label>
-                            <input id="username" name="username" type="text" required class="form-control rounded-4" placeholder="Enter username">
+                            <input id="username" name="username" type="text" required class="form-control rounded-4"
+                                placeholder="Enter username">
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="password">Password</label>
-                            <input id="password" name="password" type="password" required class="form-control rounded-4" placeholder="Enter password">
+                            <input id="password" name="password" type="password" required class="form-control rounded-4"
+                                placeholder="Enter password">
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-4 small">
                             <div></div>
@@ -108,10 +195,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <button type="submit" class="btn brand-btn btn-lg w-100 rounded-4">SIGN IN</button>
                     </form>
-                    <p class="mt-4 text-center text-muted small">Security feature: System auto-logs out after 30 minutes of inactivity.</p>
+                    <p class="mt-4 text-center text-muted small">Security feature: System auto-logs out after 30 minutes
+                        of inactivity.</p>
                 </div>
             </div>
+            <p class="footer-copy mt-4 mb-0">&copy; 2026 CJC-Clinic. All Rights Reserved.</p>
         </section>
     </div>
 </body>
+
 </html>
