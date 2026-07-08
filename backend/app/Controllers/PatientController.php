@@ -30,8 +30,10 @@ class PatientController {
             $params['type']  = $profileType;
         }
         if ($search !== '') {
-            $conditions[]        = '(CONCAT(first_name, \' \', last_name) LIKE :search OR contact LIKE :search OR patient_id_number LIKE :search)';
-            $params['search']    = '%' . $search . '%';
+            $conditions[]        = '(CONCAT(first_name, \' \', last_name) LIKE :search1 OR contact LIKE :search2 OR patient_id_number LIKE :search3)';
+            $params['search1']   = '%' . $search . '%';
+            $params['search2']   = '%' . $search . '%';
+            $params['search3']   = '%' . $search . '%';
         }
         $where = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
 

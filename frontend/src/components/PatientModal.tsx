@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft } from 'react-icons/fi';
+import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft, FiCheck } from 'react-icons/fi';
 
 interface PatientModalProps {
   isOpen: boolean;
@@ -130,103 +130,134 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
 
   if (!isOpen) return null;
 
+  // Input wrapper classes for a cleaner look
+  const inputClass = "w-full px-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-[#C01D38] focus:ring-4 focus:ring-[#C01D38]/10 transition-all outline-none";
+  const labelClass = "block text-xs font-semibold text-slate-600 mb-1.5 ml-1";
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div className="bg-[#f0f0f0] rounded shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center z-50 p-4 sm:p-6 transition-all duration-300">
+      <div className="bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-300">
         
-        {/* Header - Matching Mockup */}
-        <div className="bg-[#9B101E] px-4 py-3 flex justify-between items-center text-white">
-          <h2 className="text-lg font-bold tracking-wide">
-            {patientId ? 'Edit Patient' : 'Add New Patient'}
-          </h2>
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-medium text-white/90 hidden sm:inline-block">Enter Student or Employee ID</span>
-            <button onClick={onClose} className="text-white/80 hover:text-white transition-colors bg-black/10 hover:bg-black/20 p-1.5 rounded">
-              <FiX className="w-5 h-5" />
-            </button>
+        {/* Sleek Gradient Header */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-[#8B0E1B] to-[#C01D38] px-6 py-5 flex justify-between items-center text-white">
+          {/* Decorative shapes */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/3"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-black opacity-10 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+          
+          <div className="relative z-10 flex flex-col">
+            <h2 className="text-xl font-extrabold tracking-wide">
+              {patientId ? 'Edit Patient Profile' : 'Register New Patient'}
+            </h2>
+            <p className="text-white/70 text-xs mt-0.5 font-medium">Complete the form below to save patient details</p>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="relative z-10 text-white/70 hover:text-white bg-black/10 hover:bg-black/20 p-2 rounded-full transition-all hover:rotate-90 duration-300"
+          >
+            <FiX className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Modern Stepper Indicator */}
+        <div className="px-8 py-5 border-b border-slate-100 bg-slate-50/30">
+          <div className="flex items-center justify-center max-w-2xl mx-auto">
+            {/* Step 1 */}
+            <div className="flex items-center">
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-500 shadow-sm ${step >= 1 ? 'bg-[#C01D38] border-[#C01D38] text-white' : 'bg-white border-slate-200 text-slate-400'}`}>
+                {step > 1 ? <FiCheck className="w-5 h-5" /> : <FiUser className="w-5 h-5" />}
+              </div>
+              <div className={`absolute mt-14 text-xs font-semibold transition-colors duration-300 hidden sm:block ${step >= 1 ? 'text-[#C01D38]' : 'text-slate-400'}`}>Personal</div>
+            </div>
+            
+            <div className={`flex-1 h-1 mx-4 rounded-full transition-colors duration-500 ${step >= 2 ? 'bg-[#C01D38]' : 'bg-slate-200'}`}></div>
+            
+            {/* Step 2 */}
+            <div className="flex items-center">
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-500 shadow-sm ${step >= 2 ? 'bg-[#C01D38] border-[#C01D38] text-white' : 'bg-white border-slate-200 text-slate-400'}`}>
+                {step > 2 ? <FiCheck className="w-5 h-5" /> : <FiPhone className="w-5 h-5" />}
+              </div>
+              <div className={`absolute mt-14 text-xs font-semibold transition-colors duration-300 hidden sm:block ${step >= 2 ? 'text-[#C01D38]' : 'text-slate-400'}`}>Contact</div>
+            </div>
+
+            <div className={`flex-1 h-1 mx-4 rounded-full transition-colors duration-500 ${step >= 3 ? 'bg-[#C01D38]' : 'bg-slate-200'}`}></div>
+            
+            {/* Step 3 */}
+            <div className="flex items-center">
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-500 shadow-sm ${step >= 3 ? 'bg-[#C01D38] border-[#C01D38] text-white' : 'bg-white border-slate-200 text-slate-400'}`}>
+                <FiActivity className="w-5 h-5" />
+              </div>
+              <div className={`absolute mt-14 text-xs font-semibold transition-colors duration-300 hidden sm:block ${step >= 3 ? 'text-[#C01D38]' : 'text-slate-400'}`}>Medical</div>
+            </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex px-4 pt-4 bg-[#e8e8e8] border-b border-gray-300 overflow-x-auto hide-scrollbar">
-          <button 
-            onClick={() => setStep(1)}
-            className={`flex items-center gap-2 px-5 py-2 text-sm font-medium border border-b-0 rounded-t-md transition-colors ${step === 1 ? 'bg-white text-slate-800 border-gray-300 relative translate-y-px z-10' : 'bg-gray-100 text-gray-500 border-transparent hover:bg-gray-200'}`}
-          >
-            <FiUser className="w-4 h-4" /> Personal Info
-          </button>
-          <button 
-            onClick={() => setStep(2)}
-            className={`flex items-center gap-2 px-5 py-2 text-sm font-medium border border-b-0 rounded-t-md transition-colors ${step === 2 ? 'bg-white text-slate-800 border-gray-300 relative translate-y-px z-10' : 'bg-gray-100 text-gray-500 border-transparent hover:bg-gray-200'}`}
-          >
-            <FiPhone className="w-4 h-4" /> Contact & Emergency
-          </button>
-          <button 
-            onClick={() => setStep(3)}
-            className={`flex items-center gap-2 px-5 py-2 text-sm font-medium border border-b-0 rounded-t-md transition-colors ${step === 3 ? 'bg-white text-slate-800 border-gray-300 relative translate-y-px z-10' : 'bg-gray-100 text-gray-500 border-transparent hover:bg-gray-200'}`}
-          >
-            <FiActivity className="w-4 h-4" /> Medical History
-          </button>
-        </div>
-
         {/* Form Body */}
-        <div className="p-6 bg-white overflow-y-auto flex-1">
+        <div className="px-8 py-6 bg-white overflow-y-auto flex-1 relative">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-md text-sm border border-red-100">
+            <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-xl text-sm font-medium border border-red-100 flex items-center gap-3 animate-in slide-in-from-top-2">
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
               {error}
             </div>
           )}
 
-          <form id="patient-form" onSubmit={handleSubmit} className="space-y-6">
+          <form id="patient-form" onSubmit={handleSubmit} className="relative min-h-[300px]">
             
             {/* STEP 1: Personal Info */}
-            <div className={step === 1 ? 'block' : 'hidden'}>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className={`transition-all duration-500 ease-in-out absolute inset-0 ${step === 1 ? 'opacity-100 translate-x-0 pointer-events-auto relative' : 'opacity-0 -translate-x-8 pointer-events-none'}`}>
+              
+              <div className="bg-slate-50/50 p-1.5 rounded-xl inline-flex gap-2 mb-6 border border-slate-100">
+                <button type="button" onClick={() => handleRadioChange('profile_type', 'student')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm ${formData.profile_type === 'student' ? 'bg-white text-[#C01D38] ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'}`}>Student Profile</button>
+                <button type="button" onClick={() => handleRadioChange('profile_type', 'employee')} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm ${formData.profile_type === 'employee' ? 'bg-white text-[#C01D38] ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'}`}>Employee Profile</button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-5">
                 <div className="md:col-span-3">
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Patient ID (Student / Employee ID) *</label>
-                  <input type="text" name="patient_id_number" value={formData.patient_id_number} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" placeholder="e.g. 2024-0001 or EMP-0010" />
+                  <label className={labelClass}>Patient ID (Student / Employee ID) <span className="text-red-500">*</span></label>
+                  <input type="text" name="patient_id_number" value={formData.patient_id_number} onChange={handleChange} required className={inputClass} placeholder="e.g. 2024-0001 or EMP-0010" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">School Year</label>
-                  <input type="text" name="school_year" value={formData.school_year} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" />
+                  <label className={labelClass}>School Year</label>
+                  <input type="text" name="school_year" value={formData.school_year} onChange={handleChange} className={inputClass} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-10 gap-4 mb-6">
-                <div className="md:col-span-4">
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Last Name *</label>
-                  <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" />
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 mb-5">
+                <div className="md:col-span-5">
+                  <label className={labelClass}>First Name <span className="text-red-500">*</span></label>
+                  <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} required className={inputClass} placeholder="Juan" />
                 </div>
-                <div className="md:col-span-4">
-                  <label className="block text-xs font-bold text-gray-600 mb-1">First Name *</label>
-                  <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" />
+                <div className="md:col-span-5">
+                  <label className={labelClass}>Last Name <span className="text-red-500">*</span></label>
+                  <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required className={inputClass} placeholder="Dela Cruz" />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Middle Initial</label>
-                  <input type="text" name="middle_initial" value={formData.middle_initial} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" />
+                  <label className={labelClass}>Middle Initial</label>
+                  <input type="text" name="middle_initial" value={formData.middle_initial} onChange={handleChange} className={inputClass} placeholder="M." />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Birthdate *</label>
-                  <input type="date" name="birthdate" value={formData.birthdate} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" />
+                  <label className={labelClass}>Birthdate <span className="text-red-500">*</span></label>
+                  <input type="date" name="birthdate" value={formData.birthdate} onChange={handleChange} required className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Age (auto)</label>
-                  <input type="text" value={calculateAge(formData.birthdate)} disabled className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded text-gray-500" />
+                  <label className={labelClass}>Age</label>
+                  <div className="w-full px-4 py-2.5 bg-slate-100/50 border border-slate-200 rounded-xl text-sm text-slate-400 font-medium cursor-not-allowed flex items-center h-[42px]">
+                    {calculateAge(formData.birthdate)} yrs
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Gender *</label>
-                  <select name="gender" value={formData.gender} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none bg-gradient-to-b from-white to-gray-50">
-                    <option value="">Select</option>
+                  <label className={labelClass}>Gender <span className="text-red-500">*</span></label>
+                  <select name="gender" value={formData.gender} onChange={handleChange} required className={inputClass}>
+                    <option value="">Select Gender</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Blood Type</label>
-                  <select name="blood_type" value={formData.blood_type} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none bg-gradient-to-b from-white to-gray-50">
+                  <label className={labelClass}>Blood Type</label>
+                  <select name="blood_type" value={formData.blood_type} onChange={handleChange} className={inputClass}>
                     <option value="">Unknown</option>
                     <option value="A+">A+</option><option value="A-">A-</option>
                     <option value="B+">B+</option><option value="B-">B-</option>
@@ -236,133 +267,141 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                 </div>
               </div>
 
-              {/* Type Section */}
-              <div className="flex items-center gap-6 mb-4 pb-4 border-b border-gray-200">
-                <span className="text-sm font-bold text-gray-800">Type *</span>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="profile_type" value="student" checked={formData.profile_type === 'student'} onChange={() => handleRadioChange('profile_type', 'student')} className="accent-[#9B101E]" />
-                  <span className="text-sm">Student</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="profile_type" value="employee" checked={formData.profile_type === 'employee'} onChange={() => handleRadioChange('profile_type', 'employee')} className="accent-[#9B101E]" />
-                  <span className="text-sm">Employee</span>
-                </label>
+              {/* Dynamic Type Section */}
+              <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-5 relative overflow-hidden group hover:border-[#C01D38]/30 transition-colors">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#C01D38]/20 group-hover:bg-[#C01D38] transition-colors"></div>
+                
+                {formData.profile_type === 'student' && (
+                  <div className="animate-in fade-in duration-300">
+                    <div className="flex items-center gap-6 mb-5">
+                      <span className="text-sm font-bold text-slate-700">Student Category:</span>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="sub_type" value="College" checked={formData.sub_type === 'College'} onChange={() => handleRadioChange('sub_type', 'College')} className="w-4 h-4 text-[#C01D38] bg-slate-100 border-slate-300 focus:ring-[#C01D38]" />
+                        <span className="text-sm font-medium text-slate-600">College</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="sub_type" value="BED" checked={formData.sub_type === 'BED'} onChange={() => handleRadioChange('sub_type', 'BED')} className="w-4 h-4 text-[#C01D38] bg-slate-100 border-slate-300 focus:ring-[#C01D38]" />
+                        <span className="text-sm font-medium text-slate-600">BED (Basic Ed)</span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <div>
+                        <label className={labelClass}>College / Dept <span className="text-red-500">*</span></label>
+                        <select name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass}>
+                          <option value="">Select Department</option>
+                          <option value="BED Department">BED Department</option>
+                          <option value="College of Accounting, Business and Entreprenueurship (CABE)">CABE</option>
+                          <option value="College of Education and Sciences (CEDAS)">CEDAS</option>
+                          <option value="College of Health Sciences (CHS)">CHS</option>
+                          <option value="College of Computing and Information Sciences (CCIS)">CCIS</option>
+                          <option value="College of Engineering (COE)">COE</option>
+                          <option value="College of Special Programs (CSP)">CSP</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
+                        <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass}>
+                          <option value="">Select Year</option>
+                          <option value="1st Year">1st Year</option>
+                          <option value="2nd Year">2nd Year</option>
+                          <option value="3rd Year">3rd Year</option>
+                          <option value="4th Year">4th Year</option>
+                          <option value="5th Year">5th Year</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Course/Program</label>
+                        <input type="text" name="course" value={formData.course} onChange={handleChange} className={inputClass} placeholder="e.g. BSCS, BSN" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {formData.profile_type === 'employee' && (
+                  <div className="animate-in fade-in duration-300">
+                    <div>
+                      <label className={labelClass}>Department / Office <span className="text-red-500">*</span></label>
+                      <input type="text" name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass} placeholder="e.g. Faculty, HR Office" />
+                    </div>
+                  </div>
+                )}
               </div>
-
-              {formData.profile_type === 'student' && (
-                <div className="bg-gray-50 p-4 border border-gray-200 rounded mb-6">
-                  <div className="flex items-center gap-6 mb-4">
-                    <span className="text-sm text-gray-600">Sub-type:</span>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="radio" name="sub_type" value="College" checked={formData.sub_type === 'College'} onChange={() => handleRadioChange('sub_type', 'College')} className="accent-[#9B101E]" />
-                      <span className="text-sm">College</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="radio" name="sub_type" value="BED" checked={formData.sub_type === 'BED'} onChange={() => handleRadioChange('sub_type', 'BED')} className="accent-[#9B101E]" />
-                      <span className="text-sm">BED (Basic Education)</span>
-                    </label>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-600 mb-1">College / Dept *</label>
-                      <select name="college_dept" value={formData.college_dept} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none bg-gradient-to-b from-white to-gray-50">
-                        <option value="">Select College</option>
-                        <option value="BED Department">BED Department</option>
-                        <option value="College of Accounting, Business and Entreprenueurship (CABE)">CABE</option>
-                        <option value="College of Education and Sciences (CEDAS)">CEDAS</option>
-                        <option value="College of Health Sciences (CHS)">CHS</option>
-                        <option value="College of Computing and Information Sciences (CCIS)">CCIS</option>
-                        <option value="College of Engineering (COE)">COE</option>
-                        <option value="College of Special Programs (CSP)">CSP</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-600 mb-1">Year Level *</label>
-                      <select name="year_level" value={formData.year_level} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none bg-gradient-to-b from-white to-gray-50">
-                        <option value="">Select Year</option>
-                        <option value="1st Year">1st Year</option>
-                        <option value="2nd Year">2nd Year</option>
-                        <option value="3rd Year">3rd Year</option>
-                        <option value="4th Year">4th Year</option>
-                        <option value="5th Year">5th Year</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-600 mb-1">Course (type or select)</label>
-                      <input type="text" name="course" value={formData.course} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" placeholder="e.g. BSCS, BSN, Grade 10" />
-                    </div>
-                  </div>
-                </div>
-              )}
-              {formData.profile_type === 'employee' && (
-                <div className="bg-gray-50 p-4 border border-gray-200 rounded mb-6">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Department / Office *</label>
-                    <input type="text" name="college_dept" value={formData.college_dept} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" placeholder="e.g. Faculty, HR Office" />
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* STEP 2: Contact & Emergency */}
-            <div className={step === 2 ? 'block' : 'hidden'}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className={`transition-all duration-500 ease-in-out absolute inset-0 ${step === 2 ? 'opacity-100 translate-x-0 pointer-events-auto relative' : 'opacity-0 translate-x-8 pointer-events-none hidden'}`}>
+              
+              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"><FiPhone className="w-3 h-3" /></span>
+                Personal Contact
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Phone / Contact # *</label>
-                  <input type="text" name="contact" value={formData.contact} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" placeholder="09XX XXX XXXX" />
+                  <label className={labelClass}>Phone / Contact # <span className="text-red-500">*</span></label>
+                  <input type="text" name="contact" value={formData.contact} onChange={handleChange} className={inputClass} placeholder="09XX XXX XXXX" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Email</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" placeholder="student@cjc.edu.ph" />
+                  <label className={labelClass}>Email Address</label>
+                  <input type="email" name="email" value={formData.email} onChange={handleChange} className={inputClass} placeholder="student@cjc.edu.ph" />
                 </div>
               </div>
               <div className="mb-8">
-                <label className="block text-xs font-bold text-gray-600 mb-1">Address</label>
-                <input type="text" name="address" value={formData.address} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" placeholder="House #, Street, Barangay, City" />
+                <label className={labelClass}>Home Address</label>
+                <input type="text" name="address" value={formData.address} onChange={handleChange} className={inputClass} placeholder="House #, Street, Barangay, City, Province" />
               </div>
 
-              <h3 className="text-sm font-bold text-gray-800 mb-3 border-b border-gray-200 pb-2">Emergency Contact Information</h3>
-              
-              <div className="mb-4">
-                <label className="block text-xs font-bold text-gray-600 mb-1">Contact Person Name</label>
-                <input type="text" name="emergency_contact_name" value={formData.emergency_contact_name} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" placeholder="Full Name" />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Contact Number</label>
-                  <input type="text" name="emergency_contact_number" value={formData.emergency_contact_number} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" placeholder="09XX XXX XXXX" />
+              <div className="bg-red-50/50 border border-red-100 rounded-2xl p-5 mt-6">
+                <h3 className="text-sm font-bold text-red-800 mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                  In Case of Emergency
+                </h3>
+                
+                <div className="mb-5">
+                  <label className={labelClass}>Contact Person Name <span className="text-red-500">*</span></label>
+                  <input type="text" name="emergency_contact_name" value={formData.emergency_contact_name} onChange={handleChange} className={inputClass} placeholder="Full Name" />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Relationship</label>
-                  <input type="text" name="emergency_relation" value={formData.emergency_relation} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none" placeholder="e.g. Mother, Father, Spouse" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className={labelClass}>Emergency Contact # <span className="text-red-500">*</span></label>
+                    <input type="text" name="emergency_contact_number" value={formData.emergency_contact_number} onChange={handleChange} className={inputClass} placeholder="09XX XXX XXXX" />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Relationship</label>
+                    <input type="text" name="emergency_relation" value={formData.emergency_relation} onChange={handleChange} className={inputClass} placeholder="e.g. Mother, Father, Spouse" />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* STEP 3: Medical History */}
-            <div className={step === 3 ? 'block' : 'hidden'}>
-              <div className="mb-6">
-                <label className="block text-xs font-bold text-gray-600 mb-1">Health History / Allergies</label>
-                <textarea 
-                  name="health_history" 
-                  value={formData.health_history} 
-                  onChange={handleChange}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none"
-                  placeholder="Any known allergies, past surgeries, or chronic conditions..."
-                ></textarea>
-              </div>
+            <div className={`transition-all duration-500 ease-in-out absolute inset-0 ${step === 3 ? 'opacity-100 translate-x-0 pointer-events-auto relative' : 'opacity-0 translate-x-8 pointer-events-none hidden'}`}>
+              
+              <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-6 h-full flex flex-col gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-blue-900 mb-2">Health History & Allergies</label>
+                  <p className="text-xs text-blue-700/70 mb-3">Please list any known allergies, past surgeries, chronic conditions, or long-term medications.</p>
+                  <textarea 
+                    name="health_history" 
+                    value={formData.health_history} 
+                    onChange={handleChange}
+                    rows={4}
+                    className={`${inputClass} bg-white shadow-sm resize-none`}
+                    placeholder="e.g. Allergic to penicillin. Diagnosed with asthma."
+                  ></textarea>
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Initial Vital Statistics</label>
-                <textarea 
-                  name="vital_stats" 
-                  value={formData.vital_stats} 
-                  onChange={handleChange}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:border-[#9B101E] focus:outline-none"
-                  placeholder="Height, Weight, typical BP, disabilities..."
-                ></textarea>
+                <div>
+                  <label className="block text-sm font-bold text-blue-900 mb-2">Initial Vital Statistics / Notes</label>
+                  <p className="text-xs text-blue-700/70 mb-3">Record baseline physical condition or visible disabilities.</p>
+                  <textarea 
+                    name="vital_stats" 
+                    value={formData.vital_stats} 
+                    onChange={handleChange}
+                    rows={4}
+                    className={`${inputClass} bg-white shadow-sm resize-none`}
+                    placeholder="e.g. Height: 165cm, Weight: 60kg, typical BP: 120/80..."
+                  ></textarea>
+                </div>
               </div>
             </div>
 
@@ -370,24 +409,27 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
         </div>
 
         {/* Footer */}
-        <div className="bg-[#f8f8f8] px-6 py-4 border-t border-gray-300 flex justify-between items-center">
-          <div className="text-xs text-gray-500 font-medium">
-            Step {step} of 3
+        <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 flex justify-between items-center rounded-b-3xl">
+          <div className="flex space-x-1.5">
+            {[1, 2, 3].map((dot) => (
+              <div key={dot} className={`w-2 h-2 rounded-full transition-all duration-300 ${step === dot ? 'bg-[#C01D38] w-6' : 'bg-slate-300'}`} />
+            ))}
           </div>
+          
           <div className="flex gap-3">
             {step > 1 ? (
               <button 
                 type="button" 
                 onClick={() => setStep(step - 1)}
-                className="px-5 py-2 text-sm font-semibold text-gray-600 bg-gray-200 border border-gray-300 hover:bg-gray-300 rounded shadow-sm transition-colors flex items-center gap-1"
+                className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm rounded-xl transition-all flex items-center gap-1.5"
               >
-                <FiChevronLeft /> Previous
+                <FiChevronLeft className="w-4 h-4" /> Back
               </button>
             ) : (
               <button 
                 type="button" 
                 onClick={onClose}
-                className="px-5 py-2 text-sm font-semibold text-gray-600 bg-gray-200 border border-gray-300 hover:bg-gray-300 rounded shadow-sm transition-colors"
+                className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
               >
                 Cancel
               </button>
@@ -397,11 +439,18 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
               type="submit" 
               form="patient-form"
               disabled={loading}
-              className="px-6 py-2 text-sm font-bold text-white bg-[#9B101E] hover:bg-[#800d18] border border-[#7a0c16] rounded shadow-sm transition-colors disabled:opacity-50 flex items-center gap-1"
+              className="px-6 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#9B101E] to-[#C01D38] hover:from-[#800d18] hover:to-[#9B101E] shadow-[0_4px_14px_0_rgba(192,29,56,0.39)] hover:shadow-[0_6px_20px_rgba(192,29,56,0.23)] hover:-translate-y-0.5 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:hover:translate-y-0 flex items-center gap-1.5"
             >
-              {loading ? 'Saving...' : step < 3 ? (
-                <>Next <FiChevronRight /></>
-              ) : 'Save Record'}
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Saving...
+                </div>
+              ) : step < 3 ? (
+                <>Next Step <FiChevronRight className="w-4 h-4" /></>
+              ) : (
+                <>Save Patient <FiCheck className="w-4 h-4" /></>
+              )}
             </button>
           </div>
         </div>
