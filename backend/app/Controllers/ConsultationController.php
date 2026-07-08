@@ -13,53 +13,45 @@ class ConsultationController {
         $pdo = cjcDatabaseConnection();
         $sessions = [];
 
+        $period = $_GET['period'] ?? 'today';
+        $from = $_GET['from'] ?? null;
+        $to = $_GET['to'] ?? null;
+
+        $whereClause = "1=1";
+        $params = [];
+
+        if ($period === 'today') {
+            $whereClause .= " AND DATE(c.created_at) = CURDATE()";
+        } elseif ($period === 'weekly') {
+            $whereClause .= " AND YEARWEEK(c.created_at, 1) = YEARWEEK(CURDATE(), 1)";
+        } elseif ($period === 'monthly') {
+            $whereClause .= " AND MONTH(c.created_at) = MONTH(CURDATE()) AND YEAR(c.created_at) = YEAR(CURDATE())";
+        } elseif ($period === 'custom' && $from && $to) {
+            $whereClause .= " AND DATE(c.created_at) >= :from AND DATE(c.created_at) <= :to";
+            $params['from'] = $from;
+            $params['to'] = $to;
+        } // 'all' requires no filter
+
         try {
-            $stmt = $pdo->query(
-                "SELECT c.id,
-                        c.status,
-                        c.created_at,
-                        c.notes,
-                        c.prescriptions,
-                        COALESCE(p.name, CONCAT('Patient #', c.profile_id)) AS patient_name,
-                        COALESCE(c.complaint, 'General consultation') AS complaint,
-                        COALESCE(c.assigned_to, 'Clinic Staff') AS assigned_to
-                 FROM consultations c
-                 LEFT JOIN profiles p ON p.id = c.profile_id
-                 WHERE c.status IN ('active', 'in-progress', 'waiting', 'pending')
-                 ORDER BY c.created_at DESC
-                 LIMIT 20"
-            );
-            if ($stmt) {
-                $sessions = $stmt->fetchAll();
-                
-                $currentUser = cjcCurrentUser();
-                $isClinical = in_array($currentUser['role'], ['Doctor', 'Nurse'], true);
-                
-                foreach ($sessions as &$session) {
-                    if ($session['notes']) {
-                        if ($isClinical) {
-                            $decrypted = cjcDecrypt($session['notes']);
-                            $session['notes'] = $decrypted !== null ? $decrypted : $session['notes'];
-                        } else {
-                            $session['notes'] = '[REDACTED: Clinical Notes Protected]';
-                        }
-                    }
-                    
-                    if ($session['prescriptions']) {
-                        $decoded = json_decode($session['prescriptions'], true);
-                        $session['prescriptions'] = json_last_error() === JSON_ERROR_NONE ? $decoded : [];
-                    } else {
-                        $session['prescriptions'] = [];
-                    }
-                    
-                    if (empty($session['complaint']) && !empty($session['notes']) && $isClinical) {
-                        $session['complaint'] = substr($session['notes'], 0, 50) . '...';
-                    }
-                }
-                unset($session);
-            }
+            $sql = "SELECT c.id,
+                           p.patient_id_number,
+                           COALESCE(CONCAT(p.first_name, ' ', p.last_name), 'Unknown') AS patient_name,
+                           c.created_at AS time_in,
+                           c.purpose,
+                           c.time_out,
+                           c.attended_by,
+                           c.status
+                    FROM consultations c
+                    LEFT JOIN profiles p ON p.id = c.profile_id
+                    WHERE $whereClause
+                    ORDER BY c.created_at DESC";
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $sessions = $stmt->fetchAll();
+            
         } catch (PDOException $e) {
-            error_log('[CJC-CLINIC] consultations API error: ' . $e->getMessage());
+            error_log('[CJC-CLINIC] consultations list API error: ' . $e->getMessage());
         }
 
         $this->jsonResponse(['sessions' => $sessions]);
@@ -72,20 +64,18 @@ class ConsultationController {
 
         cjcRequireAuth();
         cjcCsrfValidate();
-        cjcRequireRole(['Doctor', 'Nurse']);
         
         $pdo = cjcDatabaseConnection();
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         
         $profile_id    = (int)($input['profile_id'] ?? 0);
-        $complaint     = trim($input['complaint'] ?? '');
-        $notes         = trim($input['notes'] ?? '');
-        $prescriptions = $input['prescriptions'] ?? [];
+        $purpose       = trim($input['purpose'] ?? '');
         
-        if (!$profile_id || !$complaint) {
-            $this->jsonResponse(['success' => false, 'message' => 'Profile ID and complaint are required.'], 400);
+        if (!$profile_id || !$purpose) {
+            $this->jsonResponse(['success' => false, 'message' => 'Profile ID and purpose are required.'], 400);
         }
         
+        // Ensure patient exists
         try {
             $stmt = $pdo->prepare('SELECT id FROM profiles WHERE id = :id LIMIT 1');
             $stmt->execute(['id' => $profile_id]);
@@ -95,33 +85,78 @@ class ConsultationController {
         } catch (PDOException $e) {
             $this->jsonResponse(['success' => false, 'message' => 'Database error.'], 500);
         }
-        
-        $encryptedNotes = $notes !== '' ? cjcEncrypt($notes) : '';
-        $prescriptionsJson = is_array($prescriptions) && !empty($prescriptions) 
-            ? json_encode($prescriptions) 
-            : null;
             
         $currentUser = cjcCurrentUser();
-        $assigned_to = $currentUser['name'] ?? 'Clinic Staff';
+        $attended_by = $currentUser['name'] ?? 'Clinic Staff';
 
         try {
             $stmt = $pdo->prepare(
-                'INSERT INTO consultations (profile_id, complaint, notes, prescriptions, status, assigned_to)
-                 VALUES (:profile_id, :complaint, :notes, :prescriptions, :status, :assigned_to)'
+                'INSERT INTO consultations (profile_id, purpose, status, attended_by)
+                 VALUES (:profile_id, :purpose, :status, :attended_by)'
             );
             $stmt->execute([
                 'profile_id'    => $profile_id,
-                'complaint'     => $complaint,
-                'notes'         => $encryptedNotes,
-                'prescriptions' => $prescriptionsJson,
-                'status'        => 'in-progress',
-                'assigned_to'   => $assigned_to
+                'purpose'       => $purpose,
+                'status'        => 'active',
+                'attended_by'   => $attended_by
             ]);
             
             $this->jsonResponse(['success' => true, 'id' => $pdo->lastInsertId()]);
         } catch (PDOException $e) {
             error_log('[CJC-CLINIC] Create consultation error: ' . $e->getMessage());
-            $this->jsonResponse(['success' => false, 'message' => 'Unable to save consultation record.'], 500);
+            $this->jsonResponse(['success' => false, 'message' => 'Unable to save check-in record.'], 500);
+        }
+    }
+
+    public function update() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'PUT') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth();
+        cjcCsrfValidate();
+        
+        $pdo = cjcDatabaseConnection();
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        
+        $id = (int)($input['id'] ?? 0);
+        $action = $input['action'] ?? '';
+        
+        if ($id <= 0) {
+            $this->jsonResponse(['success' => false, 'message' => 'Consultation ID is required.'], 400);
+        }
+
+        try {
+            if ($action === 'checkout') {
+                $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE id = :id");
+                $stmt->execute(['id' => $id]);
+            }
+
+            $this->jsonResponse(['success' => true]);
+        } catch (PDOException $e) {
+            error_log('[CJC-CLINIC] Update consultation error: ' . $e->getMessage());
+            $this->jsonResponse(['success' => false, 'message' => 'Unable to update record.'], 500);
+        }
+    }
+
+    public function checkoutAll() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth();
+        cjcCsrfValidate();
+        
+        $pdo = cjcDatabaseConnection();
+
+        try {
+            $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE status = 'active' AND DATE(created_at) = CURDATE()");
+            $stmt->execute();
+
+            $this->jsonResponse(['success' => true, 'message' => 'All active visitors today have been timed out.']);
+        } catch (PDOException $e) {
+            error_log('[CJC-CLINIC] Checkout All error: ' . $e->getMessage());
+            $this->jsonResponse(['success' => false, 'message' => 'Unable to checkout all.'], 500);
         }
     }
 

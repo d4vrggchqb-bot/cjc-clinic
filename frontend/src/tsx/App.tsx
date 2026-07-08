@@ -4,7 +4,9 @@ import { apiFetch } from '../utils/api';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import PatientList from './pages/PatientList';
+import Consultation from './pages/Consultation';
 import Layout from './components/Layout';
+import Settings from './pages/Settings';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -52,8 +54,9 @@ const App: React.FC = () => {
         
         <Route path="/patients" element={<ProtectedRoute><PatientList /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><PlaceholderPage title="Inventory Management" /></ProtectedRoute>} />
-        <Route path="/consultation" element={<ProtectedRoute><PlaceholderPage title="Consultations" /></ProtectedRoute>} />
+        <Route path="/consultation" element={<ProtectedRoute><Consultation /></ProtectedRoute>} />
         <Route path="/visitation" element={<ProtectedRoute><PlaceholderPage title="Visitation History" /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>

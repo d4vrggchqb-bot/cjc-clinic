@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch } from '../../utils/api';
-import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut } from 'react-icons/fi';
+import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings } from 'react-icons/fi';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
@@ -68,6 +68,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </nav>
         
         <div className="p-4 mt-auto">
+          <button
+            onClick={() => navigate('/settings')}
+            className={`flex items-center gap-2.5 w-full px-4 py-2.5 mb-2 text-[0.8rem] rounded-md transition-colors uppercase tracking-wider font-semibold ${
+              page === 'settings' 
+                ? 'bg-white text-[#9B101E] shadow-sm' 
+                : 'text-[#9B101E] bg-white/90 hover:bg-white hover:shadow-sm'
+            }`}
+          >
+            <FiSettings className="w-4 h-4" strokeWidth={2.5} />
+            <span>Settings</span>
+          </button>
           <button 
             onClick={() => setIsLogoutModalOpen(true)} 
             className="flex items-center justify-center gap-2.5 w-full px-4 py-3 text-[0.8rem] text-white/80 hover:text-white hover:bg-black/10 rounded-md transition-colors uppercase tracking-wider font-semibold"

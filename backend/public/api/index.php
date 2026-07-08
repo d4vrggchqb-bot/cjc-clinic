@@ -24,6 +24,16 @@ switch ($route) {
             $controller->logout();
         } elseif ($action === 'check_session') {
             $controller->checkSession();
+        } elseif ($action === 'users') {
+            $controller->getUsers();
+        } elseif ($action === 'create_user') {
+            $controller->createUser();
+        } elseif ($action === 'delete_user') {
+            $controller->deleteUser();
+        } elseif ($action === 'reset_password') {
+            $controller->resetPassword();
+        } elseif ($action === 'change_password') {
+            $controller->changePassword();
         }
         break;
 
@@ -57,6 +67,28 @@ switch ($route) {
             $controller->list();
         } elseif ($action === 'create') {
             $controller->create();
+        } elseif ($action === 'update') {
+            $controller->update();
+        } elseif ($action === 'checkoutAll') {
+            $controller->checkoutAll();
+        }
+        break;
+
+    case 'settings':
+        require_once __DIR__ . '/../../app/Controllers/SettingsController.php';
+        $controller = new SettingsController();
+        if ($action === 'get') {
+            $controller->getSettings();
+        } elseif ($action === 'update') {
+            $controller->updateSettings();
+        } elseif ($action === 'import') {
+            $controller->importCSV();
+        } elseif ($action === 'backup_db') {
+            $controller->backupDatabase();
+        } elseif ($action === 'export_health') {
+            $controller->exportHealthRecords();
+        } elseif ($action === 'export_visits') {
+            $controller->exportVisitLog();
         }
         break;
 

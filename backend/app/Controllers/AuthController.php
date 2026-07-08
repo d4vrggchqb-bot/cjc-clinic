@@ -49,6 +49,110 @@ class AuthController {
         }
     }
 
+    public function getUsers() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        cjcRequireRole(['Admin', 'Superadmin']); // Assuming Admin can manage users
+        $pdo = cjcDatabaseConnection();
+        $stmt = $pdo->query('SELECT id, username, name, role, created_at FROM users ORDER BY username ASC');
+        $this->jsonResponse(['users' => $stmt->fetchAll()]);
+    }
+
+    public function createUser() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        cjcCsrfValidate();
+        cjcRequireRole(['Admin', 'Superadmin']);
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $username = trim($input['username'] ?? '');
+        $password = $input['password'] ?? '';
+        $name = trim($input['name'] ?? $username);
+        $role = trim($input['role'] ?? 'Staff');
+        
+        if (empty($username) || empty($password)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Username and password required.'], 400);
+        }
+        
+        $pdo = cjcDatabaseConnection();
+        try {
+            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, name, role) VALUES (?, ?, ?, ?)');
+            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $name, $role]);
+            $this->jsonResponse(['success' => true]);
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) {
+                $this->jsonResponse(['success' => false, 'message' => 'Username already exists.'], 400);
+            }
+            $this->jsonResponse(['success' => false, 'message' => 'Failed to create user.'], 500);
+        }
+    }
+
+    public function deleteUser() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        cjcCsrfValidate();
+        cjcRequireRole(['Admin', 'Superadmin']);
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $id = (int)($input['id'] ?? 0);
+        
+        if ($id === $_SESSION['cjc_user']['id']) {
+            $this->jsonResponse(['success' => false, 'message' => 'Cannot delete yourself.'], 400);
+        }
+        
+        $pdo = cjcDatabaseConnection();
+        $stmt = $pdo->prepare('DELETE FROM users WHERE id = ?');
+        $stmt->execute([$id]);
+        $this->jsonResponse(['success' => true]);
+    }
+
+    public function resetPassword() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        cjcCsrfValidate();
+        cjcRequireRole(['Admin', 'Superadmin']);
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $id = (int)($input['id'] ?? 0);
+        $new_password = $input['new_password'] ?? '';
+        
+        if (empty($new_password)) {
+            $this->jsonResponse(['success' => false, 'message' => 'New password is required.'], 400);
+        }
+        
+        $pdo = cjcDatabaseConnection();
+        $stmt = $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+        $stmt->execute([password_hash($new_password, PASSWORD_DEFAULT), $id]);
+        $this->jsonResponse(['success' => true]);
+    }
+
+    public function changePassword() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        cjcCsrfValidate();
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $current = $input['current_password'] ?? '';
+        $new = $input['new_password'] ?? '';
+        
+        if (empty($current) || empty($new)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Current and new passwords are required.'], 400);
+        }
+        
+        $pdo = cjcDatabaseConnection();
+        $stmt = $pdo->prepare('SELECT password_hash FROM users WHERE id = ?');
+        $stmt->execute([$_SESSION['cjc_user']['id']]);
+        $user = $stmt->fetch();
+        
+        if (!$user || !password_verify($current, $user['password_hash'])) {
+            $this->jsonResponse(['success' => false, 'message' => 'Incorrect current password.'], 400);
+        }
+        
+        $stmt = $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+        $stmt->execute([password_hash($new, PASSWORD_DEFAULT), $_SESSION['cjc_user']['id']]);
+        $this->jsonResponse(['success' => true]);
+    }
+
     // --- Private Helpers (copied from old login.php) ---
 
     private function isRateLimited(string $username): bool {
