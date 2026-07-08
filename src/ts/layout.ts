@@ -375,7 +375,7 @@ function renderPageContent(page: AppPage): string {
             <h5 class="panel-header mb-0">Patient-consultation funnel</h5>
             <div class="department-chip-row" id="departmentChips"></div>
           </div>
-          <div id="funnelChart"></div>
+          <div id="funnelChart"><canvas id="funnelCanvas" height="160"></canvas></div>
         </div>
       </div>
       <div class="col-xl-4">
@@ -391,7 +391,7 @@ function renderPageContent(page: AppPage): string {
       <div class="col-xl-12">
         <div class="dashboard-panel p-4 h-100">
           <h5 class="panel-header mb-0">Diagnosis vs specialty heatmap</h5>
-          <div class="mt-3" id="heatmapGrid"></div>
+          <div class="mt-3" id="heatmapGrid"><canvas id="heatmapCanvas" height="220"></canvas></div>
         </div>
       </div>
     </div>

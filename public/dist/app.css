@@ -697,7 +697,10 @@ body {
 .department-chip-row {
   display: flex;
   gap: 0.55rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
 }
 
 .department-chip {
@@ -709,6 +712,10 @@ body {
   font-size: 0.8rem;
   font-weight: 600;
   transition: all 0.2s ease;
+}
+
+.department-chip {
+  flex: 0 0 auto;
 }
 
 .department-chip:hover,

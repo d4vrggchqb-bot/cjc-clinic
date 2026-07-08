@@ -57,7 +57,7 @@ function getWaitLevel(minutes) {
     return 'danger';
 }
 function getDepartmentLabel(value) {
-    return value === 'all' ? 'All departments' : value;
+    return value === 'all' ? 'All colleges' : value;
 }
 function formatCurrency(value) {
     return new Intl.NumberFormat('en-US', {
@@ -69,11 +69,12 @@ function formatCurrency(value) {
 function getSnapshot() {
     const branchMultiplier = dashboardFilters.branch === 'all' ? 1 : dashboardFilters.branch === 'north' ? 1.08 : 0.94;
     const physicianMultiplier = dashboardFilters.physician === 'all' ? 1 : dashboardFilters.physician === 'dr-arias' ? 1.03 : 0.97;
-    const departmentMultiplier = dashboardFilters.selectedDepartment === 'all' ? 1 : dashboardFilters.selectedDepartment === 'Cardiology' ? 0.92 : 1.04;
+    // For college-level view we keep a neutral multiplier; refine per-college weights later.
+    const departmentMultiplier = 1;
     const patients = Math.round(1842 * branchMultiplier * physicianMultiplier * departmentMultiplier);
     const consultations = Math.round(128 * branchMultiplier * physicianMultiplier * (dashboardFilters.selectedDepartment === 'Neurology' ? 1.07 : 1));
     const waitMinutes = Math.round(waitThresholds[dashboardFilters.selectedDepartment] ?? waitThresholds.all * (dashboardFilters.branch === 'north' ? 1.08 : 1));
-    const revenue = Math.round(84250 * branchMultiplier * physicianMultiplier * (dashboardFilters.selectedDepartment === 'Cardiology' ? 1.06 : 1));
+    const revenue = Math.round(84250 * branchMultiplier * physicianMultiplier);
     const currentDateRange = dashboardFilters.dateRange === '90d' ? '90 days' : dashboardFilters.dateRange === '7d' ? '7 days' : '30 days';
     return {
         patients,
@@ -87,7 +88,16 @@ function getSnapshot() {
     };
 }
 function renderDepartmentChips() {
-    const departments = ['all', 'Cardiology', 'Primary Care', 'Neurology', 'Pediatrics'];
+    const departments = [
+        'all',
+        'BED Department',
+        'College of Accounting, Business and Entreprenueurship (CABE)',
+        'College of Education and Sciences (CEDAS)',
+        'College of Health Sciences (CHS)',
+        'College of Computing and Information Sciences (CCIS)',
+        'College of Engineering (COE)',
+        'College of Special Programs (CSP)'
+    ];
     return departments.map((department) => `
     <button class="department-chip ${dashboardFilters.selectedDepartment === department ? 'active' : ''}" data-dept-filter="${department}" type="button">
       ${getDepartmentLabel(department)}
@@ -95,44 +105,124 @@ function renderDepartmentChips() {
   `).join('');
 }
 function renderFunnelChart(snapshot) {
-    const newPatients = Math.round(snapshot.patients * 0.42);
-    const booked = Math.round(snapshot.consultations * 0.9);
-    const completed = Math.round(snapshot.consultations * 0.78);
-    const bars = [
-        { label: 'New patients', value: newPatients, tone: 'teal' },
-        { label: 'Booked visits', value: booked, tone: 'maroon' },
-        { label: 'Completed care', value: completed, tone: 'blue' },
+    // Colleges for the school clinic funnel
+    const colleges = [
+        'BED Department',
+        'College of Accounting, Business and Entreprenueurship (CABE)',
+        'College of Education and Sciences (CEDAS)',
+        'College of Health Sciences (CHS)',
+        'College of Computing and Information Sciences (CCIS)',
+        'College of Engineering (COE)',
+        'College of Special Programs (CSP)'
     ];
+    // distribute consultations across colleges using sample weights
+    const weights = [1.0, 0.9, 1.1, 1.6, 1.2, 0.8, 0.6];
+    const totalWeight = weights.reduce((s, w) => s + w, 0);
+    let remaining = snapshot.consultations;
+    const values = colleges.map((c, i) => {
+        const v = i === colleges.length - 1
+            ? remaining
+            : Math.round(snapshot.consultations * (weights[i] / totalWeight));
+        remaining -= v;
+        return v;
+    });
+    const tones = ['teal', 'maroon', 'blue', 'teal', 'maroon', 'blue', 'teal'];
     return `
-    <div class="chart-rail">
-      ${bars.map((bar) => `
-        <div class="funnel-bar ${bar.tone}" role="button" data-dept-filter="${dashboardFilters.selectedDepartment}">
-          <div class="funnel-label">${bar.label}</div>
-          <div class="funnel-value">${bar.value}</div>
-          <div class="funnel-caption">${dashboardFilters.selectedDepartment === 'all' ? 'Cross-department view' : `${dashboardFilters.selectedDepartment} focus`}</div>
+    <div class="chart-rail colleges-rail">
+      ${colleges.map((label, i) => `
+        <div class="funnel-bar ${tones[i % tones.length]}" role="button" data-dept-filter="${label}">
+          <div class="funnel-label">${label}</div>
+          <div class="funnel-value">${values[i]}</div>
+          <div class="funnel-caption">College-level consultations</div>
         </div>
       `).join('')}
     </div>
   `;
 }
-function renderHeatmap(snapshot) {
-    const cells = [
-        { diagnosis: 'Hypertension', specialty: 'Cardiology', value: 24, intensity: 'high' },
-        { diagnosis: 'Asthma', specialty: 'Primary Care', value: 19, intensity: 'mid' },
-        { diagnosis: 'Migraine', specialty: 'Neurology', value: 16, intensity: 'mid' },
-        { diagnosis: 'Pediatric flu', specialty: 'Pediatrics', value: 14, intensity: 'low' },
+function initOrUpdateFunnelChart(snapshot) {
+    const ctx = document.getElementById('funnelCanvas');
+    if (!ctx)
+        return;
+    const colleges = [
+        'BED Department',
+        'College of Accounting, Business and Entreprenueurship (CABE)',
+        'College of Education and Sciences (CEDAS)',
+        'College of Health Sciences (CHS)',
+        'College of Computing and Information Sciences (CCIS)',
+        'College of Engineering (COE)',
+        'College of Special Programs (CSP)'
     ];
-    return `
-    <div class="heatmap-grid">
-      ${cells.map((cell) => `
-        <button class="heatmap-cell ${cell.intensity} ${dashboardFilters.selectedDiagnosis === cell.diagnosis ? 'active' : ''}" type="button" data-diagnosis="${cell.diagnosis}">
-          <span class="heatmap-diagnosis">${cell.diagnosis}</span>
-          <span class="heatmap-specialty">${cell.specialty}</span>
-          <span class="heatmap-value">${cell.value} cases</span>
-        </button>
-      `).join('')}
-    </div>
-  `;
+    const weights = [1.0, 0.9, 1.1, 1.6, 1.2, 0.8, 0.6];
+    const totalWeight = weights.reduce((s, w) => s + w, 0);
+    let remaining = snapshot.consultations;
+    const values = colleges.map((c, i) => {
+        const v = i === colleges.length - 1
+            ? remaining
+            : Math.round(snapshot.consultations * (weights[i] / totalWeight));
+        remaining -= v;
+        return v;
+    });
+    window.__charts = window.__charts || {};
+    if (window.__charts.funnel) {
+        window.__charts.funnel.data.labels = colleges;
+        window.__charts.funnel.data.datasets[0].data = values;
+        window.__charts.funnel.update();
+        return;
+    }
+    window.__charts.funnel = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: colleges,
+            datasets: [{
+                    label: 'Consultations by college',
+                    data: values,
+                    backgroundColor: ['#14b8a6', '#800016', '#2563eb', '#0f766e', '#a855f7', '#f59e0b', '#ef4444'],
+                    borderRadius: 8,
+                }]
+        },
+        options: {
+            plugins: { legend: { display: false } },
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, ticks: { precision: 0 } }
+            }
+        }
+    });
+}
+function initOrUpdateHeatmapChart(snapshot) {
+    const ctx = document.getElementById('heatmapCanvas');
+    if (!ctx)
+        return;
+    // Example diagnosis counts (replace with real API data later)
+    const labels = ['Hypertension', 'Asthma', 'Migraine', 'Pediatric flu'];
+    const data = [24, 19, 16, 14];
+    window.__charts = window.__charts || {};
+    if (window.__charts.heatmap) {
+        window.__charts.heatmap.data.labels = labels;
+        window.__charts.heatmap.data.datasets[0].data = data;
+        window.__charts.heatmap.update();
+        return;
+    }
+    window.__charts.heatmap = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                    label: 'Cases',
+                    data,
+                    backgroundColor: labels.map((l, i) => ['#ef4444', '#f97316', '#2563eb', '#0f766e'][i % 4]),
+                }]
+        },
+        options: {
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { x: { beginAtZero: true } }
+        }
+    });
 }
 function renderRevenueChart(snapshot) {
     const weeklyRevenue = [42, 56, 51, 64, 69, 74, 78].map((value) => Math.round(value * (snapshot.revenue / 84000)));
@@ -271,8 +361,9 @@ export async function renderDashboard() {
         departmentChips.innerHTML = renderDepartmentChips();
     if (funnelChart)
         funnelChart.innerHTML = renderFunnelChart(snapshot);
-    if (heatmapGrid)
-        heatmapGrid.innerHTML = renderHeatmap(snapshot);
+    // Initialize or update Chart.js charts
+    initOrUpdateFunnelChart(snapshot);
+    initOrUpdateHeatmapChart(snapshot);
     if (queueTableBody)
         queueTableBody.innerHTML = renderQueueTable();
     if (dashboardBadge)
@@ -293,7 +384,7 @@ export async function renderDashboard() {
     }
     if (waitTimeBreakdown) {
         waitTimeBreakdown.innerHTML = dashboardFilters.showBreakdown
-            ? '<div class="detail-card"><p class="detail-label">Bottleneck breakdown</p><p class="detail-value">Cardiology consults are driving the queue. Two delayed visits need escalation.</p></div>'
+            ? '<div class="detail-card"><p class="detail-label">Bottleneck breakdown</p><p class="detail-value">Some colleges are driving the queue. Several delayed consultations need escalation.</p></div>'
             : '<p class="small text-secondary mb-0">Click the alert to inspect the delayed consultations causing the backlog.</p>';
     }
     if (modalHost) {
