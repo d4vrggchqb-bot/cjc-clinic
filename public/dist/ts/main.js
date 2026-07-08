@@ -1,6 +1,6 @@
-import { renderDashboard } from './dashboard';
-import { loadPatientTable, uploadPatientAttachment } from './patients';
-import { loadInventory } from './inventory';
+import { renderDashboard } from './dashboard.js';
+import { loadPatientTable, uploadPatientAttachment } from './patients.js';
+import { loadInventory } from './inventory.js';
 const tabs = Array.from(document.querySelectorAll('[data-view]'));
 const views = Array.from(document.querySelectorAll('main section'));
 async function updateDashboard() {
