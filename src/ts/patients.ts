@@ -11,14 +11,31 @@ export async function loadPatientTable(profileType: string = 'all'): Promise<voi
   if (!body) {
     return;
   }
+  
+  if (rows.length === 0) {
+    body.innerHTML = `
+      <tr>
+        <td colspan="5" class="text-center py-5 text-secondary">
+          <p class="fw-semibold mb-1">No patient profiles found</p>
+          <p class="small mb-0">No records match the current filter selection.</p>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
   body.innerHTML = rows.map((profile) => `
-    <tr class="border-bottom align-middle">
-      <td class="py-3 align-middle text-secondary">${profile.id}</td>
-      <td class="py-3 align-middle fw-semibold text-dark">${profile.name}</td>
-      <td class="py-3 align-middle text-secondary">${profile.contact}</td>
-      <td class="py-3 align-middle text-secondary">${profile.program_department}</td>
-      <td class="py-3 align-middle">
-        <span class="stock-pill">${profile.blood_type || 'N/A'}</span>
+    <tr class="align-middle animate-fade-in">
+      <td class="py-3 text-secondary font-monospace" style="font-size:0.8rem; font-weight:600;">#${profile.id}</td>
+      <td class="py-3 fw-bold text-dark">${profile.name}</td>
+      <td class="py-3 text-secondary">${profile.contact}</td>
+      <td class="py-3 text-secondary">
+        <span class="badge bg-light text-dark border px-2.5 py-1.5" style="border-radius: 0.5rem; font-size: 0.72rem; font-weight: 600;">
+          ${profile.program_department}
+        </span>
+      </td>
+      <td class="py-3">
+        <span class="stock-pill" style="font-weight: 700;">${profile.blood_type || 'N/A'}</span>
       </td>
     </tr>
   `).join('');
