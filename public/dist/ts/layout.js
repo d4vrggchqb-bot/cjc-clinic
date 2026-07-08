@@ -319,7 +319,19 @@ function renderPageContent(page) {
           <div class="privacy-pill">HIPAA-safe masking</div>
         </div>
       </div>
-      <p class="small text-secondary mb-0" id="dashboardFilterSummary">Last 30 days • All physicians</p>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <p class="small text-secondary mb-0" id="dashboardFilterSummary">Last 30 days • All physicians</p>
+        <div class="dashboard-controls d-flex align-items-center gap-2">
+          <label class="small text-secondary mb-0" for="viewPeriod">View period</label>
+          <select id="viewPeriod" class="form-select form-select-sm">
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+          </select>
+          <button id="exportDashboard" class="btn btn-outline-secondary btn-sm">Export</button>
+          <button id="dashboardRefreshBtn" class="btn btn-outline-primary btn-sm">Refresh</button>
+        </div>
+      </div>
     </div>
 
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-5 g-4 mb-4 animate-scale-up">
@@ -365,7 +377,11 @@ function renderPageContent(page) {
         <div class="dashboard-panel p-4 h-100">
           <div class="d-flex justify-content-between align-items-center gap-3 mb-3 flex-wrap">
             <h5 class="panel-header mb-0">Patient-consultation funnel</h5>
-            <div class="department-chip-row" id="departmentChips"></div>
+            <div class="d-flex align-items-center gap-2">
+              <button id="chipsScrollLeft" class="chip-scroll-btn" type="button">‹</button>
+              <div class="department-chip-row" id="departmentChips" tabindex="0" role="listbox" aria-label="College filters"></div>
+              <button id="chipsScrollRight" class="chip-scroll-btn" type="button">›</button>
+            </div>
           </div>
           <div id="funnelChart"><canvas id="funnelCanvas" height="160"></canvas></div>
         </div>
@@ -375,6 +391,29 @@ function renderPageContent(page) {
           <h5 class="panel-header mb-0">Wait time alert</h5>
           <div id="waitTimeAlert" class="wait-time-card warning"></div>
           <div class="mt-3" id="waitTimeBreakdown"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4 animate-fade-in mt-2">
+      <div class="col-lg-6">
+        <div class="dashboard-panel p-4 h-100">
+          <h5 class="panel-header mb-3">Top Diagnoses</h5>
+          <div class="mt-3"><canvas id="topDiagnosesCanvas" height="200"></canvas></div>
+        </div>
+        <div class="dashboard-panel p-4 mt-4 h-100">
+          <h5 class="panel-header mb-3">Visits by College / Dept</h5>
+          <div class="mt-3"><canvas id="visitsByCollegeCanvas" height="220"></canvas></div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="dashboard-panel p-4 h-100">
+          <h5 class="panel-header mb-3">Illness Trend</h5>
+          <div class="mt-3"><canvas id="illnessTrendCanvas" height="200"></canvas></div>
+        </div>
+        <div class="dashboard-panel p-4 mt-4 h-100">
+          <h5 class="panel-header mb-3">Medicine Inventory Status</h5>
+          <div class="mt-3"><canvas id="inventoryStatusCanvas" height="220"></canvas></div>
         </div>
       </div>
     </div>
