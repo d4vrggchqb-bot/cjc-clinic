@@ -1,6 +1,6 @@
-import { renderDashboard } from './dashboard';
-import { loadPatientTable, uploadPatientAttachment } from './patients';
-import { loadInventory } from './inventory';
+import { renderDashboard } from './dashboard.js';
+import { loadPatientTable, uploadPatientAttachment } from './patients.js';
+import { loadInventory } from './inventory.js';
 const tabs = Array.from(document.querySelectorAll('[data-view]'));
 const views = Array.from(document.querySelectorAll('main section'));
 async function updateDashboard() {
@@ -14,37 +14,47 @@ async function updateInventory(category = 'all') {
     await loadInventory(category);
 }
 function setActiveView(viewId) {
+    // 1. Toggle visibility of main sections
     views.forEach((view) => {
         view.classList.toggle('d-none', view.id !== `${viewId}View`);
     });
+    // 2. Format tabs to match your exact UI design
     tabs.forEach((button) => {
         if (button.dataset.view === viewId) {
-            button.classList.add('btn-light', 'text-dark');
-            button.classList.remove('btn-outline-light', 'text-white');
+            // Active state: Solid white pill background, crisp custom maroon text color
+            button.style.backgroundColor = '#ffffff';
+            button.style.color = '#800000'; // Match Cor Jesu deep maroon
+            button.classList.add('fw-bold');
         }
         else {
-            button.classList.remove('btn-light', 'text-dark');
-            button.classList.add('btn-outline-light', 'text-white');
+            // Inactive state: Transparent background, clean white text
+            button.style.backgroundColor = 'transparent';
+            button.style.color = '#ffffff';
+            button.classList.remove('fw-bold');
         }
     });
 }
 function bindEvents() {
     tabs.forEach((button) => {
         button.addEventListener('click', async () => {
-            setActiveView(button.dataset.view ?? 'dashboard');
-            if (button.dataset.view === 'dashboard') {
+            // Capture the target dataset or fallback gracefully to dashboard
+            const targetView = button.dataset.view ?? 'dashboard';
+            setActiveView(targetView);
+            // Trigger targeted panel re-renders dynamically
+            if (targetView === 'dashboard') {
                 await updateDashboard();
             }
-            if (button.dataset.view === 'patients') {
+            if (targetView === 'patients') {
                 await updatePatients();
             }
-            if (button.dataset.view === 'inventory') {
+            if (targetView === 'inventory') {
                 await updateInventory();
             }
-            if (button.dataset.view === 'consultations') {
+            if (targetView === 'consultations') {
+                // Change this if you have a standalone loadConsultations() method later
                 await updateDashboard();
             }
-            if (button.dataset.view === 'history') {
+            if (targetView === 'history') {
                 await updateDashboard();
             }
         });
