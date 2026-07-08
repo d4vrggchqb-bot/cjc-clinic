@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { apiFetch } from '../../utils/api';
+import { apiFetch } from '../utils/api';
 import { FiSettings, FiBookOpen, FiActivity, FiUsers, FiUpload, FiDownload, FiInfo, FiPlus, FiTrash2, FiSave, FiHardDrive } from 'react-icons/fi';
 
 export default function Settings() {

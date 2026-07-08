@@ -63,7 +63,7 @@ class MedcertController {
             $filename = 'medcert_' . $certStringId . '_' . substr($cryptoHash, 0, 8) . '.pdf';
             $targetPath = $uploadDir . DIRECTORY_SEPARATOR . $filename;
             
-            $pdfScript = realpath(__DIR__ . '/../../../src/scripts/pdf_generator.py');
+            $pdfScript = realpath(__DIR__ . '/../../scripts/pdf_generator.py');
             $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443 ? "https://" : "http://";
             $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
             $verifyUrl = $protocol . $host . CJC_BASE_URL . "public/verify.php?id={$certId}&hash={$cryptoHash}";

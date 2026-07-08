@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '../../utils/api';
+import { apiFetch } from '../utils/api';
 import { FiSearch, FiEye, FiEdit2, FiPlus } from 'react-icons/fi';
 import PatientModal from '../components/PatientModal';
 import PatientViewModal from '../components/PatientViewModal';
@@ -283,3 +283,4 @@ const PatientList: React.FC = () => {
 };
 
 export default PatientList;
+

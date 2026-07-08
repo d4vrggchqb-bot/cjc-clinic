@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '../../utils/api';
+import { apiFetch } from '../utils/api';
 import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft } from 'react-icons/fi';
 
 interface PatientModalProps {

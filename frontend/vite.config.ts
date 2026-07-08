@@ -8,7 +8,7 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        app: './src/tsx/main.tsx',
+        app: './src/main.tsx',
       },
       output: {
         entryFileNames: 'js/[name].js',

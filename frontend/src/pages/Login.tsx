@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '../../utils/api';
+import { apiFetch } from '../utils/api';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');

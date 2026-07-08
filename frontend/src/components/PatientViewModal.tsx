@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '../../utils/api';
+import { apiFetch } from '../utils/api';
 import { FiX, FiUser, FiActivity, FiPhone, FiInfo } from 'react-icons/fi';
 
 interface PatientViewModalProps {
@@ -150,3 +150,4 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
 };
 
 export default PatientViewModal;
+

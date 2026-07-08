@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { apiFetch } from '../../utils/api';
+import { apiFetch } from '../utils/api';
 import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings } from 'react-icons/fi';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {

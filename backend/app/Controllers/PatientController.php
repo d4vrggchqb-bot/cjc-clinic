@@ -115,7 +115,7 @@ class PatientController {
             $this->jsonResponse(['success' => false, 'message' => 'Unable to save file.'], 500);
         }
 
-        $ocrScript = realpath(__DIR__ . '/../../../src/scripts/ocr_parser.py');
+        $ocrScript = realpath(__DIR__ . '/../../scripts/ocr_parser.py');
         $extractedText = null;
         if ($ocrScript) {
             $cmd = escapeshellcmd("python") . " " . escapeshellarg($ocrScript) . " " . escapeshellarg($targetPath);

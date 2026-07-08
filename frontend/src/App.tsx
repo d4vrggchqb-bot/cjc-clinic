@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { apiFetch } from '../utils/api';
+import { apiFetch } from './utils/api';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import PatientList from './pages/PatientList';

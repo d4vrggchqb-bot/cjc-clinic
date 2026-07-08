@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '../../utils/api';
+import { apiFetch } from '../utils/api';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend
@@ -190,3 +190,4 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
+
