@@ -1,83 +1,336 @@
-function getStatusClass(status) {
-    const val = (status || '').toLowerCase();
-    if (val.includes('progress') || val.includes('transit'))
-        return 'in-progress';
-    if (val.includes('monitor'))
-        return 'monitoring';
-    if (val.includes('complete') || val.includes('deliver') || val.includes('success'))
-        return 'completed';
-    if (val.includes('low') || val.includes('warn'))
-        return 'low-stock';
-    if (val.includes('expire') || val.includes('danger') || val.includes('dispos'))
-        return 'expired';
-    return '';
+const dashboardFilters = {
+    dateRange: '30d',
+    branch: 'all',
+    physician: 'all',
+    selectedDepartment: 'all',
+    selectedDiagnosis: 'all',
+    activePatientId: null,
+    showBreakdown: false,
+};
+const waitThresholds = {
+    all: 17,
+    Cardiology: 24,
+    'Primary Care': 16,
+    Neurology: 21,
+    Pediatrics: 13,
+};
+const queueData = [
+    {
+        id: 1,
+        name: 'A. Rivera',
+        department: 'Cardiology',
+        status: 'In progress',
+        wait: '8 min',
+        charge: '$210',
+        maskedId: '**** 4219',
+        history: 'Arrhythmia follow-up · Recent ECG reviewed',
+        detail: 'Insurance pre-authorization pending',
+    },
+    {
+        id: 2,
+        name: 'M. Santos',
+        department: 'Primary Care',
+        status: 'Up next',
+        wait: '12 min',
+        charge: '$84',
+        maskedId: '**** 1182',
+        history: 'Acute respiratory assessment · Asthma history',
+        detail: 'Medication refill approved',
+    },
+    {
+        id: 3,
+        name: 'L. Chen',
+        department: 'Neurology',
+        status: 'Delayed',
+        wait: '34 min',
+        charge: '$310',
+        maskedId: '**** 5560',
+        history: 'Migraine review · MRI follow-up',
+        detail: 'Lab results pending review',
+    },
+];
+function getWaitLevel(minutes) {
+    if (minutes < 15)
+        return 'ok';
+    if (minutes <= 30)
+        return 'warning';
+    return 'danger';
+}
+function getDepartmentLabel(value) {
+    return value === 'all' ? 'All departments' : value;
+}
+function formatCurrency(value) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0,
+    }).format(value);
+}
+function getSnapshot() {
+    const branchMultiplier = dashboardFilters.branch === 'all' ? 1 : dashboardFilters.branch === 'north' ? 1.08 : 0.94;
+    const physicianMultiplier = dashboardFilters.physician === 'all' ? 1 : dashboardFilters.physician === 'dr-arias' ? 1.03 : 0.97;
+    const departmentMultiplier = dashboardFilters.selectedDepartment === 'all' ? 1 : dashboardFilters.selectedDepartment === 'Cardiology' ? 0.92 : 1.04;
+    const patients = Math.round(1842 * branchMultiplier * physicianMultiplier * departmentMultiplier);
+    const consultations = Math.round(128 * branchMultiplier * physicianMultiplier * (dashboardFilters.selectedDepartment === 'Neurology' ? 1.07 : 1));
+    const waitMinutes = Math.round(waitThresholds[dashboardFilters.selectedDepartment] ?? waitThresholds.all * (dashboardFilters.branch === 'north' ? 1.08 : 1));
+    const revenue = Math.round(84250 * branchMultiplier * physicianMultiplier * (dashboardFilters.selectedDepartment === 'Cardiology' ? 1.06 : 1));
+    const currentDateRange = dashboardFilters.dateRange === '90d' ? '90 days' : dashboardFilters.dateRange === '7d' ? '7 days' : '30 days';
+    return {
+        patients,
+        patientGrowth: dashboardFilters.dateRange === '90d' ? 18.2 : dashboardFilters.dateRange === '7d' ? 6.8 : 12.4,
+        consultations,
+        consultationTarget: 150,
+        waitMinutes,
+        waitLevel: getWaitLevel(waitMinutes),
+        revenue,
+        dateRangeLabel: currentDateRange,
+    };
+}
+function renderDepartmentChips() {
+    const departments = ['all', 'Cardiology', 'Primary Care', 'Neurology', 'Pediatrics'];
+    return departments.map((department) => `
+    <button class="department-chip ${dashboardFilters.selectedDepartment === department ? 'active' : ''}" data-dept-filter="${department}" type="button">
+      ${getDepartmentLabel(department)}
+    </button>
+  `).join('');
+}
+function renderFunnelChart(snapshot) {
+    const newPatients = Math.round(snapshot.patients * 0.42);
+    const booked = Math.round(snapshot.consultations * 0.9);
+    const completed = Math.round(snapshot.consultations * 0.78);
+    const bars = [
+        { label: 'New patients', value: newPatients, tone: 'teal' },
+        { label: 'Booked visits', value: booked, tone: 'maroon' },
+        { label: 'Completed care', value: completed, tone: 'blue' },
+    ];
+    return `
+    <div class="chart-rail">
+      ${bars.map((bar) => `
+        <div class="funnel-bar ${bar.tone}" role="button" data-dept-filter="${dashboardFilters.selectedDepartment}">
+          <div class="funnel-label">${bar.label}</div>
+          <div class="funnel-value">${bar.value}</div>
+          <div class="funnel-caption">${dashboardFilters.selectedDepartment === 'all' ? 'Cross-department view' : `${dashboardFilters.selectedDepartment} focus`}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+function renderHeatmap(snapshot) {
+    const cells = [
+        { diagnosis: 'Hypertension', specialty: 'Cardiology', value: 24, intensity: 'high' },
+        { diagnosis: 'Asthma', specialty: 'Primary Care', value: 19, intensity: 'mid' },
+        { diagnosis: 'Migraine', specialty: 'Neurology', value: 16, intensity: 'mid' },
+        { diagnosis: 'Pediatric flu', specialty: 'Pediatrics', value: 14, intensity: 'low' },
+    ];
+    return `
+    <div class="heatmap-grid">
+      ${cells.map((cell) => `
+        <button class="heatmap-cell ${cell.intensity} ${dashboardFilters.selectedDiagnosis === cell.diagnosis ? 'active' : ''}" type="button" data-diagnosis="${cell.diagnosis}">
+          <span class="heatmap-diagnosis">${cell.diagnosis}</span>
+          <span class="heatmap-specialty">${cell.specialty}</span>
+          <span class="heatmap-value">${cell.value} cases</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+function renderRevenueChart(snapshot) {
+    const weeklyRevenue = [42, 56, 51, 64, 69, 74, 78].map((value) => Math.round(value * (snapshot.revenue / 84000)));
+    return `
+    <div class="dual-axis-chart">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <p class="mb-1 fw-semibold text-dark">High-value hours</p>
+          <p class="mb-0 small text-secondary">Revenue vs completed consultations</p>
+        </div>
+        <span class="status-pill completed">Peak at 14:00</span>
+      </div>
+      <div class="dual-axis-bars">
+        ${weeklyRevenue.map((value, index) => `
+          <div class="axis-column">
+            <div class="axis-bar revenue" style="height: ${Math.min(100, Math.round(value / 12))}%"></div>
+            <div class="axis-bar consult" style="height: ${Math.min(100, 45 + index * 4)}%"></div>
+            <span class="axis-label">${['M', 'T', 'W', 'T', 'F', 'S', 'S'][index]}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+function renderQueueTable() {
+    return queueData.map((item) => `
+    <tr class="queue-row" data-patient-id="${item.id}" tabindex="0">
+      <td>
+        <div class="fw-semibold text-dark">${item.name}</div>
+        <div class="small text-secondary">${item.department}</div>
+      </td>
+      <td>
+        <span class="status-pill ${item.status === 'Delayed' ? 'warning' : item.status === 'In progress' ? 'in-progress' : 'monitoring'}">${item.status}</span>
+      </td>
+      <td>${item.wait}</td>
+      <td>${item.detail}</td>
+      <td class="text-secondary">${item.maskedId}</td>
+    </tr>
+  `).join('');
+}
+function renderModal(patientId) {
+    if (!patientId) {
+        return '';
+    }
+    const patient = queueData.find((item) => item.id === patientId);
+    if (!patient) {
+        return '';
+    }
+    return `
+    <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="patientModalTitle">
+      <div class="modal-card">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <p class="small text-uppercase text-secondary mb-1">Protected clinical view</p>
+            <h5 class="mb-1 fw-bold text-dark" id="patientModalTitle">${patient.name}</h5>
+            <p class="mb-0 small text-secondary">${patient.department} • ${patient.maskedId}</p>
+          </div>
+          <button class="btn-close" id="closePatientModal" type="button" aria-label="Close"></button>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="detail-card">
+              <p class="detail-label">Billing status</p>
+              <p class="detail-value">${patient.detail}</p>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="detail-card">
+              <p class="detail-label">Medical history</p>
+              <p class="detail-value">${patient.history}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 export async function renderDashboard() {
-    const response = await fetch('api/inventory.php');
-    if (!response.ok) {
-        return;
-    }
-    const data = await response.json();
-    const metrics = data.metrics;
-    document.getElementById('metricVisits').textContent = String(metrics.today_visits ?? 4);
-    document.getElementById('metricConsultations').textContent = String(metrics.active_consultations ?? 2);
-    document.getElementById('metricLowStock').textContent = String(metrics.low_stock);
-    document.getElementById('metricExpired').textContent = String(metrics.expired);
-    document.getElementById('metricMedCerts').textContent = String(metrics.medcert_count ?? 1);
-    const consultationsContainer = document.getElementById('activeConsultations');
-    if (consultationsContainer) {
-        consultationsContainer.innerHTML = '';
-        const active = data.activeConsultations || [
-            { title: 'Fever assessment', provider: 'Dr. Angela Santos', status: 'In progress' },
-            { title: 'Respiratory review', provider: 'Nurse Maria Luz', status: 'Monitoring' }
-        ];
-        active.forEach((item) => {
-            const node = document.createElement('div');
-            node.className = 'dashboard-list-card animate-fade-in';
-            const isProgress = item.status === 'In progress';
-            const isMonitor = item.status === 'Monitoring';
-            const dotHtml = isProgress
-                ? '<span class="pulse-dot"></span>'
-                : (isMonitor ? '<span class="pulse-dot warning"></span>' : '');
-            node.innerHTML = `
-        <div class="d-flex align-items-start justify-content-between gap-3">
-          <div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              ${dotHtml}
-              <p class="mb-0 small fw-semibold text-dark">${item.title}</p>
-            </div>
-            <p class="mb-0 small text-secondary">Provider: ${item.provider}</p>
-          </div>
-          <span class="status-pill ${getStatusClass(item.status)}">${item.status}</span>
+    const snapshot = getSnapshot();
+    const waitText = snapshot.waitLevel === 'ok' ? 'Stable operations' : snapshot.waitLevel === 'warning' ? 'Monitor queue' : 'Immediate attention';
+    const metricPatients = document.getElementById('metricPatients');
+    const metricPatientsTrend = document.getElementById('metricPatientsTrend');
+    const metricConsultations = document.getElementById('metricConsultations');
+    const metricConsultationsTarget = document.getElementById('metricConsultationsTarget');
+    const metricWait = document.getElementById('metricWait');
+    const metricWaitState = document.getElementById('metricWaitState');
+    const departmentChips = document.getElementById('departmentChips');
+    const funnelChart = document.getElementById('funnelChart');
+    const heatmapGrid = document.getElementById('heatmapGrid');
+    const queueTableBody = document.getElementById('queueTableBody');
+    const waitTimeAlert = document.getElementById('waitTimeAlert');
+    const waitTimeBreakdown = document.getElementById('waitTimeBreakdown');
+    const dashboardBadge = document.getElementById('dashboardBadge');
+    const dashboardFilterSummary = document.getElementById('dashboardFilterSummary');
+    const modalHost = document.getElementById('modalHost');
+    if (metricPatients)
+        metricPatients.textContent = String(snapshot.patients);
+    if (metricPatientsTrend)
+        metricPatientsTrend.textContent = `${snapshot.patientGrowth > 0 ? '+' : ''}${snapshot.patientGrowth.toFixed(1)}% vs last month`;
+    if (metricConsultations)
+        metricConsultations.textContent = String(snapshot.consultations);
+    if (metricConsultationsTarget)
+        metricConsultationsTarget.textContent = `Target ${snapshot.consultationTarget} / day`;
+    if (metricWait)
+        metricWait.textContent = `${snapshot.waitMinutes} min`;
+    if (metricWaitState)
+        metricWaitState.textContent = waitText;
+    if (departmentChips)
+        departmentChips.innerHTML = renderDepartmentChips();
+    if (funnelChart)
+        funnelChart.innerHTML = renderFunnelChart(snapshot);
+    if (heatmapGrid)
+        heatmapGrid.innerHTML = renderHeatmap(snapshot);
+    if (queueTableBody)
+        queueTableBody.innerHTML = renderQueueTable();
+    if (dashboardBadge)
+        dashboardBadge.textContent = `${getDepartmentLabel(dashboardFilters.selectedDepartment)} • ${dashboardFilters.branch === 'all' ? 'All branches' : dashboardFilters.branch}`;
+    if (dashboardFilterSummary)
+        dashboardFilterSummary.textContent = `${dashboardFilters.dateRange === '90d' ? 'Last 90 days' : dashboardFilters.dateRange === '7d' ? 'Last 7 days' : 'Last 30 days'} • ${dashboardFilters.physician === 'all' ? 'All physicians' : dashboardFilters.physician}`;
+    if (waitTimeAlert) {
+        waitTimeAlert.className = `wait-time-card ${snapshot.waitLevel}`;
+        waitTimeAlert.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <p class="mb-1 fw-semibold text-dark">${snapshot.waitMinutes} min average wait</p>
+          <p class="mb-0 small text-secondary">${waitText}</p>
         </div>
-      `;
-            consultationsContainer.appendChild(node);
-        });
+        <span class="status-pill ${snapshot.waitLevel === 'ok' ? 'completed' : snapshot.waitLevel === 'warning' ? 'warning' : 'danger'}">${snapshot.waitMinutes < 15 ? 'Healthy' : snapshot.waitMinutes <= 30 ? 'Watch' : 'Critical'}</span>
+      </div>
+    `;
     }
-    const inventoryBreakdown = document.getElementById('inventoryBreakdown');
-    if (inventoryBreakdown) {
-        inventoryBreakdown.innerHTML = '';
-        const items = data.items ?? [];
-        const lowStockItems = items.filter((item) => Number(item.stock) <= 10).slice(0, 3);
-        const displayItems = lowStockItems.length > 0 ? lowStockItems : items.slice(0, 3);
-        displayItems.forEach((item) => {
-            const block = document.createElement('div');
-            block.className = 'dashboard-list-card animate-fade-in';
-            const stockNum = Number(item.stock);
-            const stockClass = stockNum === 0 ? 'empty' : (stockNum <= 10 ? 'low' : '');
-            const badgeText = stockNum === 0 ? 'Out of Stock' : `${item.stock} in stock`;
-            block.innerHTML = `
-        <div class="d-flex align-items-start justify-content-between gap-3">
-          <div>
-            <p class="small text-uppercase text-secondary mb-1" style="font-size:0.65rem; font-weight:700; letter-spacing:0.04em;">${item.category}</p>
-            <p class="h6 mb-1 text-dark" style="font-weight:600;">${item.brand_name}</p>
-            <p class="small text-secondary mb-0">${item.generic_name || 'Generic Product'}</p>
-          </div>
-          <span class="stock-pill ${stockClass}">${badgeText}</span>
-        </div>
-      `;
-            inventoryBreakdown.appendChild(block);
+    if (waitTimeBreakdown) {
+        waitTimeBreakdown.innerHTML = dashboardFilters.showBreakdown
+            ? '<div class="detail-card"><p class="detail-label">Bottleneck breakdown</p><p class="detail-value">Cardiology consults are driving the queue. Two delayed visits need escalation.</p></div>'
+            : '<p class="small text-secondary mb-0">Click the alert to inspect the delayed consultations causing the backlog.</p>';
+    }
+    if (modalHost) {
+        modalHost.innerHTML = renderModal(dashboardFilters.activePatientId);
+    }
+    const dateSelect = document.getElementById('dashboardDateRange');
+    const branchSelect = document.getElementById('dashboardBranch');
+    const physicianSelect = document.getElementById('dashboardPhysician');
+    dateSelect?.addEventListener('change', () => {
+        dashboardFilters.dateRange = dateSelect.value;
+        void renderDashboard();
+    });
+    branchSelect?.addEventListener('change', () => {
+        dashboardFilters.branch = branchSelect.value;
+        void renderDashboard();
+    });
+    physicianSelect?.addEventListener('change', () => {
+        dashboardFilters.physician = physicianSelect.value;
+        void renderDashboard();
+    });
+    document.querySelectorAll('[data-dept-filter]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const department = button.getAttribute('data-dept-filter') || 'all';
+            dashboardFilters.selectedDepartment = department;
+            dashboardFilters.showBreakdown = false;
+            void renderDashboard();
         });
+    });
+    document.querySelectorAll('[data-diagnosis]').forEach((button) => {
+        button.addEventListener('click', () => {
+            dashboardFilters.selectedDiagnosis = button.getAttribute('data-diagnosis') || 'all';
+            void renderDashboard();
+        });
+    });
+    document.querySelectorAll('[data-patient-id]').forEach((row) => {
+        row.addEventListener('click', () => {
+            const id = Number(row.getAttribute('data-patient-id'));
+            dashboardFilters.activePatientId = id;
+            void renderDashboard();
+        });
+    });
+    const waitCard = document.getElementById('waitTimeAlert');
+    waitCard?.addEventListener('click', () => {
+        dashboardFilters.showBreakdown = !dashboardFilters.showBreakdown;
+        void renderDashboard();
+    });
+    const closeModalButton = document.getElementById('closePatientModal');
+    closeModalButton?.addEventListener('click', () => {
+        dashboardFilters.activePatientId = null;
+        void renderDashboard();
+    });
+    const backdrop = document.getElementById('modalBackdrop');
+    backdrop?.addEventListener('click', (event) => {
+        if (event.target === backdrop) {
+            dashboardFilters.activePatientId = null;
+            void renderDashboard();
+        }
+    });
+    if (!window.__dashboardRefreshHooked) {
+        window.__dashboardRefreshHooked = true;
+        window.setInterval(() => {
+            dashboardFilters.dateRange = '30d';
+            void renderDashboard();
+        }, 60000);
     }
 }
 //# sourceMappingURL=dashboard.js.map

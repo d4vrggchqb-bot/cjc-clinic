@@ -281,65 +281,121 @@ function renderPageContent(page) {
     }
     return `
     <div class="mb-4 animate-fade-in">
-      <h2 class="page-title mb-1">${meta.title}</h2>
-      <p class="page-subtitle small mb-0">${meta.subtitle}</p>
+      <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
+        <div>
+          <h2 class="page-title mb-1">${meta.title}</h2>
+          <p class="page-subtitle small mb-0">${meta.subtitle}</p>
+        </div>
+        <div class="status-pill completed" id="dashboardBadge">Cross-department view</div>
+      </div>
+
+      <div class="dashboard-filter-bar">
+        <div class="filter-group">
+          <label for="dashboardDateRange">Date range</label>
+          <select class="form-select" id="dashboardDateRange">
+            <option value="7d">Last 7 days</option>
+            <option value="30d" selected>Last 30 days</option>
+            <option value="90d">Last 90 days</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="dashboardBranch">Clinic branch</label>
+          <select class="form-select" id="dashboardBranch">
+            <option value="all" selected>All branches</option>
+            <option value="north">North campus</option>
+            <option value="south">South campus</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="dashboardPhysician">Attending physician</label>
+          <select class="form-select" id="dashboardPhysician">
+            <option value="all" selected>All physicians</option>
+            <option value="dr-arias">Dr. Arias</option>
+            <option value="dr-patel">Dr. Patel</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Privacy</label>
+          <div class="privacy-pill">HIPAA-safe masking</div>
+        </div>
+      </div>
+      <p class="small text-secondary mb-0" id="dashboardFilterSummary">Last 30 days • All physicians</p>
     </div>
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-5 g-4 mb-4 animate-scale-up">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-4 mb-4 animate-scale-up">
       <div class="col">
-        <div class="metric-card card-visits">
-          <div class="metric-label">Today's Visits</div>
-          <div class="metric-value metric-visits" id="metricVisits">0</div>
-          <div class="metric-sub">Registered today</div>
+        <div class="metric-card card-patients">
+          <div class="metric-label">Total patients</div>
+          <div class="metric-value" id="metricPatients">0</div>
+          <div class="metric-sub" id="metricPatientsTrend">+0.0% vs last month</div>
         </div>
       </div>
       <div class="col">
         <div class="metric-card card-consultations">
-          <div class="metric-label">Ongoing Consults</div>
-          <div class="metric-value metric-consultations" id="metricConsultations">0</div>
-          <div class="metric-sub">Currently active</div>
+          <div class="metric-label">Daily consultations</div>
+          <div class="metric-value" id="metricConsultations">0</div>
+          <div class="metric-sub" id="metricConsultationsTarget">Target 150 / day</div>
         </div>
       </div>
       <div class="col">
-        <div class="metric-card card-lowstock">
-          <div class="metric-label">Low Stock</div>
-          <div class="metric-value metric-lowstock" id="metricLowStock">0</div>
-          <div class="metric-sub">Urgently restocking</div>
-        </div>
-      </div>
-      <div class="col">
-        <div class="metric-card card-expired">
-          <div class="metric-label">Expired Items</div>
-          <div class="metric-value metric-expired" id="metricExpired">0</div>
-          <div class="metric-sub">Disposal pending</div>
-        </div>
-      </div>
-      <div class="col">
-        <div class="metric-card card-medcerts">
-          <div class="metric-label">Med Certificates</div>
-          <div class="metric-value metric-medcerts" id="metricMedCerts">0</div>
-          <div class="metric-sub">Issued this month</div>
+        <div class="metric-card card-wait">
+          <div class="metric-label">Average wait time</div>
+          <div class="metric-value" id="metricWait">0 min</div>
+          <div class="metric-sub" id="metricWaitState">Stable operations</div>
         </div>
       </div>
     </div>
 
     <div class="row g-4 animate-fade-in">
-      <div class="col-lg-6">
-        <div class="dashboard-panel p-4 h-100" id="activeConsultationsContainer">
-          <h5 class="panel-header mb-3">
-            <span>Ongoing Sessions</span>
-            <span class="pulse-indicator"><span class="pulse-dot"></span><span class="small text-muted" style="font-size:0.65rem; font-weight:700;">LIVE</span></span>
-          </h5>
-          <div id="activeConsultations"></div>
+      <div class="col-xl-8">
+        <div class="dashboard-panel p-4 h-100">
+          <div class="d-flex justify-content-between align-items-center gap-3 mb-3 flex-wrap">
+            <h5 class="panel-header mb-0">Patient-consultation funnel</h5>
+            <div class="department-chip-row" id="departmentChips"></div>
+          </div>
+          <div id="funnelChart"></div>
         </div>
       </div>
-      <div class="col-lg-6">
-        <div class="dashboard-panel p-4 h-100" id="inventoryBreakdownContainer">
-          <h5 class="panel-header mb-3">Inventory Alert Monitor</h5>
-          <div id="inventoryBreakdown"></div>
+      <div class="col-xl-4">
+        <div class="dashboard-panel p-4 h-100">
+          <h5 class="panel-header mb-0">Wait time alert</h5>
+          <div id="waitTimeAlert" class="wait-time-card warning"></div>
+          <div class="mt-3" id="waitTimeBreakdown"></div>
         </div>
       </div>
     </div>
+
+    <div class="row g-4 animate-fade-in">
+      <div class="col-xl-12">
+        <div class="dashboard-panel p-4 h-100">
+          <h5 class="panel-header mb-0">Diagnosis vs specialty heatmap</h5>
+          <div class="mt-3" id="heatmapGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-panel p-4 animate-fade-in">
+      <div class="d-flex justify-content-between align-items-center gap-3 mb-3 flex-wrap">
+        <h5 class="panel-header mb-0">Operational pulse</h5>
+        <span class="status-pill completed">Refreshes every 60 seconds</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr class="text-uppercase small text-secondary">
+              <th>Patient</th>
+              <th>Status</th>
+              <th>Wait</th>
+              <th>Service</th>
+              <th>Masked ID</th>
+            </tr>
+          </thead>
+          <tbody id="queueTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="modalHost"></div>
   `;
 }
 export async function renderAppLayout() {
