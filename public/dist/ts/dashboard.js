@@ -228,6 +228,33 @@ export async function renderDashboard() {
     const dashboardBadge = document.getElementById('dashboardBadge');
     const dashboardFilterSummary = document.getElementById('dashboardFilterSummary');
     const modalHost = document.getElementById('modalHost');
+    // Fetch real metrics for the school clinic dashboard cards
+    try {
+        const resp = await fetch('api/dashboard.php');
+        if (resp.ok) {
+            const db = await resp.json();
+            const visitsEl = document.getElementById('metricVisitsWeek');
+            const totalEl = document.getElementById('metricTotalRegistered');
+            const unattendedEl = document.getElementById('metricUnattended');
+            const pendingEl = document.getElementById('metricPendingRechecks');
+            const inventoryEl = document.getElementById('metricInventory');
+            if (visitsEl)
+                visitsEl.textContent = String(db.visits_this_week ?? 0);
+            if (totalEl)
+                totalEl.textContent = String(db.total_registered ?? 0);
+            if (unattendedEl)
+                unattendedEl.textContent = String(db.unattended ?? 0);
+            if (pendingEl)
+                pendingEl.textContent = String(db.pending_rechecks ?? 0);
+            if (inventoryEl)
+                inventoryEl.textContent = String(db.inventory_count ?? 0);
+        }
+    }
+    catch (e) {
+        // fallback: keep generated snapshot values for other charts
+        // eslint-disable-next-line no-console
+        console.warn('Failed to fetch dashboard API', e);
+    }
     if (metricPatients)
         metricPatients.textContent = String(snapshot.patients);
     if (metricPatientsTrend)

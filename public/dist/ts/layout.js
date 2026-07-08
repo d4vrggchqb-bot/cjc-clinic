@@ -322,26 +322,40 @@ function renderPageContent(page) {
       <p class="small text-secondary mb-0" id="dashboardFilterSummary">Last 30 days • All physicians</p>
     </div>
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-4 mb-4 animate-scale-up">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-5 g-4 mb-4 animate-scale-up">
       <div class="col">
-        <div class="metric-card card-patients">
-          <div class="metric-label">Total patients</div>
-          <div class="metric-value" id="metricPatients">0</div>
-          <div class="metric-sub" id="metricPatientsTrend">+0.0% vs last month</div>
+        <div class="metric-card card-visits">
+          <div class="metric-label">Visits this week</div>
+          <div class="metric-value" id="metricVisitsWeek">0</div>
+          <div class="metric-sub">This week</div>
         </div>
       </div>
       <div class="col">
-        <div class="metric-card card-consultations">
-          <div class="metric-label">Daily consultations</div>
-          <div class="metric-value" id="metricConsultations">0</div>
-          <div class="metric-sub" id="metricConsultationsTarget">Target 150 / day</div>
+        <div class="metric-card card-registered">
+          <div class="metric-label">Total registered</div>
+          <div class="metric-value" id="metricTotalRegistered">0</div>
+          <div class="metric-sub">Students &amp; Employees</div>
         </div>
       </div>
       <div class="col">
-        <div class="metric-card card-wait">
-          <div class="metric-label">Average wait time</div>
-          <div class="metric-value" id="metricWait">0 min</div>
-          <div class="metric-sub" id="metricWaitState">Stable operations</div>
+        <div class="metric-card card-unattended">
+          <div class="metric-label">Unattended</div>
+          <div class="metric-value" id="metricUnattended">0</div>
+          <div class="metric-sub">Today: Waiting for care</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="metric-card card-pending">
+          <div class="metric-label">Pending re-checks</div>
+          <div class="metric-value" id="metricPendingRechecks">0</div>
+          <div class="metric-sub">Follow-ups due</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="metric-card card-inventory">
+          <div class="metric-label">Inventory</div>
+          <div class="metric-value" id="metricInventory">0</div>
+          <div class="metric-sub">Medicines, supplies &amp; equipment</div>
         </div>
       </div>
     </div>
