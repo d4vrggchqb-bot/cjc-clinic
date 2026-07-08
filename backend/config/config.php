@@ -131,6 +131,12 @@ function cjcCurrentUser(): array
 function cjcRequireRole(array $allowedRoles): void
 {
     $user = cjcCurrentUser();
+    
+    // System Administrator (root user) bypasses all role checks
+    if ($user['role'] === 'System Administrator') {
+        return;
+    }
+    
     if (!in_array($user['role'], $allowedRoles, true)) {
         http_response_code(403);
         

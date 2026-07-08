@@ -173,7 +173,7 @@ class PatientController {
         }
 
         cjcRequireAuth();
-        cjcRequireRole(['Admin', 'Doctor', 'Nurse']);
+        cjcRequireRole(['Admin', 'Doctor', 'Nurse', 'Staff']);
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
 
@@ -236,7 +236,7 @@ class PatientController {
         }
 
         cjcRequireAuth();
-        cjcRequireRole(['Admin', 'Doctor', 'Nurse']);
+        cjcRequireRole(['Admin', 'Doctor', 'Nurse', 'Staff']);
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         
