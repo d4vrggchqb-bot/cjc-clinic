@@ -284,36 +284,94 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                         <span className="text-sm font-medium text-slate-600">BED (Basic Ed)</span>
                       </label>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                      <div>
-                        <label className={labelClass}>College / Dept <span className="text-red-500">*</span></label>
-                        <select name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass}>
-                          <option value="">Select Department</option>
-                          <option value="BED Department">BED Department</option>
-                          <option value="College of Accounting, Business and Entreprenueurship (CABE)">CABE</option>
-                          <option value="College of Education and Sciences (CEDAS)">CEDAS</option>
-                          <option value="College of Health Sciences (CHS)">CHS</option>
-                          <option value="College of Computing and Information Sciences (CCIS)">CCIS</option>
-                          <option value="College of Engineering (COE)">COE</option>
-                          <option value="College of Special Programs (CSP)">CSP</option>
-                        </select>
+                    {formData.sub_type === 'College' ? (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <div>
+                          <label className={labelClass}>College / Dept <span className="text-red-500">*</span></label>
+                          <select name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass}>
+                            <option value="">Select Department</option>
+                            <option value="College of Accounting, Business and Entreprenueurship (CABE)">CABE</option>
+                            <option value="College of Education and Sciences (CEDAS)">CEDAS</option>
+                            <option value="College of Health Sciences (CHS)">CHS</option>
+                            <option value="College of Computing and Information Sciences (CCIS)">CCIS</option>
+                            <option value="College of Engineering (COE)">COE</option>
+                            <option value="College of Special Programs (CSP)">CSP</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
+                          <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass}>
+                            <option value="">Select Year</option>
+                            <option value="1st Year">1st Year</option>
+                            <option value="2nd Year">2nd Year</option>
+                            <option value="3rd Year">3rd Year</option>
+                            <option value="4th Year">4th Year</option>
+                            <option value="5th Year">5th Year</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Course/Program</label>
+                          <input type="text" name="course" value={formData.course} onChange={handleChange} className={inputClass} placeholder="e.g. BSCS, BSN" />
+                        </div>
                       </div>
-                      <div>
-                        <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
-                        <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass}>
-                          <option value="">Select Year</option>
-                          <option value="1st Year">1st Year</option>
-                          <option value="2nd Year">2nd Year</option>
-                          <option value="3rd Year">3rd Year</option>
-                          <option value="4th Year">4th Year</option>
-                          <option value="5th Year">5th Year</option>
-                        </select>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <div>
+                          <label className={labelClass}>College / Dept. <span className="text-red-500">*</span></label>
+                          <select name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass}>
+                            <option value="">Select Department</option>
+                            <option value="BED Department">BED Department</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Program <span className="text-red-500">*</span></label>
+                          <select name="course" value={formData.course} onChange={handleChange} className={inputClass}>
+                            <option value="">Select Program</option>
+                            <option value="Senior High School (SHS)">Senior High School (SHS)</option>
+                            <option value="Junior High School (JHS)">Junior High School (JHS)</option>
+                            <option value="Grade School">Grade School</option>
+                            <option value="Nursery">Nursery</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
+                          <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass} disabled={!formData.course}>
+                            <option value="">Select Year Level</option>
+                            {formData.course === 'Senior High School (SHS)' && (
+                              <>
+                                <option value="Grade 11">Grade 11</option>
+                                <option value="Grade 12">Grade 12</option>
+                              </>
+                            )}
+                            {formData.course === 'Junior High School (JHS)' && (
+                              <>
+                                <option value="Grade 7">Grade 7</option>
+                                <option value="Grade 8">Grade 8</option>
+                                <option value="Grade 9">Grade 9</option>
+                                <option value="Grade 10">Grade 10</option>
+                              </>
+                            )}
+                            {formData.course === 'Grade School' && (
+                              <>
+                                <option value="Grade 1">Grade 1</option>
+                                <option value="Grade 2">Grade 2</option>
+                                <option value="Grade 3">Grade 3</option>
+                                <option value="Grade 4">Grade 4</option>
+                                <option value="Grade 5">Grade 5</option>
+                                <option value="Grade 6">Grade 6</option>
+                              </>
+                            )}
+                            {formData.course === 'Nursery' && (
+                              <>
+                                <option value="Nursery 1">Nursery 1</option>
+                                <option value="Nursery 2">Nursery 2</option>
+                                <option value="Kinder 1">Kinder 1</option>
+                              </>
+                            )}
+                          </select>
+                        </div>
                       </div>
-                      <div>
-                        <label className={labelClass}>Course/Program</label>
-                        <input type="text" name="course" value={formData.course} onChange={handleChange} className={inputClass} placeholder="e.g. BSCS, BSN" />
-                      </div>
-                    </div>
+                    )}
                   </div>
                 )}
                 {formData.profile_type === 'employee' && (

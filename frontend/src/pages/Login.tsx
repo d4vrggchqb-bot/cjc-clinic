@@ -152,7 +152,7 @@ const Login: React.FC = () => {
               Rhea Balatero &amp; John Mark Limsan
             </div>
             <div style={{ fontSize: '0.6rem', fontStyle: 'italic', opacity: 0.5, marginTop: '0.25rem' }}>
-              Originally conceived and developed by Margarilyn Zosa, Elgin Manlisig
+              Originally conceived and developed by Bangcailan, Diva, Ngojo, and Sipaylan
             </div>
           </div>
         </div>
