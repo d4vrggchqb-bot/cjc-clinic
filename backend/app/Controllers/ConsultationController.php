@@ -41,6 +41,13 @@ class ConsultationController {
             $params['to'] = $to;
         } // 'all' requires no filter
 
+        $userRole = $_SESSION['cjc_user']['role'] ?? 'Staff';
+        if (!in_array($userRole, ['Admin', 'Superadmin'])) {
+            $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+            $whereClause .= " AND c.clinic_branch = :branch";
+            $params['branch'] = $branch;
+        }
+
         try {
             $countSql = "SELECT COUNT(*) FROM consultations c WHERE $whereClause";
             $countStmt = $pdo->prepare($countSql);
@@ -146,17 +153,19 @@ class ConsultationController {
             
         $currentUser = cjcCurrentUser();
         $attended_by = $currentUser['name'] ?? 'Clinic Staff';
+        $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
 
         try {
             $stmt = $pdo->prepare(
-                'INSERT INTO consultations (profile_id, purpose, status, attended_by)
-                 VALUES (:profile_id, :purpose, :status, :attended_by)'
+                'INSERT INTO consultations (profile_id, purpose, status, attended_by, clinic_branch)
+                 VALUES (:profile_id, :purpose, :status, :attended_by, :clinic_branch)'
             );
             $stmt->execute([
                 'profile_id'    => $profile_id,
                 'purpose'       => $purpose,
                 'status'        => 'waiting',
-                'attended_by'   => $attended_by
+                'attended_by'   => $attended_by,
+                'clinic_branch' => $branch
             ]);
             
             $this->jsonResponse(['success' => true, 'id' => $pdo->lastInsertId()]);
@@ -239,6 +248,49 @@ class ConsultationController {
                 'treatment' => $treatment,
                 'id' => $id
             ]);
+
+            // Handle Inventory Dispensing
+            $dispensedItems = $input['dispensed_items'] ?? [];
+            $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+            if (!empty($dispensedItems)) {
+                // Get patient name for disposed_to
+                $pStmt = $pdo->prepare("SELECT p.first_name, p.last_name FROM profiles p JOIN consultations c ON p.id = c.profile_id WHERE c.id = ?");
+                $pStmt->execute([$id]);
+                $patient = $pStmt->fetch();
+                $disposedTo = $patient ? ($patient['first_name'] . ' ' . $patient['last_name']) : 'Patient';
+
+                foreach ($dispensedItems as $dItem) {
+                    $itemId = (int)$dItem['item_id'];
+                    $qty = (int)$dItem['quantity'];
+                    if ($itemId <= 0 || $qty <= 0) continue;
+
+                    // FEFO Logic
+                    $bStmt = $pdo->prepare("
+                        SELECT id, stock_remaining FROM inventory_batches 
+                        WHERE item_id = ? AND clinic_branch = ? AND stock_remaining > 0 
+                          AND (expired_on >= CURDATE() OR expired_on IS NULL)
+                        ORDER BY expired_on ASC, date_arrived ASC
+                    ");
+                    $bStmt->execute([$itemId, $branch]);
+                    $batches = $bStmt->fetchAll();
+
+                    $remQty = $qty;
+                    foreach ($batches as $batch) {
+                        if ($remQty <= 0) break;
+                        $available = (int)$batch['stock_remaining'];
+                        $consumed = min($available, $remQty);
+                        $newStock = $available - $consumed;
+
+                        $uStmt = $pdo->prepare("UPDATE inventory_batches SET stock_remaining = ?, status = IF(?=0, 'depleted', 'active') WHERE id = ?");
+                        $uStmt->execute([$newStock, $newStock, $batch['id']]);
+
+                        $lStmt = $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, processed_by) VALUES (?, 'dispense', ?, ?, ?)");
+                        $lStmt->execute([$batch['id'], -$consumed, $disposedTo, $_SESSION['cjc_user']['id']]);
+
+                        $remQty -= $consumed;
+                    }
+                }
+            }
 
             $this->jsonResponse(['success' => true, 'message' => 'Notes saved successfully.']);
         } catch (PDOException $e) {

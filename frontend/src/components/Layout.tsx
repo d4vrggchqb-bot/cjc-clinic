@@ -25,6 +25,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { id: 'patients', label: 'PATIENT LIST', icon: FiUsers },
     { id: 'consultation', label: 'CONSULTATION', icon: FiActivity },
     { id: 'visitation', label: 'VISITATION HISTORY', icon: FiClock },
+    { id: 'appointments', label: 'APPOINTMENTS', icon: FiClock },
     { id: 'inventory', label: 'INVENTORY', icon: FiBox }
   ];
 

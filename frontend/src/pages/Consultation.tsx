@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiSearch, FiRefreshCw, FiCheckCircle } from 'react-icons/fi';
+import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter } from 'react-icons/fi';
 
 interface Patient {
   id: number;
@@ -58,6 +58,30 @@ const Consultation: React.FC = () => {
   const [selectedProfileDetails, setSelectedProfileDetails] = useState<any>(null);
   const [selectedProfileHistory, setSelectedProfileHistory] = useState<any[]>([]);
 
+  // Dispensing State
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [dispensedItems, setDispensedItems] = useState<{item_id: number, quantity: number, name: string}[]>([]);
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState('');
+  const [dispenseQty, setDispenseQty] = useState(1);
+
+  // Medcert State
+  const [isMedcertModalOpen, setIsMedcertModalOpen] = useState(false);
+  const [medcertData, setMedcertData] = useState({
+    issued_to: '',
+    issued_by: 'Clinic Nurse / Doctor',
+    reason: '',
+    valid_until: ''
+  });
+  const [showPrintView, setShowPrintView] = useState(false);
+
+  const fetchInventory = () => {
+    apiFetch('/api/index.php?route=inventory&action=items')
+      .then(res => {
+        if (res.items) setInventoryItems(res.items);
+      })
+      .catch(console.error);
+  };
+
   const fetchEntries = () => {
     let url = `/api/index.php?route=consultations&action=list&period=${period}&page=${currentPage}&per_page=10`;
     if (period === 'custom' && fromDate && toDate) {
@@ -76,6 +100,7 @@ const Consultation: React.FC = () => {
 
   useEffect(() => {
     fetchEntries();
+    fetchInventory();
     const interval = setInterval(fetchEntries, 30000);
     return () => clearInterval(interval);
   }, [period, currentPage]);
@@ -158,6 +183,7 @@ const Consultation: React.FC = () => {
     setWeight(entry.weight || '');
     setDiagnosis(entry.diagnosis || '');
     setTreatment(entry.treatment || '');
+    setDispensedItems([]); // Reset dispensed items
     setIsNotesModalOpen(true);
   };
 
@@ -173,7 +199,9 @@ const Consultation: React.FC = () => {
           temperature: temp,
           weight: weight,
           diagnosis: diagnosis,
-          treatment: treatment
+          treatment: treatment,
+          dispensed_items: dispensedItems,
+          clinic_branch: 'College Clinic' // TODO: dynamic based on logged in user's assigned clinic
         })
       });
       if (res.success) {
@@ -187,6 +215,29 @@ const Consultation: React.FC = () => {
       alert('An error occurred while saving notes.');
     } finally {
       setIsSavingNotes(false);
+    }
+  };
+
+  const handleGenerateMedcert = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeNoteEntry) return;
+    try {
+      const res = await apiFetch(`/api/index.php?route=medcert&action=generate`, {
+        method: 'POST',
+        body: JSON.stringify({
+          profile_id: activeNoteEntry.profile_id,
+          ...medcertData
+        })
+      });
+      if (res.success) {
+        setIsMedcertModalOpen(false);
+        setShowPrintView(true);
+      } else {
+        alert(res.message || 'Failed to generate medcert.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred.');
     }
   };
 
@@ -554,13 +605,84 @@ const Consultation: React.FC = () => {
                   <textarea value={treatment} onChange={e => setTreatment(e.target.value)} rows={3} placeholder="Enter prescribed medicines or given treatments..." className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] resize-none"></textarea>
                 </div>
               </div>
+              
+              <h3 className="text-sm font-bold text-slate-700 mt-6 mb-3 uppercase tracking-wider border-b pb-1">Administer / Dispense Items</h3>
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <div className="flex gap-2 mb-4">
+                  <select 
+                    value={selectedInventoryItem} 
+                    onChange={e => setSelectedInventoryItem(e.target.value)}
+                    className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
+                  >
+                    <option value="">Select Item (Medicine, Supply...)</option>
+                    {inventoryItems.map(item => (
+                      <option key={item.id} value={item.id}>
+                        {item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''} - {item.category}
+                      </option>
+                    ))}
+                  </select>
+                  <input 
+                    type="number" 
+                    min="1"
+                    value={dispenseQty} 
+                    onChange={e => setDispenseQty(parseInt(e.target.value) || 1)}
+                    className="w-24 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" 
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (!selectedInventoryItem) return;
+                      const item = inventoryItems.find(i => i.id === parseInt(selectedInventoryItem));
+                      if (item) {
+                        setDispensedItems(prev => [...prev, { item_id: item.id, quantity: dispenseQty, name: item.generic_name }]);
+                        setSelectedInventoryItem('');
+                        setDispenseQty(1);
+                      }
+                    }}
+                    className="px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded hover:bg-slate-700 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {dispensedItems.length > 0 ? (
+                  <ul className="space-y-2">
+                    {dispensedItems.map((di, idx) => (
+                      <li key={idx} className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded text-sm">
+                        <span className="font-semibold text-slate-700">{di.name}</span>
+                        <div className="flex items-center gap-4">
+                          <span className="text-slate-500">Qty: <span className="font-bold text-slate-800">{di.quantity}</span></span>
+                          <button onClick={() => setDispensedItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 text-xs font-bold">Remove</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-slate-500 italic text-center">No items selected to dispense.</p>
+                )}
+                <p className="text-xs text-orange-600 mt-3 flex items-center gap-1">
+                  <FiAlertCircle /> 
+                  Items added here will be automatically deducted from the inventory when you save notes.
+                </p>
+              </div>
             </div>
 
-            <div className="p-4 border-t border-slate-200 flex justify-end gap-3 bg-slate-50 rounded-b-lg">
-              <button onClick={() => setIsNotesModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
-              <button onClick={handleSaveNotes} disabled={isSavingNotes} className="px-4 py-2 text-sm font-bold text-white bg-[#8c1526] hover:bg-[#7a1221] rounded shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2">
-                {isSavingNotes ? 'Saving...' : 'Save Medical Notes'}
+            <div className="p-4 border-t border-slate-200 flex justify-between items-center bg-slate-50 rounded-b-lg">
+              <button 
+                onClick={() => {
+                  setMedcertData({ ...medcertData, issued_to: activeNoteEntry.patient_name, reason: diagnosis || 'Medical Consultation' });
+                  setIsMedcertModalOpen(true);
+                }} 
+                className="px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded shadow-sm transition-colors flex items-center gap-2"
+              >
+                <FiPrinter /> Generate Medcert / Prescription
               </button>
+              <div className="flex gap-3">
+                <button onClick={() => setIsNotesModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
+                <button onClick={handleSaveNotes} disabled={isSavingNotes} className="px-4 py-2 text-sm font-bold text-white bg-[#8c1526] hover:bg-[#7a1221] rounded shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2">
+                  {isSavingNotes ? 'Saving...' : 'Save Medical Notes'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -656,6 +778,105 @@ const Consultation: React.FC = () => {
         </div>
       )}
 
+      {/* Medcert Form Modal */}
+      {isMedcertModalOpen && activeNoteEntry && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
+              <h2 className="text-lg font-bold text-[#8c1526]">Generate Document</h2>
+              <button onClick={() => setIsMedcertModalOpen(false)} className="text-slate-400 hover:text-slate-700 font-bold text-xl">✕</button>
+            </div>
+            <form onSubmit={handleGenerateMedcert} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Issued To</label>
+                <input required type="text" value={medcertData.issued_to} onChange={e => setMedcertData({...medcertData, issued_to: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Issued By</label>
+                <input required type="text" value={medcertData.issued_by} onChange={e => setMedcertData({...medcertData, issued_by: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Reason / Remarks</label>
+                <textarea required value={medcertData.reason} onChange={e => setMedcertData({...medcertData, reason: e.target.value})} rows={3} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] resize-none"></textarea>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Valid Until (Excuse Date)</label>
+                <input required type="date" value={medcertData.valid_until} onChange={e => setMedcertData({...medcertData, valid_until: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
+              </div>
+              <div className="flex justify-end gap-3 mt-4">
+                <button type="button" onClick={() => setIsMedcertModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded">Cancel</button>
+                <button type="submit" className="px-4 py-2 text-sm font-bold text-white bg-[#8c1526] hover:bg-[#7a1221] rounded shadow-sm flex items-center gap-2">
+                  <FiPrinter /> Proceed to Print
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Print View */}
+      {showPrintView && (
+        <div className="fixed inset-0 bg-gray-500 z-[100] overflow-auto flex flex-col items-center py-10 print:py-0 print:bg-white print:block">
+          <div className="w-[210mm] min-h-[297mm] bg-white shadow-2xl print:shadow-none p-12 relative flex flex-col">
+            
+            {/* Action Bar (Hidden in Print) */}
+            <div className="absolute top-4 right-4 print:hidden flex gap-2">
+              <button onClick={() => window.print()} className="px-4 py-2 bg-blue-600 text-white rounded font-bold shadow hover:bg-blue-700 flex items-center gap-2">
+                <FiPrinter /> Print Document
+              </button>
+              <button onClick={() => setShowPrintView(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded font-bold shadow hover:bg-slate-300">
+                Close
+              </button>
+            </div>
+
+            {/* Letterhead */}
+            <div className="flex justify-center items-center gap-6 border-b-2 border-[#8c1526] pb-6 mb-8 mt-8 print:mt-0">
+              {/* Optional: <img src="/logo.png" alt="CJC Logo" className="w-20 h-20" /> */}
+              <div className="text-center">
+                <h1 className="text-2xl font-black text-[#8c1526] tracking-wide uppercase">Cor Jesu College</h1>
+                <h2 className="text-lg font-bold text-slate-800">Clinic Department</h2>
+                <p className="text-sm text-slate-500">Sacred Heart Avenue, Digos City, Davao del Sur</p>
+              </div>
+            </div>
+
+            {/* Title */}
+            <div className="text-center mb-10">
+              <h3 className="text-xl font-bold uppercase tracking-widest text-slate-800 underline underline-offset-8">Medical Certificate</h3>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 text-slate-800 text-justify leading-loose text-lg">
+              <p className="mb-6 text-right">Date: <span className="font-semibold underline underline-offset-4">{new Date().toLocaleDateString()}</span></p>
+              <p className="mb-6">To whom it may concern,</p>
+              <p className="mb-6 indent-8">
+                This is to certify that <span className="font-bold underline uppercase px-2">{medcertData.issued_to}</span> has been examined and treated at the Cor Jesu College Clinic on the aforementioned date.
+              </p>
+              <p className="mb-6 indent-8">
+                <strong>Diagnosis / Remarks:</strong> {medcertData.reason}
+              </p>
+              <p className="mb-12 indent-8">
+                The patient is advised to rest and is excused from classes/duty until <span className="font-bold underline px-2">{new Date(medcertData.valid_until).toLocaleDateString()}</span>.
+              </p>
+
+              {/* Signatures */}
+              <div className="mt-20 flex justify-end">
+                <div className="text-center w-64">
+                  <div className="border-b border-black mb-1 h-12 flex items-end justify-center font-bold text-xl pb-1">
+                    {medcertData.issued_by}
+                  </div>
+                  <div className="text-sm">Clinic Nurse / Physician</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="mt-auto pt-6 border-t border-slate-200 text-center text-xs text-slate-400">
+              Valid only with official clinic signature. Generated by CJC Clinic Management System.
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

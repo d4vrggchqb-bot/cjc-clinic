@@ -54,7 +54,7 @@ class AuthController {
         cjcRequireAuth();
         cjcRequireRole(['Admin', 'Superadmin']); // Assuming Admin can manage users
         $pdo = cjcDatabaseConnection();
-        $stmt = $pdo->query('SELECT id, username, name, role, created_at FROM users ORDER BY username ASC');
+        $stmt = $pdo->query('SELECT id, username, name, role, clinic_branch, created_at FROM users ORDER BY username ASC');
         $this->jsonResponse(['users' => $stmt->fetchAll()]);
     }
 
@@ -69,6 +69,7 @@ class AuthController {
         $password = $input['password'] ?? '';
         $name = trim($input['name'] ?? $username);
         $role = trim($input['role'] ?? 'Staff');
+        $clinic_branch = trim($input['clinic_branch'] ?? 'College Clinic');
         
         if (empty($username) || empty($password)) {
             $this->jsonResponse(['success' => false, 'message' => 'Username and password required.'], 400);
@@ -76,8 +77,8 @@ class AuthController {
         
         $pdo = cjcDatabaseConnection();
         try {
-            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, name, role) VALUES (?, ?, ?, ?)');
-            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $name, $role]);
+            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, name, role, clinic_branch) VALUES (?, ?, ?, ?, ?)');
+            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $name, $role, $clinic_branch]);
             $this->jsonResponse(['success' => true]);
         } catch (PDOException $e) {
             if ($e->getCode() == 23000) {
@@ -182,16 +183,17 @@ class AuthController {
     private function authenticateUser(string $username, string $password): ?array {
         try {
             $pdo = cjcDatabaseConnection();
-            $stmt = $pdo->prepare('SELECT id, username, password_hash, name, role FROM users WHERE username = :username LIMIT 1');
+            $stmt = $pdo->prepare('SELECT id, username, password_hash, name, role, clinic_branch FROM users WHERE username = :username LIMIT 1');
             $stmt->execute(['username' => $username]);
             $user = $stmt->fetch();
 
             if ($user && password_verify($password, $user['password_hash'])) {
                 return [
-                    'id'       => $user['id'],
-                    'username' => $user['username'],
-                    'name'     => $user['name'],
-                    'role'     => $user['role'],
+                    'id'            => $user['id'],
+                    'username'      => $user['username'],
+                    'name'          => $user['name'],
+                    'role'          => $user['role'],
+                    'clinic_branch' => $user['clinic_branch'],
                 ];
             }
         } catch (PDOException $exception) {

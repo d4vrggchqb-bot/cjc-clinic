@@ -13,7 +13,10 @@ const Dashboard: React.FC = () => {
     pendingRechecks: 0,
     inventory: 0,
     visitsByCollege: [] as {name: string, visits: number}[],
-    topDiagnoses: [] as {name: string, count: number}[]
+    topDiagnoses: [] as {name: string, count: number}[],
+    topDispensed: [] as {name: string, count: number}[],
+    expiringItems: [] as any[],
+    lowStockItems: [] as any[]
   });
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#C01D38', '#455A64'];
@@ -43,6 +46,12 @@ const Dashboard: React.FC = () => {
           count: d.count
         })) : [];
 
+        // Transform top dispensed
+        const topDispensed = res.top_dispensed ? res.top_dispensed.map((d: any) => ({
+          name: d.generic_name,
+          count: parseInt(d.cnt)
+        })) : [];
+
         // We receive the data directly from the PHP controller
         setStats({
           visitsThisWeek: res.visits_this_week || 0,
@@ -51,7 +60,10 @@ const Dashboard: React.FC = () => {
           pendingRechecks: res.pending_rechecks || 0,
           inventory: res.inventory_count || 0,
           visitsByCollege: colleges,
-          topDiagnoses: diagnoses
+          topDiagnoses: diagnoses,
+          topDispensed: topDispensed,
+          expiringItems: res.expiring_items || [],
+          lowStockItems: res.low_stock_items || []
         });
       })
       .catch(err => console.error("Failed to fetch dashboard stats:", err));
@@ -72,6 +84,46 @@ const Dashboard: React.FC = () => {
         <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Dashboard</h1>
         <p className="text-slate-400 text-sm font-medium">Overview of clinic activity</p>
       </div>
+
+      {/* Alerts Section */}
+      {(stats.expiringItems.length > 0 || stats.lowStockItems.length > 0) && (
+        <div className="mb-8 space-y-3">
+          {stats.expiringItems.length > 0 && (
+            <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 shadow-sm flex items-start gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-red-500 shrink-0 mt-0.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <h3 className="font-bold text-sm">Expiring Items Alert</h3>
+                <ul className="text-sm mt-1 list-disc list-inside">
+                  {stats.expiringItems.map((item, idx) => (
+                    <li key={idx}>
+                      <span className="font-semibold">{item.generic_name}</span> (Batch: {item.batch_number}) expires on <span className="font-semibold">{item.expired_on}</span> at {item.clinic_branch}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+          {stats.lowStockItems.length > 0 && (
+            <div className="bg-orange-50 border border-orange-200 text-orange-800 rounded-lg p-4 shadow-sm flex items-start gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-orange-500 shrink-0 mt-0.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <h3 className="font-bold text-sm">Low Stock Alert</h3>
+                <ul className="text-sm mt-1 list-disc list-inside">
+                  {stats.lowStockItems.map((item, idx) => (
+                    <li key={idx}>
+                      <span className="font-semibold">{item.generic_name}</span> ({item.category}) is low on stock! Only <span className="font-semibold text-red-600">{item.total_stock}</span> remaining (Threshold: {item.alert_threshold}).
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Metrics Row */}
       <div className="flex flex-wrap gap-4 mb-6">
@@ -184,6 +236,37 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
+      </div>
+
+      {/* Bottom Block: Top Dispensed */}
+      <div className="mt-6 bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-6 border border-slate-100 flex flex-col">
+        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Top Dispensed Medicines & Supplies</h3>
+        <p className="text-xs text-slate-400 mb-6">Most frequently used items</p>
+        
+        <div className="w-full h-64">
+          {stats.topDispensed.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats.topDispensed} margin={{ top: 5, right: 30, left: -20, bottom: 5 }} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                <XAxis type="number" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                <YAxis dataKey="name" type="category" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} width={120} />
+                <Tooltip 
+                  cursor={{fill: '#f8fafc'}}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                  {stats.topDispensed.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+              <p className="text-sm font-medium">No dispensing data available</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

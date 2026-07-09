@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../app/Controllers/ConsultationController.php';
 require_once __DIR__ . '/../../app/Controllers/MedcertController.php';
 require_once __DIR__ . '/../../app/Controllers/VisitationController.php';
 require_once __DIR__ . '/../../app/Controllers/DashboardController.php';
+require_once __DIR__ . '/../../app/Controllers/AppointmentController.php';
 
 // Parse route and action
 // Examples:
@@ -54,10 +55,28 @@ switch ($route) {
 
     case 'inventory':
         $controller = new InventoryController();
-        if ($action === 'list') {
-            $controller->list();
+        if ($action === 'items') {
+            $controller->getItems();
+        } elseif ($action === 'add_item') {
+            $controller->addItem();
+        } elseif ($action === 'batches') {
+            $controller->getBatches();
+        } elseif ($action === 'add_batch') {
+            $controller->addBatch();
         } elseif ($action === 'dispense') {
             $controller->dispense();
+        } elseif ($action === 'purchases') {
+            $controller->getPurchases();
+        } elseif ($action === 'add_purchase') {
+            $controller->addPurchase();
+        } elseif ($action === 'update_purchase') {
+            $controller->updatePurchase();
+        } elseif ($action === 'logs') {
+            $controller->getLogs();
+        } elseif ($action === 'edit_batch') {
+            $controller->editBatch();
+        } elseif ($action === 'get_next_batch') {
+            $controller->getNextBatchNumber();
         }
         break;
 
@@ -110,6 +129,17 @@ switch ($route) {
         $controller = new DashboardController();
         if ($action === 'stats') {
             $controller->stats();
+        }
+        break;
+
+    case 'appointments':
+        $controller = new AppointmentController();
+        if ($action === 'list') {
+            $controller->list();
+        } elseif ($action === 'create') {
+            $controller->create();
+        } elseif ($action === 'update') {
+            $controller->update();
         }
         break;
 }

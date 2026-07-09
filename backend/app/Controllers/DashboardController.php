@@ -137,6 +137,47 @@ class DashboardController {
             error_log("[CJC-CLINIC] dashboard top_diagnoses error: " . $e->getMessage());
         }
 
+        $topDispensed = [];
+        try {
+            $stmt = $pdo->query("
+                SELECT i.generic_name, SUM(ABS(l.quantity_changed)) as cnt
+                FROM inventory_logs l
+                JOIN inventory_batches b ON l.batch_id = b.id
+                JOIN inventory_items i ON b.item_id = i.id
+                WHERE l.action_type IN ('dispense', 'dispose')
+                GROUP BY i.generic_name
+                ORDER BY cnt DESC LIMIT 5
+            ");
+            if ($stmt) $topDispensed = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {}
+
+        $expiringItems = [];
+        try {
+            $stmt = $pdo->query("
+                SELECT b.batch_number, i.generic_name, b.expired_on, b.stock_remaining, b.clinic_branch
+                FROM inventory_batches b
+                JOIN inventory_items i ON b.item_id = i.id
+                WHERE b.expired_on IS NOT NULL 
+                  AND b.stock_remaining > 0 
+                  AND b.expired_on <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+                ORDER BY b.expired_on ASC LIMIT 10
+            ");
+            if ($stmt) $expiringItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {}
+
+        $lowStockItems = [];
+        try {
+            $stmt = $pdo->query("
+                SELECT i.generic_name, i.category, IFNULL(SUM(b.stock_remaining), 0) as total_stock, i.alert_threshold
+                FROM inventory_items i
+                LEFT JOIN inventory_batches b ON i.id = b.item_id
+                GROUP BY i.id
+                HAVING total_stock <= i.alert_threshold
+                LIMIT 10
+            ");
+            if ($stmt) $lowStockItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {}
+
         $this->jsonResponse([
             'visits_this_week'  => $visitsWeek,
             'total_registered'  => $totalRegistered,
@@ -145,6 +186,9 @@ class DashboardController {
             'inventory_count'   => $inventoryCount,
             'visits_by_college' => $visitsByCollege,
             'top_diagnoses'     => $topDiagnoses,
+            'top_dispensed'     => $topDispensed,
+            'expiring_items'    => $expiringItems,
+            'low_stock_items'   => $lowStockItems,
         ]);
     }
 

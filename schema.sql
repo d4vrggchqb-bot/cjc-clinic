@@ -71,17 +71,42 @@ CREATE TABLE IF NOT EXISTS `consultations` (
 );
 
 
--- 4. Inventory Table
-CREATE TABLE IF NOT EXISTS `inventory` (
+-- 4. Inventory Catalog (Items)
+CREATE TABLE IF NOT EXISTS `inventory_items` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `category` ENUM('medicine', 'supply', 'equipment') NOT NULL,
   `brand_name` VARCHAR(100) DEFAULT NULL,
   `generic_name` VARCHAR(100) NOT NULL,
-  `stock` INT NOT NULL DEFAULT 0,
-  `batch_number` VARCHAR(50) DEFAULT NULL,
-  `expired_on` DATE DEFAULT NULL,
-  `status` VARCHAR(50) DEFAULT 'active',
+  `dosage` VARCHAR(50) DEFAULT NULL,
+  `alert_threshold` INT DEFAULT 20,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4.1 Inventory Batches (Physical Stock)
+CREATE TABLE IF NOT EXISTS `inventory_batches` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `item_id` INT NOT NULL,
+  `clinic_branch` ENUM('College Clinic', 'BED Clinic', 'Power Campus Clinic') NOT NULL,
+  `batch_number` VARCHAR(50) DEFAULT NULL,
+  `stock_remaining` INT NOT NULL DEFAULT 0,
+  `date_arrived` DATE DEFAULT NULL,
+  `expired_on` DATE DEFAULT NULL,
+  `status` ENUM('active', 'depleted', 'expired') DEFAULT 'active',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`item_id`) REFERENCES `inventory_items`(`id`) ON DELETE CASCADE
+);
+
+-- 4.2 Inventory Logs (History)
+CREATE TABLE IF NOT EXISTS `inventory_logs` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `batch_id` INT NOT NULL,
+  `action_type` ENUM('restock', 'dispense', 'dispose', 'adjust') NOT NULL,
+  `quantity_changed` INT NOT NULL,
+  `disposed_to` VARCHAR(255) DEFAULT NULL,
+  `processed_by` INT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`batch_id`) REFERENCES `inventory_batches`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`processed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
 );
 
 
@@ -98,14 +123,22 @@ CREATE TABLE IF NOT EXISTS `medcerts` (
 );
 
 
--- 6. Purchase Requests Table
+-- 6. Purchase Orders Table
 CREATE TABLE IF NOT EXISTS `purchase_requests` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `item_name` VARCHAR(150) NOT NULL,
+  `category` ENUM('medicine', 'supply', 'equipment') NOT NULL,
+  `generic_name` VARCHAR(150) NOT NULL,
+  `brand_name` VARCHAR(150) DEFAULT NULL,
+  `dosage` VARCHAR(50) DEFAULT NULL,
+  `clinic_branch` ENUM('College Clinic', 'BED Clinic', 'Power Campus Clinic') NOT NULL,
+  `supplier` VARCHAR(150) DEFAULT NULL,
+  `quantity_ordered` INT NOT NULL DEFAULT 1,
+  `expected_delivery_date` DATE DEFAULT NULL,
   `requested_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `transit_status` VARCHAR(50) DEFAULT 'pending',
-  `delivery_date` DATE DEFAULT NULL,
-  `manifest_details` TEXT DEFAULT NULL
+  `status` ENUM('pending', 'approved', 'delivered', 'cancelled') DEFAULT 'pending',
+  `actual_delivery_date` DATE DEFAULT NULL,
+  `manifest_details` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 #php -S localhost:8000 -t backend/public
