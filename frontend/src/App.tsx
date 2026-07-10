@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { apiFetch } from './utils/api';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -44,26 +45,28 @@ const PlaceholderPage = ({ title }: { title: string }) => (
 
 const App: React.FC = () => {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/patients" element={<ProtectedRoute><PatientList /></ProtectedRoute>} />
-        <Route path="/appointments" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
-        <Route path="/consultation" element={<ProtectedRoute><Consultation /></ProtectedRoute>} />
-        <Route path="/visitation" element={<ProtectedRoute><PlaceholderPage title="Visitation History" /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-        
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <>
+      <Toaster position="top-right" />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/patients" element={<ProtectedRoute><PatientList /></ProtectedRoute>} />
+          <Route path="/appointments" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
+          <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+          <Route path="/consultation" element={<ProtectedRoute><Consultation /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </>
   );
 };
 

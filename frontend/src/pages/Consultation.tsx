@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter } from 'react-icons/fi';
+import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 
 interface Patient {
   id: number;
@@ -13,6 +15,7 @@ interface Patient {
 interface LogbookEntry {
   id: number;
   profile_id: number;
+  clinic_branch?: string;
   patient_id_number: string;
   patient_name: string;
   time_in: string;
@@ -29,6 +32,7 @@ interface LogbookEntry {
 
 
 const Consultation: React.FC = () => {
+  const location = useLocation();
   const [period, setPeriod] = useState('today');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -38,10 +42,35 @@ const Consultation: React.FC = () => {
   
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [purpose, setPurpose] = useState('');
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [checkinError, setCheckinError] = useState('');
+  
+  // Quick Add Patient State
+  const [isAddingNewPatient, setIsAddingNewPatient] = useState(false);
+  const [newPatient, setNewPatient] = useState({
+    first_name: '',
+    last_name: '',
+    patient_id_number: '',
+    profile_type: 'student'
+  });
+  const [isRegistering, setIsRegistering] = useState(false);
+  
+  const searchRef = React.useRef<HTMLDivElement>(null);
+
+  // Click outside search dropdown to close
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   
   // Medical Notes Modal State
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
@@ -66,11 +95,13 @@ const Consultation: React.FC = () => {
 
   // Medcert State
   const [isMedcertModalOpen, setIsMedcertModalOpen] = useState(false);
+  const [isGeneratingMedcert, setIsGeneratingMedcert] = useState(false);
   const [medcertData, setMedcertData] = useState({
     issued_to: '',
     issued_by: 'Clinic Nurse / Doctor',
     reason: '',
-    valid_until: ''
+    valid_until: '',
+    clinic_branch: 'College Clinic'
   });
   const [showPrintView, setShowPrintView] = useState(false);
 
@@ -107,19 +138,58 @@ const Consultation: React.FC = () => {
 
   // Search logic for left panel
   useEffect(() => {
-    if (search.trim() === '') {
-      setSearchResults([]);
-      return;
-    }
     const timer = setTimeout(() => {
-      apiFetch(`/api/index.php?route=patients&action=list&search=${encodeURIComponent(search)}&per_page=5`)
-        .then(res => {
-          if (res.profiles) setSearchResults(res.profiles);
-        })
-        .catch(err => console.error("Search error:", err));
-    }, 400);
+      if (search.trim().length >= 2) {
+        setIsSearching(true);
+        apiFetch(`/api/index.php?route=patients&action=list&search=${encodeURIComponent(search)}&per_page=5`)
+          .then(res => {
+            if (res.profiles) setSearchResults(res.profiles);
+            setShowSearchDropdown(true);
+          })
+          .catch(err => toast.error("Search error"))
+          .finally(() => setIsSearching(false));
+      } else {
+        setSearchResults([]);
+        setShowSearchDropdown(false);
+      }
+    }, 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  const handleQuickAddPatient = async () => {
+    if (!newPatient.first_name || !newPatient.last_name) {
+      toast.error('First and Last name are required');
+      return;
+    }
+    
+    setIsRegistering(true);
+    const toastId = toast.loading('Registering new patient...');
+    try {
+      const res = await apiFetch('/api/index.php?route=patients&action=create', {
+        method: 'POST',
+        body: JSON.stringify(newPatient)
+      });
+      
+      if (res.success) {
+        toast.success('Patient registered successfully!', { id: toastId });
+        // Set the newly created patient as the selected patient
+        setSelectedPatient({
+          id: res.id,
+          name: `${newPatient.first_name} ${newPatient.last_name}`,
+          patient_id_number: newPatient.patient_id_number,
+          profile_type: newPatient.profile_type,
+          college_dept: ''
+        });
+        setIsAddingNewPatient(false);
+        setSearch('');
+      } else {
+        toast.error(res.error || 'Failed to register patient', { id: toastId });
+      }
+    } catch (err) {
+      toast.error('Error registering patient', { id: toastId });
+    }
+    setIsRegistering(false);
+  };
 
   const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,9 +253,20 @@ const Consultation: React.FC = () => {
     setWeight(entry.weight || '');
     setDiagnosis(entry.diagnosis || '');
     setTreatment(entry.treatment || '');
-    setDispensedItems([]); // Reset dispensed items
+    setDispensedItems([]);
     setIsNotesModalOpen(true);
   };
+
+  useEffect(() => {
+    if (location.state?.openNotesFor && entries.length > 0) {
+      const entryId = location.state.openNotesFor;
+      const entry = entries.find(e => e.id === entryId);
+      if (entry) {
+        openNotesModal(entry);
+        window.history.replaceState({}, document.title); // clear state
+      }
+    }
+  }, [location.state, entries]);
 
   const handleSaveNotes = async () => {
     if (!activeNoteEntry) return;
@@ -221,6 +302,8 @@ const Consultation: React.FC = () => {
   const handleGenerateMedcert = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeNoteEntry) return;
+    setIsGeneratingMedcert(true);
+    const toastId = toast.loading('Generating Medical Certificate...');
     try {
       const res = await apiFetch(`/api/index.php?route=medcert&action=generate`, {
         method: 'POST',
@@ -230,15 +313,17 @@ const Consultation: React.FC = () => {
         })
       });
       if (res.success) {
+        toast.success('Certificate generated successfully!', { id: toastId });
         setIsMedcertModalOpen(false);
         setShowPrintView(true);
       } else {
-        alert(res.message || 'Failed to generate medcert.');
+        toast.error(res.message || res.error || 'Failed to generate medical certificate.', { id: toastId });
       }
     } catch (err) {
       console.error(err);
-      alert('An error occurred.');
+      toast.error('An unexpected error occurred during generation.', { id: toastId });
     }
+    setIsGeneratingMedcert(false);
   };
 
   const handleStartConsultation = async (id: number) => {
@@ -373,32 +458,133 @@ const Consultation: React.FC = () => {
             )}
 
             {!selectedPatient ? (
-              <div className="relative flex-1">
-                <div className="flex">
-                  <input 
-                    type="text" 
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search name or ID..."
-                    className="flex-1 border-y border-l border-slate-300 rounded-l px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
-                  />
-                  <button className="bg-[#8c1526] hover:bg-[#7a1221] text-white px-4 rounded-r flex items-center justify-center transition-colors">
-                    <FiSearch className="w-4 h-4" />
-                  </button>
-                </div>
-                
-                {searchResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-64 overflow-y-auto z-10">
-                    {searchResults.map(p => (
-                      <div 
-                        key={p.id}
-                        onClick={() => setSelectedPatient(p)}
-                        className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
-                      >
-                        <div className="font-bold text-sm text-slate-800">{p.name}</div>
-                        <div className="text-xs text-slate-500">{p.patient_id_number}</div>
+              <div className="flex-1 flex flex-col" ref={searchRef}>
+                {!isAddingNewPatient ? (
+                  <>
+                    <div className="relative">
+                      <div className="flex">
+                        <input 
+                          type="text" 
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          onFocus={() => {
+                            if (searchResults.length > 0) setShowSearchDropdown(true);
+                          }}
+                          placeholder="Search name or ID..."
+                          className="flex-1 border-y border-l border-slate-300 rounded-l px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
+                        />
+                        <button className="bg-[#8c1526] hover:bg-[#7a1221] text-white px-4 rounded-r flex items-center justify-center transition-colors">
+                          <FiSearch className="w-4 h-4" />
+                        </button>
                       </div>
-                    ))}
+                      
+                      {showSearchDropdown && search.length >= 2 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-64 overflow-y-auto z-20">
+                        {isSearching ? (
+                          <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
+                        ) : searchResults.length > 0 ? (
+                          searchResults.map(p => (
+                            <div 
+                              key={p.id}
+                              onClick={() => { setSelectedPatient(p); setShowSearchDropdown(false); }}
+                              className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                            >
+                              <div className="font-bold text-sm text-slate-800">{p.name}</div>
+                              <div className="text-xs text-slate-500">{p.patient_id_number || 'No ID'}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-4 text-center">
+                            <p className="text-sm text-slate-500 mb-3">No patients found.</p>
+                            <button
+                              onClick={() => {
+                                setIsAddingNewPatient(true);
+                                setShowSearchDropdown(false);
+                              }}
+                              className="inline-flex items-center gap-2 text-sm font-medium text-[#A5192D] hover:text-[#8A1525] transition-colors"
+                            >
+                              <FiUserPlus /> Add New Patient
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    </div>
+
+                    <div className="mt-6 border-t border-slate-100 pt-6 text-center">
+                      <p className="text-sm text-slate-500 mb-3">Can't find the student/employee?</p>
+                      <button
+                        onClick={() => {
+                          setIsAddingNewPatient(true);
+                          setShowSearchDropdown(false);
+                        }}
+                        className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <FiUserPlus /> Register New Patient
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-bold text-slate-800">Quick Registration</h3>
+                      <button 
+                        onClick={() => setIsAddingNewPatient(false)}
+                        className="text-sm text-slate-500 hover:text-slate-800 font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">First Name *</label>
+                        <input
+                          type="text"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
+                          value={newPatient.first_name}
+                          onChange={(e) => setNewPatient({...newPatient, first_name: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Last Name *</label>
+                        <input
+                          type="text"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
+                          value={newPatient.last_name}
+                          onChange={(e) => setNewPatient({...newPatient, last_name: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">ID Number (Optional)</label>
+                        <input
+                          type="text"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
+                          value={newPatient.patient_id_number}
+                          onChange={(e) => setNewPatient({...newPatient, patient_id_number: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Profile Type *</label>
+                        <select
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D] bg-white"
+                          value={newPatient.profile_type}
+                          onChange={(e) => setNewPatient({...newPatient, profile_type: e.target.value})}
+                        >
+                          <option value="student">Student</option>
+                          <option value="employee">Employee</option>
+                        </select>
+                      </div>
+                      <div className="pt-2">
+                        <button
+                          onClick={handleQuickAddPatient}
+                          disabled={isRegistering || !newPatient.first_name || !newPatient.last_name}
+                          className="w-full py-2.5 rounded-lg font-medium text-white bg-slate-800 hover:bg-slate-900 disabled:opacity-50 transition-colors"
+                        >
+                          {isRegistering ? 'Registering...' : 'Save and Select Patient'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -670,7 +856,15 @@ const Consultation: React.FC = () => {
             <div className="p-4 border-t border-slate-200 flex justify-between items-center bg-slate-50 rounded-b-lg">
               <button 
                 onClick={() => {
-                  setMedcertData({ ...medcertData, issued_to: activeNoteEntry.patient_name, reason: diagnosis || 'Medical Consultation' });
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  setMedcertData({ 
+                    ...medcertData, 
+                    issued_to: activeNoteEntry.patient_name, 
+                    reason: diagnosis || 'Medical Consultation',
+                    valid_until: tomorrow.toISOString().split('T')[0],
+                    clinic_branch: activeNoteEntry.clinic_branch || 'College Clinic'
+                  });
                   setIsMedcertModalOpen(true);
                 }} 
                 className="px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded shadow-sm transition-colors flex items-center gap-2"
@@ -803,10 +997,26 @@ const Consultation: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Valid Until (Excuse Date)</label>
                 <input required type="date" value={medcertData.valid_until} onChange={e => setMedcertData({...medcertData, valid_until: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Clinic Branch</label>
+                <select required value={medcertData.clinic_branch} onChange={e => setMedcertData({...medcertData, clinic_branch: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]">
+                  <option value="College Clinic">College Clinic</option>
+                  <option value="Basic Education Clinic">Basic Education Clinic</option>
+                </select>
+              </div>
               <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={() => setIsMedcertModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-sm font-bold text-white bg-[#8c1526] hover:bg-[#7a1221] rounded shadow-sm flex items-center gap-2">
-                  <FiPrinter /> Proceed to Print
+                <button type="button" onClick={() => setIsMedcertModalOpen(false)} disabled={isGeneratingMedcert} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={isGeneratingMedcert} className="px-4 py-2 text-sm font-bold text-white bg-[#8c1526] hover:bg-[#7a1221] rounded shadow-sm flex items-center gap-2 disabled:opacity-50">
+                  {isGeneratingMedcert ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <FiPrinter /> Proceed to Print
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -834,7 +1044,7 @@ const Consultation: React.FC = () => {
               {/* Optional: <img src="/logo.png" alt="CJC Logo" className="w-20 h-20" /> */}
               <div className="text-center">
                 <h1 className="text-2xl font-black text-[#8c1526] tracking-wide uppercase">Cor Jesu College</h1>
-                <h2 className="text-lg font-bold text-slate-800">Clinic Department</h2>
+                <h2 className="text-lg font-bold text-slate-800">CJC {medcertData.clinic_branch}</h2>
                 <p className="text-sm text-slate-500">Sacred Heart Avenue, Digos City, Davao del Sur</p>
               </div>
             </div>
@@ -849,7 +1059,7 @@ const Consultation: React.FC = () => {
               <p className="mb-6 text-right">Date: <span className="font-semibold underline underline-offset-4">{new Date().toLocaleDateString()}</span></p>
               <p className="mb-6">To whom it may concern,</p>
               <p className="mb-6 indent-8">
-                This is to certify that <span className="font-bold underline uppercase px-2">{medcertData.issued_to}</span> has been examined and treated at the Cor Jesu College Clinic on the aforementioned date.
+                This is to certify that <span className="font-bold underline uppercase px-2">{medcertData.issued_to}</span> has been examined and treated at the Cor Jesu College ({medcertData.clinic_branch}) on the aforementioned date.
               </p>
               <p className="mb-6 indent-8">
                 <strong>Diagnosis / Remarks:</strong> {medcertData.reason}
