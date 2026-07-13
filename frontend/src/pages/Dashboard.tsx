@@ -11,6 +11,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [userRole, setUserRole] = useState<string>('');
   const [selectedBranch, setSelectedBranch] = useState<string>('All Branches');
+  const [predictiveAlerts, setPredictiveAlerts] = useState<any[]>([]);
   const [stats, setStats] = useState({
     visitsThisWeek: 0,
     totalRegistered: 0,
@@ -74,6 +75,16 @@ const Dashboard: React.FC = () => {
         }
       })
       .catch(err => console.error("Failed to fetch dashboard stats:", err));
+
+    apiFetch('/api/index.php?route=inventory&action=predictive_alerts')
+      .then(res => {
+        if (res && res.success && res.predictions) {
+          // Filter to only show critical/warning predictions
+          setPredictiveAlerts(res.predictions.filter((p: any) => p.alert_level === 'critical' || p.alert_level === 'warning'));
+        }
+      })
+      .catch(err => console.error("Failed to fetch predictive alerts:", err));
+
   }, [selectedBranch]);
 
   const MetricCard = ({ title, value, subtext, valueColor }: { title: string, value: number, subtext: string, valueColor: string }) => (
@@ -154,6 +165,33 @@ const Dashboard: React.FC = () => {
                   {stats.lowStockItems.map((item, idx) => (
                     <li key={idx}>
                       <span className="font-semibold">{item.generic_name}</span> ({item.category}) is low on stock! Only <span className="font-semibold text-red-600">{item.total_stock}</span> remaining (Threshold: {item.alert_threshold}).
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* AI Predictive Alerts */}
+          {predictiveAlerts.length > 0 && (
+            <div className="bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700 p-4 rounded shadow-sm flex items-start gap-3 w-full animate-fade-in relative overflow-hidden">
+              <div className="absolute -right-6 -top-6 text-indigo-100 opacity-50 transform rotate-12">
+                <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 shrink-0 mt-0.5 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              <div className="relative z-10">
+                <h3 className="font-bold text-sm flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                  AI Predictive Shortage Warning
+                </h3>
+                <ul className="text-sm mt-1 list-disc list-inside space-y-1">
+                  {predictiveAlerts.map((alert, idx) => (
+                    <li key={idx}>
+                      <span className="font-semibold">{alert.name}</span> will run out in approx. <span className="font-semibold">{alert.days_remaining} days</span> based on recent dispensing trends.
                     </li>
                   ))}
                 </ul>

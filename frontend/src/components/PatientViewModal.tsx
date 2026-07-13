@@ -339,25 +339,35 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                 ) : (
                   <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                     {patient.attachments.map((file: any) => (
-                      <div key={file.id} className="flex items-center p-3 border border-slate-200 rounded-lg hover:border-slate-300 bg-slate-50/50 group transition-colors">
-                        <div className="w-10 h-10 rounded bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0 mr-3 shadow-sm">
-                          {file.filename.toLowerCase().endsWith('.pdf') ? <FiFile className="w-5 h-5 text-red-500" /> : <FiPaperclip className="w-5 h-5" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-slate-700 truncate" title={file.filename}>{file.filename}</p>
-                          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-                            <span>{new Date(file.created_at).toLocaleDateString()}</span>
-                            <span>•</span>
-                            <span>{file.uploaded_by}</span>
+                      <div key={file.id} className="flex flex-col p-3 border border-slate-200 rounded-lg hover:border-slate-300 bg-slate-50/50 transition-colors">
+                        <div className="flex items-center group">
+                          <div className="w-10 h-10 rounded bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0 mr-3 shadow-sm">
+                            {file.filename.toLowerCase().endsWith('.pdf') ? <FiFile className="w-5 h-5 text-red-500" /> : <FiPaperclip className="w-5 h-5" />}
                           </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-700 truncate" title={file.filename}>{file.filename}</p>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                              <span>{new Date(file.created_at).toLocaleDateString()}</span>
+                              <span>•</span>
+                              <span>{file.uploaded_by}</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => apiDownload(`/${file.file_url}`, file.filename)} 
+                            className="ml-3 p-2 text-slate-400 hover:text-[#9B101E] hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                            title="Download File"
+                          >
+                            <FiDownload className="w-4 h-4" />
+                          </button>
                         </div>
-                        <button 
-                          onClick={() => apiDownload(`/${file.file_url}`, file.filename)} 
-                          className="ml-3 p-2 text-slate-400 hover:text-[#9B101E] hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                          title="Download File"
-                        >
-                          <FiDownload className="w-4 h-4" />
-                        </button>
+                        {file.extracted_text && (
+                          <div className="mt-3 p-3 bg-white border border-indigo-100 rounded text-xs text-slate-700 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto relative shadow-inner">
+                            <div className="sticky top-0 float-right ml-2 mb-2 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 text-[0.6rem] font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span> AI Extract
+                            </div>
+                            {file.extracted_text}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
