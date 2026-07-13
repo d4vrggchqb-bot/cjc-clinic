@@ -11,16 +11,19 @@ class MedcertController {
 
         cjcRequireAuth();
         cjcCsrfValidate();
-        cjcRequireRole(['Doctor', 'Nurse']);
+        cjcRequireRole(['Doctor', 'Nurse', 'Admin']);
 
         $pdo = cjcDatabaseConnection();
 
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+
         $data = [
-            'profile_id' => (int)($_POST['profile_id'] ?? 0),
-            'issued_to'  => trim($_POST['issued_to']  ?? ''),
-            'issued_by'  => trim($_POST['issued_by']  ?? ''),
-            'reason'     => trim($_POST['reason']     ?? ''),
-            'valid_until'=> trim($_POST['valid_until']?? ''),
+            'profile_id'    => (int)($input['profile_id'] ?? 0),
+            'issued_to'     => trim($input['issued_to']  ?? ''),
+            'issued_by'     => trim($input['issued_by']  ?? ''),
+            'reason'        => trim($input['reason']     ?? ''),
+            'valid_until'   => trim($input['valid_until']?? ''),
+            'clinic_branch' => trim($input['clinic_branch'] ?? 'College Clinic'),
         ];
 
         if (!$data['profile_id'] || !$data['issued_to'] || !$data['issued_by'] || !$data['reason'] || !$data['valid_until']) {
@@ -44,8 +47,8 @@ class MedcertController {
 
         try {
             $stmt = $pdo->prepare(
-                'INSERT INTO medcerts (profile_id, issued_to, issued_by, reason, valid_until)
-                 VALUES (:profile_id, :issued_to, :issued_by, :reason, :valid_until)'
+                'INSERT INTO medcerts (profile_id, clinic_branch, issued_to, issued_by, reason, valid_until)
+                 VALUES (:profile_id, :clinic_branch, :issued_to, :issued_by, :reason, :valid_until)'
             );
             $stmt->execute($data);
             $certId = (int)$pdo->lastInsertId();
@@ -105,8 +108,10 @@ class MedcertController {
     {
         $issuedAt = date('F j, Y');
         $certStringId = 'MC-' . str_pad((string)$id, 5, '0', STR_PAD_LEFT);
+        $clinicBranch = cjcEscape($payload['clinic_branch'] ?? 'College Clinic');
+        
         $preview  = "<div class='small text-secondary'>";
-        $preview .= "<div class='border-bottom border-secondary pb-3 mb-3'><p class='small text-uppercase text-secondary letter-spacing-2 mb-1'>Official Medical Certificate</p><h2 class='h5 fw-semibold mb-0 text-slate-900'>CJC School Clinic</h2></div>";
+        $preview .= "<div class='border-bottom border-secondary pb-3 mb-3'><p class='small text-uppercase text-secondary letter-spacing-2 mb-1'>Official Medical Certificate</p><h2 class='h5 fw-semibold mb-0 text-slate-900'>CJC {$clinicBranch}</h2></div>";
         $preview .= "<div class='mb-3'><p><span class='fw-semibold text-slate-900'>Patient:</span> " . cjcEscape($payload['issued_to']) . "</p><p><span class='fw-semibold text-slate-900'>Provider:</span> " . cjcEscape($payload['issued_by']) . "</p><p><span class='fw-semibold text-slate-900'>Date Issued:</span> {$issuedAt}</p><p><span class='fw-semibold text-slate-900'>Valid Until:</span> " . cjcEscape($payload['valid_until']) . "</p></div>";
         $preview .= "<div class='rounded-2xl border border-slate-200 bg-slate-50 p-4 mb-4'><p class='text-slate-500 mb-0'>" . nl2br(cjcEscape($payload['reason'])) . "</p></div>";
         

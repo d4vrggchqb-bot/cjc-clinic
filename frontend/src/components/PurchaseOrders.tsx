@@ -87,13 +87,42 @@ const PurchaseOrders: React.FC = () => {
     }
   };
 
+  const handleDraftFromLowStock = async () => {
+    try {
+      const res = await apiFetch('/api/index.php?route=inventory&action=low_stock');
+      if (res.low_stock && res.low_stock.length > 0) {
+        // Pre-populate with the first low stock item
+        const item = res.low_stock[0];
+        setNewOrder(prev => ({
+          ...prev,
+          category: item.category,
+          generic_name: item.generic_name,
+          brand_name: item.brand_name || '',
+          dosage: item.dosage || '',
+          quantity_ordered: item.alert_threshold > 0 ? item.alert_threshold * 2 : 100 // suggest a good quantity
+        }));
+        setShowAdd(true);
+      } else {
+        alert('No items are currently below their alert threshold!');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error fetching low stock items.');
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-slate-800">Purchase Orders</h2>
-        <button onClick={() => setShowAdd(true)} className="bg-red-700 text-white px-4 py-2 rounded-md hover:bg-red-800 flex items-center text-sm font-medium">
-          <FiPlus className="mr-1" /> New Order
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleDraftFromLowStock} className="bg-orange-100 text-orange-800 px-4 py-2 rounded-md hover:bg-orange-200 flex items-center text-sm font-medium transition-colors">
+            Draft from Low Stock
+          </button>
+          <button onClick={() => setShowAdd(true)} className="bg-red-700 text-white px-4 py-2 rounded-md hover:bg-red-800 flex items-center text-sm font-medium">
+            <FiPlus className="mr-1" /> New Order
+          </button>
+        </div>
       </div>
 
       <div className="overflow-auto flex-1 border border-slate-200 rounded-lg">

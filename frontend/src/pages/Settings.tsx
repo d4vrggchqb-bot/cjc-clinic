@@ -9,7 +9,7 @@ export default function Settings() {
 
   // Users State
   const [users, setUsers] = useState<any[]>([]);
-  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'Staff' });
+  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'Staff', clinic_branch: 'College Clinic' });
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
 
   // Upload State
@@ -84,7 +84,7 @@ export default function Settings() {
         body: JSON.stringify(newUser)
       });
       if (res.success) {
-        setNewUser({ username: '', password: '', role: 'Staff' });
+        setNewUser({ username: '', password: '', role: 'Staff', clinic_branch: 'College Clinic' });
         fetchUsers();
       } else {
         alert(res.message);
@@ -253,19 +253,31 @@ export default function Settings() {
                     <option>Nurse</option>
                     <option>Doctor</option>
                     <option>Admin</option>
+                    <option>Superadmin</option>
+                  </select>
+                  <select className="border px-2 py-1 text-sm rounded" value={newUser.clinic_branch || 'College Clinic'} onChange={e=>setNewUser({...newUser, clinic_branch: e.target.value})}>
+                    <option>College Clinic</option>
+                    <option>Basic Education Clinic</option>
+                    <option>Power Campus Clinic</option>
                   </select>
                   <button onClick={handleAddUser} className="bg-[#28a745] text-white px-3 py-1 rounded text-sm font-bold">+ Add User</button>
                 </div>
 
                 <table className="w-full text-left text-sm border-collapse border border-slate-200">
                   <thead className="bg-slate-100 border-b border-slate-200">
-                    <tr><th className="px-4 py-2 font-bold">Username</th><th className="px-4 py-2 font-bold">Role</th><th className="px-4 py-2 font-bold">Action</th></tr>
+                    <tr>
+                      <th className="px-4 py-2 font-bold">Username</th>
+                      <th className="px-4 py-2 font-bold">Role</th>
+                      <th className="px-4 py-2 font-bold">Branch</th>
+                      <th className="px-4 py-2 font-bold">Action</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {users.map(u => (
                       <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50">
                         <td className="px-4 py-2">{u.username}</td>
                         <td className="px-4 py-2">{u.role}</td>
+                        <td className="px-4 py-2 text-slate-500">{u.clinic_branch || 'College Clinic'}</td>
                         <td className="px-4 py-2">
                           <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 hover:text-red-800 text-xs font-bold bg-red-50 px-2 py-1 rounded">Delete</button>
                         </td>

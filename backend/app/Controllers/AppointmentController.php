@@ -55,6 +55,45 @@ class AppointmentController {
         }
     }
 
+    public function bulkCreate() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth(); cjcCsrfValidate();
+        $pdo = cjcDatabaseConnection();
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+
+        $profile_ids = $input['profile_ids'] ?? [];
+        $date = trim($input['appointment_date'] ?? '');
+        $time = trim($input['appointment_time'] ?? '');
+        $purpose = trim($input['purpose'] ?? '');
+        $group_name = trim($input['group_name'] ?? '');
+        $branch = 'College Clinic'; 
+
+        if (empty($profile_ids) || !is_array($profile_ids) || !$date || !$time || !$purpose) {
+            $this->jsonResponse(['success' => false, 'message' => 'Missing required fields.'], 400);
+        }
+
+        try {
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("INSERT INTO appointments (profile_id, appointment_date, appointment_time, purpose, clinic_branch, group_name) VALUES (?, ?, ?, ?, ?, ?)");
+            
+            $insertedCount = 0;
+            foreach ($profile_ids as $pid) {
+                if ($pid > 0) {
+                    $stmt->execute([$pid, $date, $time, $purpose, $branch, $group_name ?: null]);
+                    $insertedCount++;
+                }
+            }
+            $pdo->commit();
+            $this->jsonResponse(['success' => true, 'count' => $insertedCount]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $this->jsonResponse(['success' => false, 'message' => 'Failed to create appointments.'], 500);
+        }
+    }
+
     public function update() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'PUT') {
             $this->jsonResponse(['error' => 'Method not allowed'], 405);
@@ -77,6 +116,33 @@ class AppointmentController {
             $this->jsonResponse(['success' => true]);
         } catch (Exception $e) {
             $this->jsonResponse(['success' => false, 'message' => 'Failed to update appointment.'], 500);
+        }
+    }
+
+    public function updateDetails() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'PUT') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth(); cjcCsrfValidate();
+        $pdo = cjcDatabaseConnection();
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+
+        $id = (int)($input['id'] ?? 0);
+        $date = trim($input['appointment_date'] ?? '');
+        $time = trim($input['appointment_time'] ?? '');
+        $purpose = trim($input['purpose'] ?? '');
+
+        if (!$id || !$date || !$time || !$purpose) {
+            $this->jsonResponse(['success' => false, 'message' => 'ID, Date, Time, and Purpose required.'], 400);
+        }
+
+        try {
+            $stmt = $pdo->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ?, purpose = ? WHERE id = ?");
+            $stmt->execute([$date, $time, $purpose, $id]);
+            $this->jsonResponse(['success' => true]);
+        } catch (Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => 'Failed to update appointment details.'], 500);
         }
     }
 

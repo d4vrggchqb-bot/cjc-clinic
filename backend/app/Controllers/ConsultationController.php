@@ -59,6 +59,7 @@ class ConsultationController {
 
             $sql = "SELECT c.id,
                            c.profile_id,
+                           c.clinic_branch,
                            p.patient_id_number,
                            COALESCE(CONCAT(p.first_name, ' ', p.last_name), 'Unknown') AS patient_name,
                            c.created_at AS time_in,
@@ -108,7 +109,7 @@ class ConsultationController {
         }
 
         try {
-            $sql = "SELECT id, created_at AS date, purpose, blood_pressure, temperature, weight, diagnosis, treatment, attended_by, status
+            $sql = "SELECT id, created_at AS date, clinic_branch, purpose, blood_pressure, temperature, weight, diagnosis, treatment, prescriptions, notes, attended_by, status
                     FROM consultations
                     WHERE profile_id = :id
                     ORDER BY created_at DESC";

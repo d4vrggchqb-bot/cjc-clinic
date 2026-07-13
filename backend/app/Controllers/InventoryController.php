@@ -156,7 +156,22 @@ class InventoryController {
         }
     }
 
-    // --- PURCHASE ORDERS ---
+    public function getLowStock() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        $pdo = cjcDatabaseConnection();
+        $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+        $stmt = $pdo->prepare("
+            SELECT i.id, i.category, i.generic_name, i.brand_name, i.dosage, IFNULL(SUM(b.stock_remaining), 0) as total_stock, i.alert_threshold
+            FROM inventory_items i
+            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.clinic_branch = :branch
+            GROUP BY i.id
+            HAVING total_stock <= i.alert_threshold
+        ");
+        $stmt->execute(['branch' => $branch]);
+        $this->jsonResponse(['low_stock' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    }
+
     public function getPurchases() {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
         cjcRequireAuth();

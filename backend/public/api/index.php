@@ -5,7 +5,6 @@ require_once __DIR__ . '/../../app/Controllers/PatientController.php';
 require_once __DIR__ . '/../../app/Controllers/InventoryController.php';
 require_once __DIR__ . '/../../app/Controllers/ConsultationController.php';
 require_once __DIR__ . '/../../app/Controllers/MedcertController.php';
-require_once __DIR__ . '/../../app/Controllers/VisitationController.php';
 require_once __DIR__ . '/../../app/Controllers/DashboardController.php';
 require_once __DIR__ . '/../../app/Controllers/AppointmentController.php';
 
@@ -65,6 +64,8 @@ switch ($route) {
             $controller->addBatch();
         } elseif ($action === 'dispense') {
             $controller->dispense();
+        } elseif ($action === 'low_stock') {
+            $controller->getLowStock();
         } elseif ($action === 'purchases') {
             $controller->getPurchases();
         } elseif ($action === 'add_purchase') {
@@ -90,6 +91,10 @@ switch ($route) {
             $controller->update();
         } elseif ($action === 'checkoutAll') {
             $controller->checkoutAll();
+        } elseif ($action === 'saveNotes') {
+            $controller->saveNotes();
+        } elseif ($action === 'history') {
+            $controller->history();
         }
         break;
 
@@ -118,13 +123,6 @@ switch ($route) {
         }
         break;
 
-    case 'visitation':
-        $controller = new VisitationController();
-        if ($action === 'list') {
-            $controller->list();
-        }
-        break;
-
     case 'dashboard':
         $controller = new DashboardController();
         if ($action === 'stats') {
@@ -138,8 +136,12 @@ switch ($route) {
             $controller->list();
         } elseif ($action === 'create') {
             $controller->create();
+        } elseif ($action === 'bulkCreate') {
+            $controller->bulkCreate();
         } elseif ($action === 'update') {
             $controller->update();
+        } elseif ($action === 'updateDetails') {
+            $controller->updateDetails();
         }
         break;
 }

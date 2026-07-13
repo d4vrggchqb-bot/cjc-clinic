@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FiPlus } from 'react-icons/fi';
 import { apiFetch } from '../utils/api';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, Legend
+  PieChart, Pie, Legend, LineChart, Line
 } from 'recharts';
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const [userRole, setUserRole] = useState<string>('');
+  const [selectedBranch, setSelectedBranch] = useState<string>('All Branches');
   const [stats, setStats] = useState({
     visitsThisWeek: 0,
     totalRegistered: 0,
@@ -14,6 +19,7 @@ const Dashboard: React.FC = () => {
     inventory: 0,
     visitsByCollege: [] as {name: string, visits: number}[],
     topDiagnoses: [] as {name: string, count: number}[],
+    visitTrends: [] as {date: string, visits: number}[],
     topDispensed: [] as {name: string, count: number}[],
     expiringItems: [] as any[],
     lowStockItems: [] as any[]
@@ -23,7 +29,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     // Fetch real stats from the new MVC backend!
-    apiFetch('/api/index.php?route=dashboard&action=stats')
+    apiFetch(`/api/index.php?route=dashboard&action=stats&branch=${encodeURIComponent(selectedBranch)}`)
       .then(res => {
         // Transform visitsByCollege object to array
         const colleges = res.visits_by_college ? Object.keys(res.visits_by_college).map(key => {
@@ -46,28 +52,29 @@ const Dashboard: React.FC = () => {
           count: d.count
         })) : [];
 
-        // Transform top dispensed
-        const topDispensed = res.top_dispensed ? res.top_dispensed.map((d: any) => ({
-          name: d.generic_name,
-          count: parseInt(d.cnt)
-        })) : [];
-
-        // We receive the data directly from the PHP controller
-        setStats({
-          visitsThisWeek: res.visits_this_week || 0,
-          totalRegistered: res.total_registered || 0,
-          unattended: res.unattended || 0,
-          pendingRechecks: res.pending_rechecks || 0,
-          inventory: res.inventory_count || 0,
-          visitsByCollege: colleges,
-          topDiagnoses: diagnoses,
-          topDispensed: topDispensed,
-          expiringItems: res.expiring_items || [],
-          lowStockItems: res.low_stock_items || []
-        });
+        if (res) {
+          if (res.user_role) setUserRole(res.user_role);
+          if (res.current_branch && res.user_role !== 'Superadmin' && res.user_role !== 'Admin') {
+              setSelectedBranch(res.current_branch);
+          }
+          
+          setStats({
+            visitsThisWeek: res.visits_week || 0,
+            totalRegistered: res.total_registered || 0,
+            unattended: res.unattended || 0,
+            pendingRechecks: res.pending_rechecks || 0,
+            inventory: res.inventory_count || 0,
+            visitsByCollege: colleges,
+            topDiagnoses: diagnoses,
+            visitTrends: res.visit_trends || [],
+            topDispensed: (res.top_dispensed || []).map((i: any) => ({ name: i.generic_name, count: i.cnt })),
+            expiringItems: res.expiring_items || [],
+            lowStockItems: res.low_stock_items || []
+          });
+        }
       })
       .catch(err => console.error("Failed to fetch dashboard stats:", err));
-  }, []);
+  }, [selectedBranch]);
 
   const MetricCard = ({ title, value, subtext, valueColor }: { title: string, value: number, subtext: string, valueColor: string }) => (
     <div className="bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-5 flex flex-col items-center justify-center border border-slate-100 flex-1 min-w-[150px]">
@@ -80,9 +87,35 @@ const Dashboard: React.FC = () => {
   return (
     <div className="p-10 w-full max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Dashboard</h1>
-        <p className="text-slate-400 text-sm font-medium">Overview of clinic activity</p>
+      <div className="mb-8 flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Dashboard</h1>
+          <p className="text-slate-400 text-sm font-medium">Overview of clinic activity</p>
+        </div>
+        <div className="flex gap-3 items-center">
+          {(userRole === 'Superadmin' || userRole === 'Admin') && (
+            <select 
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(e.target.value)}
+              className="bg-white border border-slate-200 text-slate-700 px-3 py-2.5 rounded-md text-sm font-medium shadow-sm outline-none focus:border-[#C01D38]"
+            >
+              <option value="All Branches">All Branches</option>
+              <option value="College Clinic">College Clinic</option>
+              <option value="Basic Education Clinic">Basic Education Clinic</option>
+              <option value="Power Campus Clinic">Power Campus Clinic</option>
+            </select>
+          )}
+          <button 
+            onClick={() => navigate('/patient-list')} 
+            className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
+            <FiPlus className="w-4 h-4" strokeWidth={3} /> Quick Admit
+          </button>
+          <button 
+            onClick={() => navigate('/inventory')}
+            className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
+            Quick Dispense
+          </button>
+        </div>
       </div>
 
       {/* Alerts Section */}
@@ -157,6 +190,33 @@ const Dashboard: React.FC = () => {
           subtext="Overview of medicine supplies & equipments" 
           valueColor="text-[#455A64]" 
         />
+      </div>
+
+      {/* Visit Trends Line Chart */}
+      <div className="mb-6 bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-6 border border-slate-100 flex flex-col h-80">
+        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Weekly Visit Trends</h3>
+        <p className="text-xs text-slate-400 mb-6">Patient visits over the last 7 days</p>
+        
+        <div className="flex-1 w-full">
+          {stats.visitTrends.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={stats.visitTrends} margin={{ top: 5, right: 30, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                <YAxis tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip 
+                  cursor={{stroke: '#f1f5f9', strokeWidth: 2}}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                />
+                <Line type="monotone" dataKey="visits" stroke="#C01D38" strokeWidth={3} dot={{r: 4, fill: '#C01D38'}} activeDot={{r: 6}} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+              <p className="text-sm font-medium">No trend data available</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Charts Blocks */}
