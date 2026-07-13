@@ -110,7 +110,8 @@ class ConsultationController {
             'total' => $total,
             'page' => $page,
             'per_page' => $perPage,
-            'total_pages' => $totalPages
+            'total_pages' => $totalPages,
+            'user_role' => $userRole
         ]);
     }
 
