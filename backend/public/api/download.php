@@ -5,7 +5,7 @@ require_once __DIR__ . '/../../config/config.php';
 cjcRequireAuth();
 
 // Enforce RBAC: Only Doctors and Nurses can view clinical attachments
-cjcRequireRole(['Doctor', 'Nurse']);
+cjcRequireRole(['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff']);
 
 // Get the requested filename from query parameter
 $requestedFile = $_GET['file'] ?? '';

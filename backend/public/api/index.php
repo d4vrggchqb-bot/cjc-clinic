@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../app/Controllers/ConsultationController.php';
 require_once __DIR__ . '/../../app/Controllers/MedcertController.php';
 require_once __DIR__ . '/../../app/Controllers/DashboardController.php';
 require_once __DIR__ . '/../../app/Controllers/AppointmentController.php';
+require_once __DIR__ . '/../../app/Controllers/ReportController.php';
 
 // Parse route and action
 // Examples:
@@ -142,6 +143,13 @@ switch ($route) {
             $controller->update();
         } elseif ($action === 'updateDetails') {
             $controller->updateDetails();
+        }
+        break;
+
+    case 'reports':
+        $controller = new ReportController();
+        if ($action === 'generate') {
+            $controller->generateReport();
         }
         break;
 }

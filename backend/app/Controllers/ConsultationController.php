@@ -42,10 +42,29 @@ class ConsultationController {
         } // 'all' requires no filter
 
         $userRole = $_SESSION['cjc_user']['role'] ?? 'Staff';
+        
+        // Handle branch filtering
+        $requestBranch = $_GET['branch'] ?? 'All Branches';
         if (!in_array($userRole, ['Admin', 'Superadmin'])) {
             $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
             $whereClause .= " AND c.clinic_branch = :branch";
             $params['branch'] = $branch;
+        } else {
+            if ($requestBranch !== 'All Branches') {
+                $whereClause .= " AND c.clinic_branch = :branch";
+                $params['branch'] = $requestBranch;
+            }
+        }
+
+        // Handle status filtering
+        $status = $_GET['status'] ?? 'all';
+        if ($status !== 'all') {
+            if ($status === 'in-progress') {
+                $whereClause .= " AND c.status IN ('active', 'in-progress')";
+            } else {
+                $whereClause .= " AND c.status = :status";
+                $params['status'] = $status;
+            }
         }
 
         try {

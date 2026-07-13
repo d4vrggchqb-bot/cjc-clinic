@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '../utils/api';
-import { FiX, FiUser, FiActivity, FiPhone, FiInfo, FiMail, FiMapPin, FiCalendar, FiUsers, FiAlertCircle } from 'react-icons/fi';
+import { apiFetch, apiDownload } from '../utils/api';
+import { FiX, FiUser, FiActivity, FiPhone, FiInfo, FiMail, FiMapPin, FiCalendar, FiUsers, FiAlertCircle, FiPaperclip, FiUpload, FiDownload, FiFile } from 'react-icons/fi';
 
 interface PatientViewModalProps {
   isOpen: boolean;
@@ -20,6 +20,59 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('File is too large. Maximum size is 5MB.');
+      return;
+    }
+    
+    setUploadError('');
+    setFileToUpload(file);
+    if (e.target) e.target.value = ''; // Reset so the same file can be selected again if canceled
+  };
+
+  const confirmUpload = async () => {
+    if (!fileToUpload || !patientId) return;
+    
+    setIsUploading(true);
+    setUploadError('');
+    
+    const formData = new FormData();
+    formData.append('attachment', fileToUpload);
+    formData.append('profile_id', patientId.toString());
+    
+    try {
+      const res = await apiFetch('/api/index.php?route=patients&action=upload', {
+        method: 'POST',
+        body: formData // Note: apiFetch should handle FormData without setting Content-Type header manually
+      });
+      
+      if (res.success) {
+        // Refresh patient to get new attachments
+        const profileRes = await apiFetch(`/api/index.php?route=patients&action=get&id=${patientId}`);
+        if (profileRes.profile) setPatient(profileRes.profile);
+      } else {
+        setUploadError(res.message || 'Upload failed');
+      }
+    } catch (err) {
+      setUploadError('Failed to upload file');
+    } finally {
+      setIsUploading(false);
+      setFileToUpload(null);
+    }
+  };
+
+  const cancelUpload = () => {
+    setFileToUpload(null);
+    setUploadError('');
+  };
 
   useEffect(() => {
     if (isOpen && patientId) {
@@ -233,6 +286,84 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                   </p>
                 </div>
               </div>
+              <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden mb-6">
+                <div className="border-b border-slate-100 p-4 bg-slate-50 flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <FiPaperclip className="w-4 h-4" /> Lab Results & Attachments
+                  </h4>
+                  <label className="cursor-pointer bg-white border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded shadow-sm text-xs font-semibold text-slate-700 flex items-center gap-2 transition-colors">
+                    {isUploading ? (
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-slate-700"></div>
+                    ) : (
+                      <FiUpload className="w-3.5 h-3.5" />
+                    )}
+                    {isUploading ? 'Uploading...' : 'Upload File'}
+                    <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.pdf" onChange={handleFileSelect} disabled={isUploading || fileToUpload !== null} />
+                  </label>
+                </div>
+
+                {fileToUpload && (
+                  <div className="p-4 bg-yellow-50 border-b border-yellow-100 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded bg-white border border-yellow-200 flex items-center justify-center text-yellow-600 shadow-sm">
+                        {fileToUpload.name.toLowerCase().endsWith('.pdf') ? <FiFile className="w-5 h-5 text-red-500" /> : <FiPaperclip className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">Confirm Upload</p>
+                        <p className="text-xs text-slate-600">Are you sure you want to attach <span className="font-semibold text-slate-800">{fileToUpload.name}</span> ({(fileToUpload.size / 1024 / 1024).toFixed(2)} MB) to this patient's profile?</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={cancelUpload} disabled={isUploading} className="px-4 py-1.5 rounded bg-white border border-slate-300 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors disabled:opacity-50">
+                        Cancel
+                      </button>
+                      <button onClick={confirmUpload} disabled={isUploading} className="px-4 py-1.5 rounded bg-green-600 text-white text-xs font-bold shadow-sm hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+                        {isUploading ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div> : <FiUpload className="w-3.5 h-3.5" />}
+                        {isUploading ? 'Uploading...' : 'Confirm Upload'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {uploadError && (
+                  <div className="px-4 py-2 bg-red-50 text-red-600 text-xs font-medium border-b border-red-100">
+                    {uploadError}
+                  </div>
+                )}
+                
+                {!patient.attachments || patient.attachments.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400">
+                    <FiFile className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-medium">No attachments uploaded yet.</p>
+                    <p className="text-xs mt-1">Upload lab results, X-rays, or medical certificates.</p>
+                  </div>
+                ) : (
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {patient.attachments.map((file: any) => (
+                      <div key={file.id} className="flex items-center p-3 border border-slate-200 rounded-lg hover:border-slate-300 bg-slate-50/50 group transition-colors">
+                        <div className="w-10 h-10 rounded bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0 mr-3 shadow-sm">
+                          {file.filename.toLowerCase().endsWith('.pdf') ? <FiFile className="w-5 h-5 text-red-500" /> : <FiPaperclip className="w-5 h-5" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-slate-700 truncate" title={file.filename}>{file.filename}</p>
+                          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                            <span>{new Date(file.created_at).toLocaleDateString()}</span>
+                            <span>•</span>
+                            <span>{file.uploaded_by}</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => apiDownload(`/${file.file_url}`, file.filename)} 
+                          className="ml-3 p-2 text-slate-400 hover:text-[#9B101E] hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                          title="Download File"
+                        >
+                          <FiDownload className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden">
                 <div className="border-b border-slate-100 p-4 bg-slate-50 flex justify-between items-center">
                   <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
@@ -250,13 +381,14 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead>
-                        <tr className="bg-slate-100 text-slate-600 font-semibold text-xs uppercase tracking-wider border-b border-slate-200">
-                          <th className="px-4 py-3">Date & Time</th>
-                          <th className="px-4 py-3">Clinic Branch</th>
-                          <th className="px-4 py-3">Purpose</th>
-                          <th className="px-4 py-3 max-w-[200px]">Findings (Diagnosis)</th>
-                          <th className="px-4 py-3 max-w-[200px]">Medication / Treatment</th>
-                          <th className="px-4 py-3 max-w-[200px]">Remarks / Notes</th>
+                        <tr className="bg-slate-100 text-slate-600 font-semibold text-[0.65rem] uppercase tracking-wider border-b border-slate-200">
+                          <th className="px-3 py-3">Date & Time</th>
+                          <th className="px-3 py-3">Branch</th>
+                          <th className="px-3 py-3">Vitals (BP / Temp / Wt)</th>
+                          <th className="px-3 py-3 max-w-[150px]">Purpose</th>
+                          <th className="px-3 py-3 max-w-[200px]">Findings (Diagnosis)</th>
+                          <th className="px-3 py-3 max-w-[200px]">Medication / Treatment</th>
+                          <th className="px-3 py-3">Attended By</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -264,26 +396,33 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                           const dateObj = new Date(record.date);
                           return (
                             <tr key={record.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-4 py-3 align-top">
+                              <td className="px-3 py-3 align-top">
                                 <div className="font-semibold text-slate-800">{dateObj.toLocaleDateString()}</div>
                                 <div className="text-xs text-slate-500 mt-0.5">{dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                               </td>
-                              <td className="px-4 py-3 align-top text-slate-700">
-                                <span className="inline-block px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-xs font-medium">
+                              <td className="px-3 py-3 align-top text-slate-700">
+                                <span className="inline-block px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[0.65rem] font-bold text-slate-500 uppercase">
                                   {record.clinic_branch || 'College Clinic'}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 align-top font-medium text-slate-800">
+                              <td className="px-3 py-3 align-top text-slate-600">
+                                <div className="text-xs space-y-0.5">
+                                  <div><span className="font-semibold text-slate-400">BP:</span> {record.blood_pressure || '--'}</div>
+                                  <div><span className="font-semibold text-slate-400">T:</span> {record.temperature ? `${record.temperature}°C` : '--'}</div>
+                                  <div><span className="font-semibold text-slate-400">W:</span> {record.weight ? `${record.weight}kg` : '--'}</div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 align-top font-medium text-slate-800 max-w-[150px] whitespace-normal">
                                 {record.purpose}
                               </td>
-                              <td className="px-4 py-3 align-top text-slate-600 max-w-[200px] whitespace-normal">
+                              <td className="px-3 py-3 align-top text-slate-600 max-w-[200px] whitespace-normal">
                                 {record.diagnosis || <span className="text-slate-400 italic">None</span>}
                               </td>
-                              <td className="px-4 py-3 align-top text-slate-600 max-w-[200px] whitespace-normal">
+                              <td className="px-3 py-3 align-top text-slate-600 max-w-[200px] whitespace-normal">
                                 {record.treatment ? record.treatment : (record.prescriptions ? record.prescriptions : <span className="text-slate-400 italic">None</span>)}
                               </td>
-                              <td className="px-4 py-3 align-top text-slate-600 max-w-[200px] whitespace-normal">
-                                {record.notes || <span className="text-slate-400 italic">None</span>}
+                              <td className="px-3 py-3 align-top text-slate-600 text-xs font-medium">
+                                {record.attended_by || 'Staff'}
                               </td>
                             </tr>
                           );

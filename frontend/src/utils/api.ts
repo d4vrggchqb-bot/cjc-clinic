@@ -46,3 +46,32 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
   return res.json();
 }
+
+export async function apiDownload(endpoint: string, filename: string) {
+  const headers: Record<string, string> = {};
+  
+  const res = await fetch(`${API_BASE}${endpoint}`, {
+    method: 'GET',
+    headers,
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    throw new Error('Download failed');
+  }
+  
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  
+  // Delay revoking the object URL to ensure the browser has time to start the download
+  setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  }, 1000);
+}

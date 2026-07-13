@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings } from 'react-icons/fi';
+import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText } from 'react-icons/fi';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
@@ -25,7 +25,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { id: 'patients', label: 'PATIENT LIST', icon: FiUsers },
     { id: 'consultation', label: 'CONSULTATION', icon: FiActivity },
     { id: 'appointments', label: 'APPOINTMENTS', icon: FiClock },
-    { id: 'inventory', label: 'INVENTORY', icon: FiBox }
+    { id: 'inventory', label: 'INVENTORY', icon: FiBox },
+    { id: 'reports', label: 'REPORTS', icon: FiFileText }
   ];
 
   return (

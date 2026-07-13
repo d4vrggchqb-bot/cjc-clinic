@@ -958,3 +958,29 @@ body {
 .d-none {
   display: none !important;
 }
+
+/* Print Styles */
+@media print {
+  aside {
+    display: none !important;
+  }
+  
+  .print-hide,
+  button,
+  select {
+    display: none !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body {
+    background-color: white !important;
+  }
+
+  .recharts-wrapper {
+    margin: 0 auto !important;
+  }
+}

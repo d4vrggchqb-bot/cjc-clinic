@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiPlus } from 'react-icons/fi';
+import { FiPlus, FiPrinter } from 'react-icons/fi';
 import { apiFetch } from '../utils/api';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -105,6 +105,11 @@ const Dashboard: React.FC = () => {
               <option value="Power Campus Clinic">Power Campus Clinic</option>
             </select>
           )}
+          <button 
+            onClick={() => window.print()}
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
+            <FiPrinter className="w-4 h-4" /> Export Report
+          </button>
           <button 
             onClick={() => navigate('/patient-list')} 
             className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">

@@ -77,7 +77,7 @@ class PatientController {
 
         cjcRequireAuth();
         cjcCsrfValidate();
-        cjcRequireRole(['Doctor', 'Nurse']);
+        cjcRequireRole(['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff']);
 
         if (empty($_FILES['attachment']) || $_FILES['attachment']['error'] !== UPLOAD_ERR_OK) {
             $this->jsonResponse(['success' => false, 'message' => 'Upload failed or no file provided.'], 400);
@@ -116,6 +116,28 @@ class PatientController {
         if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
             $this->jsonResponse(['success' => false, 'message' => 'Unable to save file.'], 500);
         }
+        
+        $pdo = cjcDatabaseConnection();
+        $currentUser = cjcCurrentUser();
+        $profile_id = isset($_POST['profile_id']) ? (int)$_POST['profile_id'] : 0;
+        
+        $fileUrl = 'api/download.php?file=' . urlencode($filename);
+        $attachmentId = 0;
+        
+        if ($profile_id > 0) {
+            try {
+                $stmt = $pdo->prepare("INSERT INTO profile_attachments (profile_id, filename, file_url, uploaded_by) VALUES (:profile_id, :filename, :file_url, :uploaded_by)");
+                $stmt->execute([
+                    'profile_id' => $profile_id,
+                    'filename' => $file['name'],
+                    'file_url' => $fileUrl,
+                    'uploaded_by' => $currentUser['name'] ?? 'Staff'
+                ]);
+                $attachmentId = $pdo->lastInsertId();
+            } catch (PDOException $e) {
+                // Silently ignore insert errors if any
+            }
+        }
 
         $ocrScript = realpath(__DIR__ . '/../../scripts/ocr_parser.py');
         $extractedText = null;
@@ -135,7 +157,8 @@ class PatientController {
 
         $this->jsonResponse([
             'success' => true, 
-            'url' => 'api/download.php?file=' . urlencode($filename),
+            'url' => $fileUrl,
+            'id' => $attachmentId,
             'ocr_extracted' => $extractedText !== null
         ]);
     }
@@ -161,6 +184,11 @@ class PatientController {
             if (!$profile) {
                 $this->jsonResponse(['error' => 'Patient not found'], 404);
             }
+            
+            $attachmentsStmt = $pdo->prepare("SELECT * FROM profile_attachments WHERE profile_id = :id ORDER BY created_at DESC");
+            $attachmentsStmt->execute(['id' => $id]);
+            $attachments = $attachmentsStmt->fetchAll(PDO::FETCH_ASSOC);
+            $profile['attachments'] = $attachments;
 
             $this->jsonResponse(['profile' => $profile]);
         } catch (PDOException $e) {
@@ -175,7 +203,7 @@ class PatientController {
         }
 
         cjcRequireAuth();
-        cjcRequireRole(['Admin', 'Doctor', 'Nurse', 'Staff']);
+        cjcRequireRole(['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff']);
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
 
@@ -238,7 +266,7 @@ class PatientController {
         }
 
         cjcRequireAuth();
-        cjcRequireRole(['Admin', 'Doctor', 'Nurse', 'Staff']);
+        cjcRequireRole(['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff']);
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         

@@ -33,9 +33,12 @@ interface LogbookEntry {
 
 const Consultation: React.FC = () => {
   const location = useLocation();
-  const [period, setPeriod] = useState('today');
+  const [period, setPeriod] = useState('today'); // today, weekly, monthly, custom, all
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [kanbanStatus, setKanbanStatus] = useState('all'); // all, waiting, in-progress, completed
+  const [selectedBranch, setSelectedBranch] = useState('All Branches');
+  const [userRole, setUserRole] = useState('');
   const [entries, setEntries] = useState<LogbookEntry[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -114,7 +117,7 @@ const Consultation: React.FC = () => {
   };
 
   const fetchEntries = () => {
-    let url = `/api/index.php?route=consultations&action=list&period=${period}&page=${currentPage}&per_page=10`;
+    let url = `/api/index.php?route=consultations&action=list&period=${period}&page=${currentPage}&per_page=10&status=${kanbanStatus}&branch=${encodeURIComponent(selectedBranch)}`;
     if (period === 'custom' && fromDate && toDate) {
       url += `&from=${fromDate}&to=${toDate}`;
     }
@@ -124,6 +127,7 @@ const Consultation: React.FC = () => {
         if (res.sessions) {
           setEntries(res.sessions);
           setTotalPages(res.total_pages || 1);
+          if (res.user_role) setUserRole(res.user_role);
         }
       })
       .catch(err => console.error("Error fetching entries:", err));
@@ -131,10 +135,13 @@ const Consultation: React.FC = () => {
 
   useEffect(() => {
     fetchEntries();
+  }, [currentPage, period, fromDate, toDate, kanbanStatus, selectedBranch]);
+
+  useEffect(() => {
     fetchInventory();
     const interval = setInterval(fetchEntries, 30000);
     return () => clearInterval(interval);
-  }, [period, currentPage]);
+  }, [period, currentPage, kanbanStatus, selectedBranch, fromDate, toDate]);
 
   // Search logic for left panel
   useEffect(() => {
@@ -650,6 +657,51 @@ const Consultation: React.FC = () => {
                 Set All Time-Out
               </button>
             </div>
+          </div>
+
+          <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex justify-between items-center overflow-x-auto gap-4">
+            <div className="flex gap-2">
+              <button 
+                onClick={() => { setKanbanStatus('all'); setCurrentPage(1); }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'all' ? 'bg-slate-800 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'}`}
+              >
+                All Consultations
+              </button>
+              <button 
+                onClick={() => { setKanbanStatus('waiting'); setCurrentPage(1); }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'waiting' ? 'bg-yellow-500 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-yellow-50'}`}
+              >
+                Waiting
+              </button>
+              <button 
+                onClick={() => { setKanbanStatus('in-progress'); setCurrentPage(1); }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'in-progress' ? 'bg-blue-600 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-blue-50'}`}
+              >
+                In Consultation
+              </button>
+              <button 
+                onClick={() => { setKanbanStatus('completed'); setCurrentPage(1); }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'completed' ? 'bg-green-600 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-green-50'}`}
+              >
+                Completed
+              </button>
+            </div>
+            
+            {(userRole === 'Superadmin' || userRole === 'Admin') && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 uppercase">Branch:</span>
+                <select 
+                  value={selectedBranch}
+                  onChange={(e) => { setSelectedBranch(e.target.value); setCurrentPage(1); }}
+                  className="border border-slate-300 rounded px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white focus:outline-none"
+                >
+                  <option value="All Branches">All Branches</option>
+                  <option value="College Clinic">College Clinic</option>
+                  <option value="Basic Education Clinic">Basic Education Clinic</option>
+                  <option value="Power Campus Clinic">Power Campus Clinic</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-auto">
