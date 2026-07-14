@@ -449,27 +449,105 @@ const Consultation: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden p-6 gap-6">
+      <div className="flex-1 flex flex-col overflow-hidden p-6 gap-6">
         
-        {/* Left Panel: Check-in */}
-        <div className="w-[350px] bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden flex-shrink-0 h-full">
-          <div className="p-4 border-b border-slate-100">
-            <h2 className="font-bold text-slate-800 text-lg">Check-in Patient</h2>
-          </div>
-          
-          <div className="p-4 flex-1 flex flex-col">
-            {checkinError && (
-              <div className="mb-4 text-xs font-semibold text-red-600 bg-red-50 p-2 rounded border border-red-100">
-                {checkinError}
-              </div>
+        {/* Top Horizontal Bar: Check-in */}
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 flex-shrink-0">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+              <FiUserPlus className="text-[#A5192D]" />
+              Quick Check-in
+            </h2>
+            {!isAddingNewPatient && (
+              <button
+                onClick={() => {
+                  setIsAddingNewPatient(true);
+                  setShowSearchDropdown(false);
+                }}
+                className="text-sm font-medium text-[#A5192D] hover:text-[#8A1525] flex items-center gap-1.5 transition-colors"
+              >
+                <FiUserPlus /> Register New Patient
+              </button>
             )}
+          </div>
 
-            {!selectedPatient ? (
-              <div className="flex-1 flex flex-col" ref={searchRef}>
-                {!isAddingNewPatient ? (
-                  <>
-                    <div className="relative">
-                      <div className="flex">
+          {checkinError && (
+            <div className="mb-4 text-xs font-semibold text-red-600 bg-red-50 p-2 rounded border border-red-100">
+              {checkinError}
+            </div>
+          )}
+
+          {isAddingNewPatient ? (
+            <div className="animate-in fade-in slide-in-from-top-4 duration-300 bg-slate-50 p-5 rounded-lg border border-slate-200">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-bold text-slate-800">New Patient Details</h3>
+                <button 
+                  onClick={() => setIsAddingNewPatient(false)}
+                  className="text-xs text-slate-500 hover:text-slate-800 font-medium flex items-center gap-1 bg-white px-2 py-1 border border-slate-200 rounded shadow-sm"
+                >
+                  <FiX /> Cancel
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-4 gap-4 items-end">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">First Name *</label>
+                  <input
+                    type="text"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
+                    value={newPatient.first_name}
+                    onChange={(e) => setNewPatient({...newPatient, first_name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Last Name *</label>
+                  <input
+                    type="text"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
+                    value={newPatient.last_name}
+                    onChange={(e) => setNewPatient({...newPatient, last_name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ID Number (Optional)</label>
+                  <input
+                    type="text"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
+                    value={newPatient.patient_id_number}
+                    onChange={(e) => setNewPatient({...newPatient, patient_id_number: e.target.value})}
+                  />
+                </div>
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Profile Type *</label>
+                    <select
+                      className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D] bg-white"
+                      value={newPatient.profile_type}
+                      onChange={(e) => setNewPatient({...newPatient, profile_type: e.target.value})}
+                    >
+                      <option value="student">Student</option>
+                      <option value="employee">Employee</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={handleQuickAddPatient}
+                    disabled={isRegistering || !newPatient.first_name || !newPatient.last_name}
+                    className="py-2 px-5 rounded font-medium text-white bg-slate-800 hover:bg-slate-900 disabled:opacity-50 transition-colors text-sm whitespace-nowrap h-[38px] flex items-center"
+                  >
+                    {isRegistering ? 'Registering...' : 'Save & Select'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-end gap-6">
+              <div className="flex-1 max-w-md relative" ref={searchRef}>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Patient</label>
+                {!selectedPatient ? (
+                  <div className="relative">
+                    <div className="flex">
+                      <div className="relative flex-1">
+                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                         <input 
                           type="text" 
                           value={search}
@@ -478,15 +556,13 @@ const Consultation: React.FC = () => {
                             if (searchResults.length > 0) setShowSearchDropdown(true);
                           }}
                           placeholder="Search name or ID..."
-                          className="flex-1 border-y border-l border-slate-300 rounded-l px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
+                          className="w-full border border-slate-300 rounded px-3 py-2 pl-9 text-sm focus:outline-none focus:border-[#8c1526]"
                         />
-                        <button className="bg-[#8c1526] hover:bg-[#7a1221] text-white px-4 rounded-r flex items-center justify-center transition-colors">
-                          <FiSearch className="w-4 h-4" />
-                        </button>
                       </div>
-                      
-                      {showSearchDropdown && search.length >= 2 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-64 overflow-y-auto z-20">
+                    </div>
+                    
+                    {showSearchDropdown && search.length >= 2 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-64 overflow-y-auto z-20">
                         {isSearching ? (
                           <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
                         ) : searchResults.length > 0 ? (
@@ -502,137 +578,52 @@ const Consultation: React.FC = () => {
                           ))
                         ) : (
                           <div className="p-4 text-center">
-                            <p className="text-sm text-slate-500 mb-3">No patients found.</p>
-                            <button
-                              onClick={() => {
-                                setIsAddingNewPatient(true);
-                                setShowSearchDropdown(false);
-                              }}
-                              className="inline-flex items-center gap-2 text-sm font-medium text-[#A5192D] hover:text-[#8A1525] transition-colors"
-                            >
-                              <FiUserPlus /> Add New Patient
-                            </button>
+                            <p className="text-sm text-slate-500">No patients found.</p>
                           </div>
                         )}
                       </div>
                     )}
-                    </div>
-
-                    <div className="mt-6 border-t border-slate-100 pt-6 text-center">
-                      <p className="text-sm text-slate-500 mb-3">Can't find the student/employee?</p>
-                      <button
-                        onClick={() => {
-                          setIsAddingNewPatient(true);
-                          setShowSearchDropdown(false);
-                        }}
-                        className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        <FiUserPlus /> Register New Patient
-                      </button>
-                    </div>
-                  </>
+                  </div>
                 ) : (
-                  <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-bold text-slate-800">Quick Registration</h3>
-                      <button 
-                        onClick={() => setIsAddingNewPatient(false)}
-                        className="text-sm text-slate-500 hover:text-slate-800 font-medium"
-                      >
-                        Cancel
-                      </button>
+                  <div className="bg-slate-50 px-3 py-1.5 rounded border border-slate-200 relative flex items-center justify-between h-[38px]">
+                    <div>
+                      <div className="font-bold text-sm text-slate-800 leading-tight">{selectedPatient.name}</div>
+                      <div className="text-[10px] text-slate-500 leading-tight">{selectedPatient.patient_id_number || 'No ID'}</div>
                     </div>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">First Name *</label>
-                        <input
-                          type="text"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
-                          value={newPatient.first_name}
-                          onChange={(e) => setNewPatient({...newPatient, first_name: e.target.value})}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Last Name *</label>
-                        <input
-                          type="text"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
-                          value={newPatient.last_name}
-                          onChange={(e) => setNewPatient({...newPatient, last_name: e.target.value})}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">ID Number (Optional)</label>
-                        <input
-                          type="text"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
-                          value={newPatient.patient_id_number}
-                          onChange={(e) => setNewPatient({...newPatient, patient_id_number: e.target.value})}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Profile Type *</label>
-                        <select
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D] bg-white"
-                          value={newPatient.profile_type}
-                          onChange={(e) => setNewPatient({...newPatient, profile_type: e.target.value})}
-                        >
-                          <option value="student">Student</option>
-                          <option value="employee">Employee</option>
-                        </select>
-                      </div>
-                      <div className="pt-2">
-                        <button
-                          onClick={handleQuickAddPatient}
-                          disabled={isRegistering || !newPatient.first_name || !newPatient.last_name}
-                          className="w-full py-2.5 rounded-lg font-medium text-white bg-slate-800 hover:bg-slate-900 disabled:opacity-50 transition-colors"
-                        >
-                          {isRegistering ? 'Registering...' : 'Save and Select Patient'}
-                        </button>
-                      </div>
-                    </div>
+                    <button 
+                      onClick={() => { setSelectedPatient(null); setSearch(''); }}
+                      className="text-slate-400 hover:text-red-600 p-1 rounded-full hover:bg-slate-200 transition-colors"
+                      title="Clear selected patient"
+                    >
+                      <FiX className="w-4 h-4" />
+                    </button>
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="flex flex-col flex-1">
-                <div className="bg-slate-50 p-3 rounded border border-slate-200 mb-4 relative">
-                  <button 
-                    onClick={() => { setSelectedPatient(null); setSearch(''); }}
-                    className="absolute top-2 right-2 text-xs text-slate-400 hover:text-red-600 font-bold"
-                  >
-                    ✕
-                  </button>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Selected Patient</div>
-                  <div className="font-bold text-sm text-slate-800">{selectedPatient.name}</div>
-                  <div className="text-xs text-slate-500">{selectedPatient.patient_id_number}</div>
-                </div>
 
-                <div className="mb-4">
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Purpose / Reason</label>
-                  <input 
-                    type="text"
-                    value={purpose}
-                    onChange={(e) => setPurpose(e.target.value)}
-                    placeholder="e.g. Headache, Consultation..."
-                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
-                  />
-                </div>
-
-                <button 
-                  onClick={handleCheckIn}
-                  disabled={!purpose.trim() || isCheckingIn}
-                  className="w-full bg-[#8c1526] hover:bg-[#7a1221] text-white py-2 rounded text-sm font-bold transition-colors disabled:opacity-50"
-                >
-                  {isCheckingIn ? 'Checking in...' : 'Check-In'}
-                </button>
+              <div className="flex-1 max-w-md">
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Purpose / Reason</label>
+                <input 
+                  type="text"
+                  value={purpose}
+                  onChange={(e) => setPurpose(e.target.value)}
+                  placeholder="e.g. Headache, Consultation..."
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
+                />
               </div>
-            )}
-          </div>
+
+              <button 
+                onClick={handleCheckIn}
+                disabled={!selectedPatient || !purpose.trim() || isCheckingIn}
+                className="bg-[#8c1526] hover:bg-[#7a1221] text-white px-8 py-2 rounded text-sm font-bold transition-colors disabled:opacity-50 h-[38px] flex items-center justify-center min-w-[120px] shadow-sm"
+              >
+                {isCheckingIn ? 'Checking in...' : 'Check-In'}
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Right Panel: Data Table */}
+        {/* Bottom Panel: Data Table */}
         <div className="flex-1 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center">
             <div>

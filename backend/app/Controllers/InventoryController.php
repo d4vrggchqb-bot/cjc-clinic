@@ -360,6 +360,89 @@ class InventoryController {
         $this->jsonResponse(['suggested_batch' => "BATCH-$nextNumber"]);
     }
 
+    // --- PREDICTIVE INVENTORY ALERTS (AI / PYTHON) ---
+    public function predictive_alerts() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        $pdo = cjcDatabaseConnection();
+
+        // 1. Get current total stock for all items
+        $stockStmt = $pdo->query("
+            SELECT i.id as item_id, i.generic_name as name, COALESCE(SUM(b.stock_remaining), 0) as current_stock
+            FROM inventory_items i
+            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.status = 'active'
+            GROUP BY i.id
+        ");
+        $itemsData = [];
+        while ($row = $stockStmt->fetch(PDO::FETCH_ASSOC)) {
+            $itemsData[$row['item_id']] = [
+                'item_id' => (int)$row['item_id'],
+                'name' => $row['name'],
+                'current_stock' => (int)$row['current_stock'],
+                'daily_history' => []
+            ];
+        }
+
+        // 2. Get daily dispensing history for the last 30 days
+        $historyStmt = $pdo->query("
+            SELECT b.item_id, DATE(l.created_at) as date, SUM(ABS(l.quantity_changed)) as dispensed
+            FROM inventory_logs l
+            JOIN inventory_batches b ON l.batch_id = b.id
+            WHERE l.action_type = 'dispense' 
+              AND l.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+            GROUP BY b.item_id, DATE(l.created_at)
+            ORDER BY DATE(l.created_at) ASC
+        ");
+
+        while ($row = $historyStmt->fetch(PDO::FETCH_ASSOC)) {
+            $itemId = (int)$row['item_id'];
+            if (isset($itemsData[$itemId])) {
+                $itemsData[$itemId]['daily_history'][] = [
+                    'date' => $row['date'],
+                    'dispensed' => (int)$row['dispensed']
+                ];
+            }
+        }
+
+        // 3. Prepare JSON for Python
+        $payload = json_encode(['items' => array_values($itemsData)]);
+
+        // 4. Call Python Script
+        $scriptPath = realpath(__DIR__ . '/../../scripts/predict_inventory.py');
+        if (!$scriptPath) {
+            $this->jsonResponse(['error' => 'Predictive script not found.'], 500);
+        }
+
+        $cmd = escapeshellcmd("python") . " " . escapeshellarg($scriptPath);
+        $process = proc_open($cmd, [
+            0 => ["pipe", "r"], // stdin
+            1 => ["pipe", "w"], // stdout
+            2 => ["pipe", "w"]  // stderr
+        ], $pipes);
+
+        if (is_resource($process)) {
+            fwrite($pipes[0], $payload);
+            fclose($pipes[0]);
+
+            $output = stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+
+            $error = stream_get_contents($pipes[2]);
+            fclose($pipes[2]);
+
+            proc_close($process);
+
+            $result = json_decode($output, true);
+            if (json_last_error() === JSON_ERROR_NONE && isset($result['predictions'])) {
+                $this->jsonResponse(['success' => true, 'predictions' => $result['predictions']]);
+            } else {
+                $this->jsonResponse(['error' => 'Failed to parse AI predictions', 'details' => $error ?: $output], 500);
+            }
+        } else {
+            $this->jsonResponse(['error' => 'Failed to execute Python AI model'], 500);
+        }
+    }
+
     private function jsonResponse(array $data, int $status = 200) {
         http_response_code($status);
         header('Content-Type: application/json');

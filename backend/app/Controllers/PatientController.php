@@ -151,6 +151,16 @@ class PatientController {
                 $ocrResult = json_decode(implode("\n", $output), true);
                 if (isset($ocrResult['success']) && $ocrResult['success']) {
                     $extractedText = $ocrResult['text'];
+                    
+                    // Update database with extracted text
+                    if ($attachmentId > 0) {
+                        try {
+                            $updateStmt = $pdo->prepare("UPDATE profile_attachments SET extracted_text = :text WHERE id = :id");
+                            $updateStmt->execute(['text' => $extractedText, 'id' => $attachmentId]);
+                        } catch (PDOException $e) {
+                            // Silently ignore
+                        }
+                    }
                 }
             }
         }
@@ -159,7 +169,8 @@ class PatientController {
             'success' => true, 
             'url' => $fileUrl,
             'id' => $attachmentId,
-            'ocr_extracted' => $extractedText !== null
+            'ocr_extracted' => $extractedText !== null,
+            'extracted_text' => $extractedText
         ]);
     }
 
