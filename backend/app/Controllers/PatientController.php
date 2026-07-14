@@ -227,6 +227,23 @@ class PatientController {
         }
 
         $pdo = cjcDatabaseConnection();
+
+        // Check for duplicates
+        $idNum = $input['patient_id_number'] ?? null;
+        if (!empty($idNum)) {
+            $dupSql = "SELECT id FROM profiles WHERE first_name = :fname AND last_name = :lname AND patient_id_number = :id_num LIMIT 1";
+            $dupStmt = $pdo->prepare($dupSql);
+            $dupStmt->execute(['fname' => $firstName, 'lname' => $lastName, 'id_num' => $idNum]);
+        } else {
+            $dupSql = "SELECT id FROM profiles WHERE first_name = :fname AND last_name = :lname AND (patient_id_number IS NULL OR patient_id_number = '') LIMIT 1";
+            $dupStmt = $pdo->prepare($dupSql);
+            $dupStmt->execute(['fname' => $firstName, 'lname' => $lastName]);
+        }
+        
+        if ($dupStmt->fetch()) {
+            $this->jsonResponse(['error' => 'A patient with this exact name and ID number already exists.'], 400);
+        }
+
         try {
             $sql = "INSERT INTO profiles (
                         profile_type, patient_id_number, school_year, first_name, last_name, middle_initial,
@@ -290,6 +307,23 @@ class PatientController {
         }
 
         $pdo = cjcDatabaseConnection();
+
+        // Check for duplicates excluding current ID
+        $idNum = $input['patient_id_number'] ?? null;
+        if (!empty($idNum)) {
+            $dupSql = "SELECT id FROM profiles WHERE first_name = :fname AND last_name = :lname AND patient_id_number = :id_num AND id != :id LIMIT 1";
+            $dupStmt = $pdo->prepare($dupSql);
+            $dupStmt->execute(['fname' => $firstName, 'lname' => $lastName, 'id_num' => $idNum, 'id' => $id]);
+        } else {
+            $dupSql = "SELECT id FROM profiles WHERE first_name = :fname AND last_name = :lname AND (patient_id_number IS NULL OR patient_id_number = '') AND id != :id LIMIT 1";
+            $dupStmt = $pdo->prepare($dupSql);
+            $dupStmt->execute(['fname' => $firstName, 'lname' => $lastName, 'id' => $id]);
+        }
+        
+        if ($dupStmt->fetch()) {
+            $this->jsonResponse(['error' => 'A patient with this exact name and ID number already exists.'], 400);
+        }
+
         try {
             $sql = "UPDATE profiles 
                     SET profile_type = :type, patient_id_number = :id_num, school_year = :school_year, 
@@ -330,6 +364,29 @@ class PatientController {
             $this->jsonResponse(['success' => true]);
         } catch (PDOException $e) {
             error_log('[CJC-CLINIC] update patient error: ' . $e->getMessage());
+            $this->jsonResponse(['error' => 'Database error'], 500);
+        }
+    }
+
+    public function checkId() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth();
+        $idNum = trim($_GET['id_number'] ?? '');
+
+        if (empty($idNum)) {
+            $this->jsonResponse(['exists' => false]);
+        }
+
+        $pdo = cjcDatabaseConnection();
+        try {
+            $stmt = $pdo->prepare("SELECT id FROM profiles WHERE patient_id_number = :id_num LIMIT 1");
+            $stmt->execute(['id_num' => $idNum]);
+            $exists = (bool)$stmt->fetch();
+            $this->jsonResponse(['exists' => $exists]);
+        } catch (PDOException $e) {
             $this->jsonResponse(['error' => 'Database error'], 500);
         }
     }

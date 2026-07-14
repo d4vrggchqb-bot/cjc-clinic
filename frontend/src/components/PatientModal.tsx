@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft, FiCheck } from 'react-icons/fi';
+import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft, FiCheck, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
 
 interface PatientModalProps {
   isOpen: boolean;
@@ -37,6 +37,8 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [idChecking, setIdChecking] = useState(false);
+  const [isIdDuplicate, setIsIdDuplicate] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -80,6 +82,35 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
       }
     }
   }, [isOpen, patientId]);
+
+  // Real-time check for duplicate ID
+  useEffect(() => {
+    if (patientId || !isOpen) {
+      setIsIdDuplicate(false);
+      return;
+    }
+
+    const checkId = async () => {
+      const idNum = formData.patient_id_number.trim();
+      if (!idNum) {
+        setIsIdDuplicate(false);
+        return;
+      }
+      
+      setIdChecking(true);
+      try {
+        const res = await apiFetch(`/api/index.php?route=patients&action=check_id&id_number=${encodeURIComponent(idNum)}`);
+        setIsIdDuplicate(!!res.exists);
+      } catch (err) {
+        // silently fail
+      } finally {
+        setIdChecking(false);
+      }
+    };
+
+    const timer = setTimeout(checkId, 500);
+    return () => clearTimeout(timer);
+  }, [formData.patient_id_number, patientId, isOpen]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -213,7 +244,12 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
               <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-5">
                 <div className="md:col-span-3">
                   <label className={labelClass}>Patient ID (Student / Employee ID) <span className="text-red-500">*</span></label>
-                  <input type="text" name="patient_id_number" value={formData.patient_id_number} onChange={handleChange} required className={inputClass} placeholder="e.g. 2024-0001 or EMP-0010" />
+                  <div className="relative">
+                    <input type="text" name="patient_id_number" value={formData.patient_id_number} onChange={handleChange} required className={`${inputClass} ${isIdDuplicate ? 'border-red-500 focus:border-red-600 bg-red-50 text-red-700' : ''}`} placeholder="e.g. 2024-0001 or EMP-0010" />
+                    {idChecking && <FiRefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
+                    {isIdDuplicate && !idChecking && <FiAlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />}
+                  </div>
+                  {isIdDuplicate && !idChecking && <span className="text-red-500 text-[10px] font-bold block mt-1 ml-1">This ID is already registered.</span>}
                 </div>
                 <div>
                   <label className={labelClass}>School Year</label>
@@ -496,7 +532,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
             <button 
               type="submit" 
               form="patient-form"
-              disabled={loading}
+              disabled={loading || isIdDuplicate}
               className="px-6 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#9B101E] to-[#C01D38] hover:from-[#800d18] hover:to-[#9B101E] shadow-[0_4px_14px_0_rgba(192,29,56,0.39)] hover:shadow-[0_6px_20px_rgba(192,29,56,0.23)] hover:-translate-y-0.5 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:hover:translate-y-0 flex items-center gap-1.5"
             >
               {loading ? (

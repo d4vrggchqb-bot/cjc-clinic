@@ -61,6 +61,8 @@ const Consultation: React.FC = () => {
     profile_type: 'student'
   });
   const [isRegistering, setIsRegistering] = useState(false);
+  const [idChecking, setIdChecking] = useState(false);
+  const [isIdDuplicate, setIsIdDuplicate] = useState(false);
   
   const searchRef = React.useRef<HTMLDivElement>(null);
 
@@ -162,6 +164,30 @@ const Consultation: React.FC = () => {
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Real-time check for duplicate ID
+  useEffect(() => {
+    const checkId = async () => {
+      const idNum = newPatient.patient_id_number.trim();
+      if (!idNum) {
+        setIsIdDuplicate(false);
+        return;
+      }
+      
+      setIdChecking(true);
+      try {
+        const res = await apiFetch(`/api/index.php?route=patients&action=check_id&id_number=${encodeURIComponent(idNum)}`);
+        setIsIdDuplicate(!!res.exists);
+      } catch (err) {
+        // silently fail
+      } finally {
+        setIdChecking(false);
+      }
+    };
+
+    const timer = setTimeout(checkId, 500);
+    return () => clearTimeout(timer);
+  }, [newPatient.patient_id_number]);
 
   const handleQuickAddPatient = async () => {
     if (!newPatient.first_name || !newPatient.last_name) {
@@ -510,12 +536,17 @@ const Consultation: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">ID Number (Optional)</label>
-                  <input
-                    type="text"
-                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
-                    value={newPatient.patient_id_number}
-                    onChange={(e) => setNewPatient({...newPatient, patient_id_number: e.target.value})}
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className={`w-full border rounded px-3 py-2 text-sm focus:outline-none pr-8 transition-colors ${isIdDuplicate ? 'border-red-500 focus:border-red-600 bg-red-50 text-red-700' : 'border-slate-200 focus:border-[#A5192D]'}`}
+                      value={newPatient.patient_id_number}
+                      onChange={(e) => setNewPatient({...newPatient, patient_id_number: e.target.value})}
+                    />
+                    {idChecking && <FiRefreshCw className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
+                    {isIdDuplicate && !idChecking && <FiAlertCircle className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />}
+                  </div>
+                  {isIdDuplicate && !idChecking && <span className="text-red-500 text-[10px] font-bold block mt-1">This ID is already registered.</span>}
                 </div>
                 <div className="flex gap-3 items-end">
                   <div className="flex-1">
@@ -531,7 +562,7 @@ const Consultation: React.FC = () => {
                   </div>
                   <button
                     onClick={handleQuickAddPatient}
-                    disabled={isRegistering || !newPatient.first_name || !newPatient.last_name}
+                    disabled={isRegistering || !newPatient.first_name || !newPatient.last_name || isIdDuplicate}
                     className="py-2 px-5 rounded font-medium text-white bg-slate-800 hover:bg-slate-900 disabled:opacity-50 transition-colors text-sm whitespace-nowrap h-[38px] flex items-center"
                   >
                     {isRegistering ? 'Registering...' : 'Save & Select'}

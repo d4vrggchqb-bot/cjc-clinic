@@ -50,6 +50,8 @@ switch ($route) {
             $controller->update();
         } elseif ($action === 'get') {
             $controller->get();
+        } elseif ($action === 'check_id') {
+            $controller->checkId();
         }
         break;
 
