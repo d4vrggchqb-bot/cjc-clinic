@@ -1,11 +1,17 @@
 <?php
 // ─── Global CORS Configuration for Headless API ──────────────────────────────
-header('Access-Control-Allow-Origin: http://localhost:5173');
+$origin = $_SERVER['HTTP_ORIGIN'] ?? 'http://localhost:5173';
+if (in_array($origin, ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174'])) {
+    header("Access-Control-Allow-Origin: $origin");
+} else {
+    header("Access-Control-Allow-Origin: http://localhost:5173");
+}
 header('Access-Control-Allow-Credentials: true');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-Token');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-Token, Accept, Origin, Cache-Control');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
     exit(0);
 }
 
@@ -15,7 +21,7 @@ session_set_cookie_params([
     'path'     => '/',
     'httponly' => true,           // JS cannot read the cookie (XSS mitigation)
     'secure'   => false,          // Set to TRUE when served over HTTPS
-    'samesite' => 'Strict',       // prevents CSRF via cross-site requests
+    'samesite' => 'Lax',          // allow cross-port requests during local dev
 ]);
 
 if (session_status() === PHP_SESSION_NONE) {

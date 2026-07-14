@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `password_hash` VARCHAR(255) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
   `role` ENUM('Admin', 'Doctor', 'Nurse', 'Clerk') NOT NULL DEFAULT 'Clerk',
+  `clinic_branch` ENUM('College Clinic', 'BED Clinic', 'Power Campus Clinic') NOT NULL DEFAULT 'College Clinic',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -139,6 +140,16 @@ CREATE TABLE IF NOT EXISTS `purchase_requests` (
   `actual_delivery_date` DATE DEFAULT NULL,
   `manifest_details` TEXT DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Password Resets Table
+CREATE TABLE IF NOT EXISTS `password_resets` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `token` VARCHAR(128) NOT NULL UNIQUE,
+  `expires_at` DATETIME NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 );
 
 #php -S localhost:8000 -t backend/public

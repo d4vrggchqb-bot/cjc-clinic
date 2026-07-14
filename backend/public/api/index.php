@@ -35,6 +35,10 @@ switch ($route) {
             $controller->resetPassword();
         } elseif ($action === 'change_password') {
             $controller->changePassword();
+        } elseif ($action === 'request_password_reset') {
+            $controller->requestPasswordReset();
+        } elseif ($action === 'perform_password_reset') {
+            $controller->performPasswordReset();
         }
         break;
 

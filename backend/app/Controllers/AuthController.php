@@ -154,6 +154,82 @@ class AuthController {
         $this->jsonResponse(['success' => true]);
     }
 
+    public function requestPasswordReset() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcCsrfValidate();
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $username = trim($input['username'] ?? '');
+
+        if (empty($username)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Username is required.'], 400);
+        }
+
+        $pdo = cjcDatabaseConnection();
+
+        // Ensure password_resets table exists (simple migration)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            token VARCHAR(128) NOT NULL UNIQUE,
+            expires_at DATETIME NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $stmt = $pdo->prepare('SELECT id, username FROM users WHERE username = :username LIMIT 1');
+        $stmt->execute(['username' => $username]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            // Do not reveal whether the user exists — still return success
+            $this->jsonResponse(['success' => true, 'message' => 'If the account exists, you will receive reset instructions.']);
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $expires = (new DateTime('+1 hour'))->format('Y-m-d H:i:s');
+
+        $ins = $pdo->prepare('INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)');
+        $ins->execute([$user['id'], $token, $expires]);
+
+        // In production you'd email the token; for local dev return it in the response
+        $this->jsonResponse(['success' => true, 'message' => 'Password reset created.', 'token' => $token]);
+    }
+
+    public function performPasswordReset() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcCsrfValidate();
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $token = $input['token'] ?? '';
+        $new_password = $input['new_password'] ?? '';
+
+        if (empty($token) || empty($new_password)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Token and new password are required.'], 400);
+        }
+
+        $pdo = cjcDatabaseConnection();
+        $stmt = $pdo->prepare('SELECT pr.id AS pr_id, pr.user_id, pr.expires_at, u.username FROM password_resets pr JOIN users u ON u.id = pr.user_id WHERE pr.token = ? LIMIT 1');
+        $stmt->execute([$token]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            $this->jsonResponse(['success' => false, 'message' => 'Invalid or expired token.'], 400);
+        }
+
+        if (new DateTime($row['expires_at']) < new DateTime()) {
+            $this->jsonResponse(['success' => false, 'message' => 'Token has expired.'], 400);
+        }
+
+        $update = $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+        $update->execute([password_hash($new_password, PASSWORD_DEFAULT), $row['user_id']]);
+
+        // Remove used token
+        $del = $pdo->prepare('DELETE FROM password_resets WHERE id = ?');
+        $del->execute([$row['pr_id']]);
+
+        $this->jsonResponse(['success' => true, 'message' => 'Password has been reset for ' . $row['username']]);
+    }
+
     // --- Private Helpers (copied from old login.php) ---
 
     private function isRateLimited(string $username): bool {
