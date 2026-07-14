@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- Default Admin Account (Password: admin123)
 -- Hash generated via standard password_hash('admin123', PASSWORD_BCRYPT)
 INSERT INTO `users` (`username`, `password_hash`, `name`, `role`) 
-VALUES ('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System Administrator', 'Admin') 
+VALUES ('admin', '$2y$10$SFGU8A.a0wKjKrFGF.lfk.mx6vfdGoEz7Gq.famdczyNrATGZwuQ.', 'System Administrator', 'Admin') 
 ON DUPLICATE KEY UPDATE `id`=`id`;
 
 
@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS `consultations` (
   `notes` TEXT DEFAULT NULL,
   `prescriptions` TEXT DEFAULT NULL,
   `status` ENUM('waiting', 'active', 'in-progress', 'pending', 'completed') DEFAULT 'waiting',
+  `clinic_branch` ENUM('College Clinic', 'BED Clinic', 'Power Campus Clinic') DEFAULT 'College Clinic',
   `assigned_to` VARCHAR(100) DEFAULT NULL,
   `attended_by` VARCHAR(100) DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -150,6 +151,20 @@ CREATE TABLE IF NOT EXISTS `password_resets` (
   `expires_at` DATETIME NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+);
+
+-- 8. Appointments Table
+CREATE TABLE IF NOT EXISTS `appointments` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `profile_id` INT NOT NULL,
+  `appointment_date` DATE NOT NULL,
+  `appointment_time` TIME NOT NULL,
+  `purpose` VARCHAR(255) NOT NULL,
+  `clinic_branch` ENUM('College Clinic', 'BED Clinic', 'Power Campus Clinic') NOT NULL DEFAULT 'College Clinic',
+  `group_name` VARCHAR(150) DEFAULT NULL,
+  `status` ENUM('Scheduled', 'Completed', 'Cancelled', 'No-Show') DEFAULT 'Scheduled',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
 );
 
 #php -S localhost:8000 -t backend/public

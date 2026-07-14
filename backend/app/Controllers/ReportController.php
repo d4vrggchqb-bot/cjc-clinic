@@ -53,7 +53,7 @@ class ReportController {
                 $type = $row['profile_type'] ?: 'Unknown';
                 $visitsByType[] = ['type' => ucfirst($type), 'count' => (int)$row['cnt']];
             }
-        } catch (PDOException $e) {}
+        } catch (PDOException $e) { error_log('Reports Visits Error: ' . $e->getMessage()); }
 
         // 2. Top Diagnoses (Morbidity)
         $topDiagnoses = [];
@@ -72,7 +72,7 @@ class ReportController {
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $topDiagnoses[] = ['diagnosis' => $row['diagnosis'], 'count' => (int)$row['cnt']];
             }
-        } catch (PDOException $e) {}
+        } catch (PDOException $e) { error_log('Reports Diagnoses Error: ' . $e->getMessage()); }
 
         // 3. Medicines Dispensed
         $medicinesDispensed = [];
@@ -84,7 +84,11 @@ class ReportController {
                 JOIN inventory_items i ON b.item_id = i.id
                 WHERE l.action_type IN ('dispense') 
                 AND l.created_at BETWEEN :start_date AND :end_date
-                $branchConditionAnd
+                ";
+            if (!empty($branchConditionAnd)) {
+                $sql .= " AND b.clinic_branch = :branch ";
+            }
+            $sql .= "
                 GROUP BY i.generic_name
                 ORDER BY cnt DESC
             ";
@@ -93,7 +97,7 @@ class ReportController {
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $medicinesDispensed[] = ['medicine' => $row['generic_name'], 'count' => (int)$row['cnt']];
             }
-        } catch (PDOException $e) {}
+        } catch (PDOException $e) { error_log('Reports Medicines Error: ' . $e->getMessage()); }
 
         // 4. Raw Export Data (Logbook)
         $exportData = [];
@@ -102,8 +106,8 @@ class ReportController {
                 SELECT 
                     c.created_at as Date,
                     c.clinic_branch as Branch,
-                    p.id_number as ID_Number,
-                    p.name as Patient_Name,
+                    p.patient_id_number as ID_Number,
+                    CONCAT(p.first_name, ' ', p.last_name) as Patient_Name,
                     p.profile_type as Type,
                     c.purpose as Purpose,
                     c.diagnosis as Diagnosis,
@@ -117,7 +121,7 @@ class ReportController {
             $stmt = $pdo->prepare($sql);
             $stmt->execute($branchParams);
             $exportData = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {}
+        } catch (PDOException $e) { error_log('Reports Export Error: ' . $e->getMessage()); }
 
         $this->jsonResponse([
             'user_role' => $userRole,
