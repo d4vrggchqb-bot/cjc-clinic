@@ -2,14 +2,22 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
 import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText } from 'react-icons/fi';
+import { useConfirm } from '../context/ConfirmContext';
+
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
   const page = location.pathname.substring(1) || 'dashboard';
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   const handleLogout = async () => {
+    const confirmed = await confirm({
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out of the CJC Clinic System?',
+      type: 'info'
+    });
+    if (!confirmed) return;
     try {
       await apiFetch('/api/index.php?action=logout', { method: 'POST' });
       // Force a full page reload to clear all React state, memory variables, 
@@ -81,7 +89,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span>Settings</span>
           </button>
           <button 
-            onClick={() => setIsLogoutModalOpen(true)} 
+            onClick={handleLogout} 
             className="flex items-center justify-center gap-2.5 w-full px-4 py-3 text-[0.8rem] text-white/80 hover:text-white hover:bg-black/10 rounded-md transition-colors uppercase tracking-wider font-semibold"
           >
             <FiLogOut className="w-4 h-4 opacity-80" strokeWidth={2.5} />
@@ -97,32 +105,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           {children}
         </div>
       </main>
-
-      {/* Logout Confirmation Modal */}
-      {isLogoutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6 animate-scale-up">
-            <h3 className="text-xl font-bold text-slate-800 mb-2">Sign Out</h3>
-            <p className="text-slate-500 mb-6 text-sm">
-              Are you sure you want to sign out of the CJC Clinic System?
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setIsLogoutModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#C01D38] hover:bg-[#a0182f] rounded-md transition-colors shadow-sm"
-              >
-                Yes, Sign Out
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

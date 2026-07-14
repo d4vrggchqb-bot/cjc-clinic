@@ -4,6 +4,8 @@ import { apiFetch } from '../utils/api';
 import { FiSearch, FiEye, FiEdit2, FiPlus, FiActivity } from 'react-icons/fi';
 import PatientModal from '../components/PatientModal';
 import PatientViewModal from '../components/PatientViewModal';
+import { useConfirm } from '../context/ConfirmContext';
+
 
 interface Patient {
   id: number;
@@ -22,6 +24,7 @@ interface Pagination {
 }
 
 const PatientList: React.FC = () => {
+  const { confirm } = useConfirm();
   const navigate = useNavigate();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, per_page: 25, total_count: 0, total_pages: 1 });
@@ -37,7 +40,6 @@ const PatientList: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
-  const [patientToAdmit, setPatientToAdmit] = useState<{id: number, name: string} | null>(null);
   const [isAdmitting, setIsAdmitting] = useState(false);
 
   const handleOpenAdd = () => {
@@ -55,13 +57,19 @@ const PatientList: React.FC = () => {
     setIsViewModalOpen(true);
   };
 
-  const confirmAdmit = async () => {
-    if (!patientToAdmit) return;
+  const confirmAdmit = async (patient: {id: number, name: string}) => {
+    const confirmed = await confirm({
+      title: 'Admit Patient?',
+      message: `Are you sure you want to admit ${patient.name} for a new consultation?`,
+      type: 'info'
+    });
+    if (!confirmed) return;
+
     setIsAdmitting(true);
     try {
       const res = await apiFetch('/api/index.php?route=consultations&action=create', {
         method: 'POST',
-        body: JSON.stringify({ profile_id: patientToAdmit.id, purpose: 'Walk-in Consultation' })
+        body: JSON.stringify({ profile_id: patient.id, purpose: 'Walk-in Consultation' })
       });
       if (res.success && res.id) {
         navigate('/consultation', { state: { openNotesFor: res.id } });
@@ -248,7 +256,7 @@ const PatientList: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end gap-2">
                         <button 
-                          onClick={() => setPatientToAdmit({id: patient.id, name: patient.name})}
+                          onClick={() => confirmAdmit({id: patient.id, name: patient.name})}
                           className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors mr-2" title="Admit Patient">
                           <FiActivity className="w-3.5 h-3.5" /> Admit
                         </button>
@@ -309,55 +317,6 @@ const PatientList: React.FC = () => {
         patientId={selectedPatientId} 
       />
 
-      {/* Admit Confirmation Modal */}
-      {patientToAdmit && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 text-center">
-              <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FiActivity className="w-8 h-8" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-800 mb-2">Admit Patient?</h3>
-              <p className="text-slate-500 text-sm mb-6">
-                Are you sure you want to admit <span className="font-semibold text-slate-700">{patientToAdmit.name}</span> for a new consultation?
-              </p>
-              
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => !isAdmitting && setPatientToAdmit(null)}
-                  disabled={isAdmitting}
-                  className={`px-5 py-2.5 rounded-md font-semibold transition-colors flex-1 ${
-                    !isAdmitting 
-                      ? 'text-white bg-blue-600 hover:bg-blue-700' 
-                      : 'text-slate-400 bg-slate-100'
-                  }`}
-                  autoFocus
-                >
-                  No, Cancel
-                </button>
-                <button
-                  onClick={confirmAdmit}
-                  disabled={isAdmitting}
-                  className={`px-5 py-2.5 rounded-md font-semibold transition-colors flex-1 flex items-center justify-center gap-2 ${
-                    isAdmitting 
-                      ? 'text-white bg-blue-600' 
-                      : 'text-slate-600 bg-slate-100 hover:bg-slate-200'
-                  }`}
-                >
-                  {isAdmitting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      Admitting...
-                    </>
-                  ) : (
-                    'Yes, Admit'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

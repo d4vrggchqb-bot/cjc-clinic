@@ -3,6 +3,8 @@ import { useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
 import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../context/ConfirmContext';
+
 
 interface Patient {
   id: number;
@@ -32,6 +34,7 @@ interface LogbookEntry {
 
 
 const Consultation: React.FC = () => {
+  const { confirm } = useConfirm();
   const location = useLocation();
   const [period, setPeriod] = useState('today'); // today, weekly, monthly, custom, all
   const [fromDate, setFromDate] = useState('');
@@ -303,6 +306,12 @@ const Consultation: React.FC = () => {
 
   const handleSaveNotes = async () => {
     if (!activeNoteEntry) return;
+    const confirmed = await confirm({
+      title: 'Save Medical Notes',
+      message: 'Are you sure you want to save these medical notes?',
+      type: 'info'
+    });
+    if (!confirmed) return;
     setIsSavingNotes(true);
     try {
       const res = await apiFetch(`/api/index.php?route=consultations&action=saveNotes`, {
@@ -372,7 +381,13 @@ const Consultation: React.FC = () => {
     }
   };
 
-  const handleTimeOut = async (id: number) => {
+  const handleCheckout = async (id: number) => {
+    const confirmed = await confirm({
+      title: 'Checkout Patient',
+      message: 'Are you sure you want to time-out this patient?',
+      type: 'info'
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/api/index.php?route=consultations&action=update`, {
         method: 'POST',
@@ -385,8 +400,13 @@ const Consultation: React.FC = () => {
     }
   };
 
-  const handleSetAllTimeOut = async () => {
-    if (!window.confirm("Are you sure you want to time-out all active visitors today?")) return;
+  const handleCheckoutAll = async () => {
+    const confirmed = await confirm({
+      title: 'Checkout All',
+      message: 'Are you sure you want to time-out all active visitors today?',
+      type: 'warning'
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/api/index.php?route=consultations&action=checkoutAll`, {
         method: 'POST'
@@ -672,7 +692,7 @@ const Consultation: React.FC = () => {
                 Refresh
               </button>
               <button 
-                onClick={handleSetAllTimeOut}
+                onClick={handleCheckoutAll}
                 className="flex items-center gap-1.5 text-xs font-bold text-white bg-[#28a745] hover:bg-[#218838] px-3 py-1.5 rounded transition-colors shadow-sm"
               >
                 <FiCheckCircle className="w-3.5 h-3.5" />
@@ -789,7 +809,7 @@ const Consultation: React.FC = () => {
                                 Medical Notes
                               </button>
                               <button 
-                                onClick={() => handleTimeOut(entry.id)}
+                                onClick={() => handleCheckout(entry.id)}
                                 className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap"
                               >
                                 Set Time Out

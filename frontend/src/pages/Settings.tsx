@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../utils/api';
 import { FiSettings, FiBookOpen, FiActivity, FiUsers, FiUpload, FiDownload, FiInfo, FiPlus, FiTrash2, FiSave, FiHardDrive } from 'react-icons/fi';
+import { useConfirm } from '../context/ConfirmContext';
 
 export default function Settings() {
+  const { confirm } = useConfirm();
   const [activeTab, setActiveTab] = useState('academic');
   const [settings, setSettings] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -93,7 +95,12 @@ export default function Settings() {
   };
 
   const handleDeleteUser = async (id: number) => {
-    if (!window.confirm('Delete this user?')) return;
+    const confirmed = await confirm({
+      title: 'Delete User',
+      message: 'Are you sure you want to delete this user?',
+      type: 'danger'
+    });
+    if (!confirmed) return;
     try {
       await apiFetch('/api/index.php?route=auth&action=delete_user', { method: 'POST', body: JSON.stringify({ id }) });
       fetchUsers();
@@ -139,11 +146,27 @@ export default function Settings() {
   };
 
   // Backup & Export
-  const handleBackup = async () => {
+  const handleBackupDb = async () => {
+    const confirmed = await confirm({
+      title: 'Backup Database',
+      message: 'Are you sure you want to backup the database now?',
+      type: 'info'
+    });
+    if (!confirmed) return;
     try {
       const res = await apiFetch('/api/index.php?route=settings&action=backup_db', { method: 'POST' });
       alert(res.message);
     } catch (e) { alert('Backup failed'); }
+  };
+
+  const handleSaveSettings = async () => {
+    const confirmed = await confirm({
+      title: 'Save Settings',
+      message: 'Are you sure you want to save these settings?',
+      type: 'info'
+    });
+    if (!confirmed) return;
+    await saveSettings({ school_year: settings.school_year });
   };
 
   if (loading) return <div className="p-8">Loading settings...</div>;
@@ -199,7 +222,7 @@ export default function Settings() {
                     className="border border-slate-300 rounded px-3 py-1.5 focus:border-[#8c1526] focus:outline-none"
                   />
                   <button 
-                    onClick={() => saveSettings({ school_year: settings.school_year })}
+                    onClick={handleSaveSettings}
                     className="bg-[#8c1526] text-white px-4 py-1.5 rounded font-bold text-sm flex items-center gap-2 hover:bg-[#7a1221]"
                   >
                     <FiSave /> Save
@@ -346,7 +369,7 @@ export default function Settings() {
                 <p className="text-slate-500 text-sm mb-4">Create a full database backup or export records as CSV.</p>
                 
                 <div className="flex gap-3">
-                  <button onClick={handleBackup} className="bg-[#8c1526] hover:bg-[#7a1221] text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 shadow-sm">
+                  <button onClick={handleBackupDb} className="bg-[#8c1526] hover:bg-[#7a1221] text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 shadow-sm">
                     <FiHardDrive /> Backup Database
                   </button>
                   <a href="/api/index.php?route=settings&action=export_health" className="bg-[#28a745] hover:bg-[#218838] text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 shadow-sm">

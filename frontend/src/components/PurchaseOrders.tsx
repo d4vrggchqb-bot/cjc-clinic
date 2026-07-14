@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import { FiPlus, FiCheckCircle } from 'react-icons/fi';
+import { useConfirm } from '../context/ConfirmContext';
+
 
 interface PurchaseOrder {
   id: number;
@@ -17,6 +19,7 @@ interface PurchaseOrder {
 }
 
 const PurchaseOrders: React.FC = () => {
+  const { confirm } = useConfirm();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showReceive, setShowReceive] = useState<PurchaseOrder | null>(null);
@@ -62,7 +65,13 @@ const PurchaseOrders: React.FC = () => {
     fetchOrders();
   };
 
-  const handleStatusChange = async (id: number, status: string) => {
+  const handleUpdateStatus = async (id: number, status: string) => {
+    const confirmed = await confirm({
+      title: 'Update Status',
+      message: `Are you sure you want to update the status to ${status}?`,
+      type: 'warning'
+    });
+    if (!confirmed) return;
     await apiFetch('/api/index.php?route=inventory&action=update_purchase', { method: 'POST', body: JSON.stringify({ id, status }) });
     fetchOrders();
   };
@@ -165,7 +174,7 @@ const PurchaseOrders: React.FC = () => {
                 </td>
                 <td className="p-3 text-right">
                   {order.status === 'pending' && (
-                    <button onClick={() => handleStatusChange(order.id, 'approved')} className="text-blue-600 hover:underline text-sm mr-3 font-medium">Approve</button>
+                    <button onClick={() => handleUpdateStatus(order.id, 'approved')} className="text-blue-600 hover:underline text-sm mr-3 font-medium">Approve</button>
                   )}
                   {order.status === 'approved' && (
                     <button onClick={async () => {

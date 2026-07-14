@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch, apiDownload } from '../utils/api';
 import { FiX, FiUser, FiActivity, FiPhone, FiInfo, FiMail, FiMapPin, FiCalendar, FiUsers, FiAlertCircle, FiPaperclip, FiUpload, FiDownload, FiFile } from 'react-icons/fi';
+import { useConfirm } from '../context/ConfirmContext';
+
 
 interface PatientViewModalProps {
   isOpen: boolean;
@@ -9,6 +11,7 @@ interface PatientViewModalProps {
 }
 
 const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, patientId }) => {
+  const { confirm } = useConfirm();
   const [patient, setPatient] = useState<any>(null);
   
   const calculateAge = (dob: string) => {
@@ -22,9 +25,8 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     
@@ -34,18 +36,26 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
     }
     
     setUploadError('');
-    setFileToUpload(file);
     if (e.target) e.target.value = ''; // Reset so the same file can be selected again if canceled
+
+    const confirmed = await confirm({
+      title: 'Confirm Upload',
+      message: `Are you sure you want to attach ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB) to this patient's profile?`,
+      type: 'info'
+    });
+    
+    if (!confirmed) return;
+    await handleUpload(file);
   };
 
-  const confirmUpload = async () => {
-    if (!fileToUpload || !patientId) return;
+  const handleUpload = async (file: File) => {
+    if (!patientId) return;
     
     setIsUploading(true);
     setUploadError('');
     
     const formData = new FormData();
-    formData.append('attachment', fileToUpload);
+    formData.append('attachment', file);
     formData.append('profile_id', patientId.toString());
     
     try {
@@ -65,14 +75,9 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
       setUploadError('Failed to upload file');
     } finally {
       setIsUploading(false);
-      setFileToUpload(null);
     }
   };
 
-  const cancelUpload = () => {
-    setFileToUpload(null);
-    setUploadError('');
-  };
 
   useEffect(() => {
     if (isOpen && patientId) {
@@ -298,32 +303,9 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                       <FiUpload className="w-3.5 h-3.5" />
                     )}
                     {isUploading ? 'Uploading...' : 'Upload File'}
-                    <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.pdf" onChange={handleFileSelect} disabled={isUploading || fileToUpload !== null} />
+                    <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.pdf" onChange={handleFileSelect} disabled={isUploading} />
                   </label>
                 </div>
-
-                {fileToUpload && (
-                  <div className="p-4 bg-yellow-50 border-b border-yellow-100 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded bg-white border border-yellow-200 flex items-center justify-center text-yellow-600 shadow-sm">
-                        {fileToUpload.name.toLowerCase().endsWith('.pdf') ? <FiFile className="w-5 h-5 text-red-500" /> : <FiPaperclip className="w-5 h-5" />}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">Confirm Upload</p>
-                        <p className="text-xs text-slate-600">Are you sure you want to attach <span className="font-semibold text-slate-800">{fileToUpload.name}</span> ({(fileToUpload.size / 1024 / 1024).toFixed(2)} MB) to this patient's profile?</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={cancelUpload} disabled={isUploading} className="px-4 py-1.5 rounded bg-white border border-slate-300 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors disabled:opacity-50">
-                        Cancel
-                      </button>
-                      <button onClick={confirmUpload} disabled={isUploading} className="px-4 py-1.5 rounded bg-green-600 text-white text-xs font-bold shadow-sm hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2">
-                        {isUploading ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div> : <FiUpload className="w-3.5 h-3.5" />}
-                        {isUploading ? 'Uploading...' : 'Confirm Upload'}
-                      </button>
-                    </div>
-                  </div>
-                )}
                 {uploadError && (
                   <div className="px-4 py-2 bg-red-50 text-red-600 text-xs font-medium border-b border-red-100">
                     {uploadError}

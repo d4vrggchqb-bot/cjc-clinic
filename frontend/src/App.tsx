@@ -11,6 +11,7 @@ import Settings from './pages/Settings';
 import Inventory from './pages/Inventory';
 import Appointments from './pages/Appointments';
 import Reports from './pages/Reports';
+import { ConfirmProvider } from './context/ConfirmContext';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -46,7 +47,7 @@ const PlaceholderPage = ({ title }: { title: string }) => (
 
 const App: React.FC = () => {
   return (
-    <>
+    <ConfirmProvider>
       <Toaster position="top-right" />
       <BrowserRouter>
         <Routes>
@@ -68,7 +69,7 @@ const App: React.FC = () => {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
-    </>
+    </ConfirmProvider>
   );
 };
 

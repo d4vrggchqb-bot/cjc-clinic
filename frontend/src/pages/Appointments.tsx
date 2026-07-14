@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../utils/api';
 import { FiCalendar, FiPlus, FiClock, FiCheck, FiX, FiSearch, FiUserPlus, FiEdit } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../context/ConfirmContext';
+
 
 interface Appointment {
   id: number;
@@ -48,6 +50,7 @@ const SkeletonRow = () => (
 );
 
 const Appointments: React.FC = () => {
+  const { confirm } = useConfirm();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -284,7 +287,14 @@ const Appointments: React.FC = () => {
     }
   };
 
-  const updateStatus = async (id: number, status: string) => {
+  const handleUpdate = async (id: number, status: string) => {
+    const confirmed = await confirm({
+      title: 'Update Appointment',
+      message: `Are you sure you want to mark this appointment as ${status}?`,
+      type: 'warning'
+    });
+    if (!confirmed) return;
+
     const toastId = toast.loading(`Updating to ${status}...`);
     try {
       const res = await apiFetch('/api/index.php?route=appointments&action=update', {
@@ -498,8 +508,8 @@ const Appointments: React.FC = () => {
                                 <td className="p-4 align-top text-right">
                                   {member.status === 'Scheduled' && (
                                     <div className="flex justify-end gap-2">
-                                      <button onClick={() => updateStatus(member.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed"><FiCheck size={16} /></button>
-                                      <button onClick={() => updateStatus(member.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip" title="Cancel Appointment"><FiX size={16} /></button>
+                                      <button onClick={() => handleUpdate(member.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed"><FiCheck size={16} /></button>
+                                      <button onClick={() => handleUpdate(member.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip" title="Cancel Appointment"><FiX size={16} /></button>
                                     </div>
                                   )}
                                 </td>
@@ -572,8 +582,8 @@ const Appointments: React.FC = () => {
                                 >
                                   <FiEdit size={16} />
                                 </button>
-                                <button onClick={() => updateStatus(apt.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed"><FiCheck size={16} /></button>
-                                <button onClick={() => updateStatus(apt.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip" title="Cancel Appointment"><FiX size={16} /></button>
+                                <button onClick={() => handleUpdate(apt.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed"><FiCheck size={16} /></button>
+                                <button onClick={() => handleUpdate(apt.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip" title="Cancel Appointment"><FiX size={16} /></button>
                               </div>
                             )}
                           </td>

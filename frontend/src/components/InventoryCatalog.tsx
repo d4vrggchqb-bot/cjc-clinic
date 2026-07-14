@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import { FiPlus, FiBox, FiAlertCircle, FiChevronDown, FiChevronUp, FiPlusCircle, FiMinusCircle, FiEdit3 } from 'react-icons/fi';
+import { useConfirm } from '../context/ConfirmContext';
+
 
 interface InventoryItem {
   id: number;
@@ -23,6 +25,7 @@ interface InventoryBatch {
 }
 
 const InventoryCatalog: React.FC = () => {
+  const { confirm } = useConfirm();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [batches, setBatches] = useState<InventoryBatch[]>([]);
   const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
@@ -57,6 +60,12 @@ const InventoryCatalog: React.FC = () => {
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
+    const confirmed = await confirm({
+      title: 'Save Item',
+      message: 'Are you sure you want to save this new item to the catalog?',
+      type: 'info'
+    });
+    if (!confirmed) return;
     await apiFetch('/api/index.php?route=inventory&action=add_item', { method: 'POST', body: JSON.stringify(newItem) });
     setShowAddItem(false);
     fetchData();
@@ -65,6 +74,12 @@ const InventoryCatalog: React.FC = () => {
   const handleAddBatch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!showAddBatch) return;
+    const confirmed = await confirm({
+      title: 'Add Batch',
+      message: 'Are you sure you want to add this batch?',
+      type: 'info'
+    });
+    if (!confirmed) return;
     await apiFetch('/api/index.php?route=inventory&action=add_batch', { 
       method: 'POST', 
       body: JSON.stringify({ ...newBatch, item_id: showAddBatch }) 
@@ -88,6 +103,12 @@ const InventoryCatalog: React.FC = () => {
   const handleDispense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!showDispense) return;
+    const confirmed = await confirm({
+      title: 'Dispense Item',
+      message: 'Are you sure you want to dispense this item?',
+      type: 'warning'
+    });
+    if (!confirmed) return;
     try {
       await apiFetch('/api/index.php?route=inventory&action=dispense', { 
         method: 'POST', 
