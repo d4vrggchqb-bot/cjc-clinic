@@ -210,3 +210,5 @@ function cjcDecrypt(string $payload): ?string
     $decrypted = openssl_decrypt($encrypted, $method, $key, OPENSSL_RAW_DATA, $iv);
     return $decrypted !== false ? $decrypted : null;
 }
+
+# c:\xampp\php\php.exe -S localhost:8000 -t backend\public

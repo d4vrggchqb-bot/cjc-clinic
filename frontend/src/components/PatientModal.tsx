@@ -39,6 +39,38 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
   const [error, setError] = useState('');
   const [idChecking, setIdChecking] = useState(false);
   const [isIdDuplicate, setIsIdDuplicate] = useState(false);
+  const [globalSettings, setGlobalSettings] = useState({ 
+    school_year: '2026-2027', 
+    departments: [], 
+    courses: [],
+    bed_departments: [],
+    bed_programs: [],
+    bed_year_levels: []
+  });
+
+  // Fetch settings once when the component mounts
+  useEffect(() => {
+    apiFetch('/api/index.php?route=settings&action=get')
+      .then(res => {
+        if (res.settings) {
+          const sy = res.settings.school_year || '2026-2027';
+          setGlobalSettings({
+            school_year: sy,
+            departments: Array.isArray(res.settings.departments) ? res.settings.departments : [],
+            courses: Array.isArray(res.settings.courses) ? res.settings.courses : [],
+            bed_departments: Array.isArray(res.settings.bed_departments) ? res.settings.bed_departments : [],
+            bed_programs: Array.isArray(res.settings.bed_programs) ? res.settings.bed_programs : [],
+            bed_year_levels: Array.isArray(res.settings.bed_year_levels) ? res.settings.bed_year_levels : []
+          });
+          // Update default form data if it's currently at the old hardcoded default
+          setFormData(prev => ({
+            ...prev,
+            school_year: prev.school_year === '2026-2027' ? sy : prev.school_year
+          }));
+        }
+      })
+      .catch(() => console.error("Failed to fetch settings"));
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -59,7 +91,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
         setFormData({
           profile_type: 'student',
           patient_id_number: '',
-          school_year: '2026-2027',
+          school_year: globalSettings.school_year,
           first_name: '',
           last_name: '',
           middle_initial: '',
@@ -326,12 +358,9 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           <label className={labelClass}>College / Dept <span className="text-red-500">*</span></label>
                           <select name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass}>
                             <option value="">Select Department</option>
-                            <option value="College of Accounting, Business and Entreprenueurship (CABE)">CABE</option>
-                            <option value="College of Education and Sciences (CEDAS)">CEDAS</option>
-                            <option value="College of Health Sciences (CHS)">CHS</option>
-                            <option value="College of Computing and Information Sciences (CCIS)">CCIS</option>
-                            <option value="College of Engineering (COE)">COE</option>
-                            <option value="College of Special Programs (CSP)">CSP</option>
+                            {globalSettings.departments.map((dept: string, idx: number) => (
+                              <option key={idx} value={dept}>{dept}</option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -347,7 +376,12 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                         </div>
                         <div>
                           <label className={labelClass}>Course/Program</label>
-                          <input type="text" name="course" value={formData.course} onChange={handleChange} className={inputClass} placeholder="e.g. BSCS, BSN" />
+                          <select name="course" value={formData.course} onChange={handleChange} className={inputClass}>
+                            <option value="">Select Course/Program</option>
+                            {globalSettings.courses.map((course: string, idx: number) => (
+                              <option key={idx} value={course}>{course}</option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                     ) : (
@@ -356,54 +390,27 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           <label className={labelClass}>College / Dept. <span className="text-red-500">*</span></label>
                           <select name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass}>
                             <option value="">Select Department</option>
-                            <option value="BED Department">BED Department</option>
+                            {globalSettings.bed_departments.map((dept: string, idx: number) => (
+                              <option key={idx} value={dept}>{dept}</option>
+                            ))}
                           </select>
                         </div>
                         <div>
                           <label className={labelClass}>Program <span className="text-red-500">*</span></label>
                           <select name="course" value={formData.course} onChange={handleChange} className={inputClass}>
                             <option value="">Select Program</option>
-                            <option value="Senior High School (SHS)">Senior High School (SHS)</option>
-                            <option value="Junior High School (JHS)">Junior High School (JHS)</option>
-                            <option value="Grade School">Grade School</option>
-                            <option value="Nursery">Nursery</option>
+                            {globalSettings.bed_programs.map((prog: string, idx: number) => (
+                              <option key={idx} value={prog}>{prog}</option>
+                            ))}
                           </select>
                         </div>
                         <div>
                           <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
                           <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass} disabled={!formData.course}>
                             <option value="">Select Year Level</option>
-                            {formData.course === 'Senior High School (SHS)' && (
-                              <>
-                                <option value="Grade 11">Grade 11</option>
-                                <option value="Grade 12">Grade 12</option>
-                              </>
-                            )}
-                            {formData.course === 'Junior High School (JHS)' && (
-                              <>
-                                <option value="Grade 7">Grade 7</option>
-                                <option value="Grade 8">Grade 8</option>
-                                <option value="Grade 9">Grade 9</option>
-                                <option value="Grade 10">Grade 10</option>
-                              </>
-                            )}
-                            {formData.course === 'Grade School' && (
-                              <>
-                                <option value="Grade 1">Grade 1</option>
-                                <option value="Grade 2">Grade 2</option>
-                                <option value="Grade 3">Grade 3</option>
-                                <option value="Grade 4">Grade 4</option>
-                                <option value="Grade 5">Grade 5</option>
-                                <option value="Grade 6">Grade 6</option>
-                              </>
-                            )}
-                            {formData.course === 'Nursery' && (
-                              <>
-                                <option value="Nursery 1">Nursery 1</option>
-                                <option value="Nursery 2">Nursery 2</option>
-                                <option value="Kinder 1">Kinder 1</option>
-                              </>
-                            )}
+                            {globalSettings.bed_year_levels.map((yr: string, idx: number) => (
+                              <option key={idx} value={yr}>{yr}</option>
+                            ))}
                           </select>
                         </div>
                       </div>

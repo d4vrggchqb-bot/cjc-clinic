@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiSettings, FiBookOpen, FiActivity, FiUsers, FiUpload, FiDownload, FiInfo, FiPlus, FiTrash2, FiSave, FiHardDrive } from 'react-icons/fi';
+import { FiSettings, FiBookOpen, FiActivity, FiUsers, FiUpload, FiDownload, FiInfo, FiPlus, FiTrash2, FiSave, FiHardDrive, FiEdit2, FiCheck, FiX } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function Settings() {
@@ -30,6 +30,9 @@ export default function Settings() {
             school_year: res.settings.school_year || '',
             departments: Array.isArray(res.settings.departments) ? res.settings.departments : [],
             courses: Array.isArray(res.settings.courses) ? res.settings.courses : [],
+            bed_departments: Array.isArray(res.settings.bed_departments) ? res.settings.bed_departments : [],
+            bed_programs: Array.isArray(res.settings.bed_programs) ? res.settings.bed_programs : [],
+            bed_year_levels: Array.isArray(res.settings.bed_year_levels) ? res.settings.bed_year_levels : [],
             cues: Array.isArray(res.settings.cues) ? res.settings.cues : [],
           });
         }
@@ -63,6 +66,15 @@ export default function Settings() {
   const handleArrayRemove = (key: string, valueToRemove: string) => {
     const currentArray = settings[key] || [];
     const updated = { ...settings, [key]: currentArray.filter((v: string) => v !== valueToRemove) };
+    setSettings(updated);
+    saveSettings({ [key]: updated[key] });
+  };
+
+  const handleArrayEdit = (key: string, oldVal: string, newVal: string) => {
+    if (!newVal.trim() || oldVal === newVal) return;
+    const currentArray = settings[key] || [];
+    const updatedArray = currentArray.map((v: string) => v === oldVal ? newVal.trim() : v);
+    const updated = { ...settings, [key]: updatedArray };
     setSettings(updated);
     saveSettings({ [key]: updated[key] });
   };
@@ -237,16 +249,49 @@ export default function Settings() {
                 items={settings.departments}
                 onAdd={(v) => handleArrayAdd('departments', v)}
                 onRemove={(v) => handleArrayRemove('departments', v)}
+                onEdit={(oldVal, newVal) => handleArrayEdit('departments', oldVal, newVal)}
               />
 
               {/* Courses */}
               <ConfigListEditor 
-                title="Courses / Programs" 
+                title="Courses / Programs (College)" 
                 description="Course names shown in the Course dropdown when enrolling a patient (e.g. BSCS, BSN)."
                 items={settings.courses}
                 onAdd={(v) => handleArrayAdd('courses', v)}
                 onRemove={(v) => handleArrayRemove('courses', v)}
+                onEdit={(oldVal, newVal) => handleArrayEdit('courses', oldVal, newVal)}
               />
+
+              {/* BED Config */}
+              <div className="mt-8 border-t border-slate-200 pt-6">
+                <h2 className="text-xl font-bold text-[#8c1526] mb-4">Basic Education (BED) Setup</h2>
+                <div className="space-y-6">
+                  <ConfigListEditor 
+                    title="BED Departments" 
+                    description="Departments for BED (e.g. BED Department)."
+                    items={settings.bed_departments}
+                    onAdd={(v) => handleArrayAdd('bed_departments', v)}
+                    onRemove={(v) => handleArrayRemove('bed_departments', v)}
+                    onEdit={(oldVal, newVal) => handleArrayEdit('bed_departments', oldVal, newVal)}
+                  />
+                  <ConfigListEditor 
+                    title="BED Programs" 
+                    description="Programs for BED (e.g. Senior High School, Grade School)."
+                    items={settings.bed_programs}
+                    onAdd={(v) => handleArrayAdd('bed_programs', v)}
+                    onRemove={(v) => handleArrayRemove('bed_programs', v)}
+                    onEdit={(oldVal, newVal) => handleArrayEdit('bed_programs', oldVal, newVal)}
+                  />
+                  <ConfigListEditor 
+                    title="BED Year/Grade Levels" 
+                    description="Year or Grade levels for BED (e.g. Grade 11, Grade 12)."
+                    items={settings.bed_year_levels}
+                    onAdd={(v) => handleArrayAdd('bed_year_levels', v)}
+                    onRemove={(v) => handleArrayRemove('bed_year_levels', v)}
+                    onEdit={(oldVal, newVal) => handleArrayEdit('bed_year_levels', oldVal, newVal)}
+                  />
+                </div>
+              </div>
             </>
           )}
 
@@ -258,6 +303,7 @@ export default function Settings() {
               items={settings.cues}
               onAdd={(v) => handleArrayAdd('cues', v)}
               onRemove={(v) => handleArrayRemove('cues', v)}
+              onEdit={(oldVal, newVal) => handleArrayEdit('cues', oldVal, newVal)}
             />
           )}
 
@@ -390,8 +436,52 @@ export default function Settings() {
 }
 
 // Reusable component for string array lists
-const ConfigListEditor = ({ title, description, items = [], onAdd, onRemove }: any) => {
+const ConfigListEditor = ({ title, description, items = [], onAdd, onRemove, onEdit }: any) => {
   const [val, setVal] = useState('');
+  const [editingIdx, setEditingIdx] = useState(-1);
+  const [editVal, setEditVal] = useState('');
+  const { confirm } = useConfirm();
+
+  const handleAdd = async () => {
+    if (!val.trim()) return;
+    const confirmed = await confirm({
+      title: 'Add Item',
+      message: `Are you sure you want to add "${val.trim()}" to ${title}?`,
+      type: 'info'
+    });
+    if (confirmed) {
+      onAdd(val);
+      setVal('');
+    }
+  };
+
+  const handleDelete = async (item: string) => {
+    const confirmed = await confirm({
+      title: 'Delete Item',
+      message: `Are you sure you want to delete "${item}" from ${title}?`,
+      type: 'danger'
+    });
+    if (confirmed) {
+      onRemove(item);
+    }
+  };
+
+  const handleEditSave = async (oldItem: string) => {
+    if (!editVal.trim() || editVal === oldItem) {
+      setEditingIdx(-1);
+      return;
+    }
+    const confirmed = await confirm({
+      title: 'Save Changes',
+      message: `Are you sure you want to change "${oldItem}" to "${editVal.trim()}"?`,
+      type: 'info'
+    });
+    if (confirmed) {
+      onEdit(oldItem, editVal);
+      setEditingIdx(-1);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
       <h3 className="text-[#8c1526] font-bold text-lg mb-2">{title}</h3>
@@ -402,12 +492,14 @@ const ConfigListEditor = ({ title, description, items = [], onAdd, onRemove }: a
           type="text" 
           value={val} 
           onChange={e=>setVal(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
           placeholder={`e.g. Add to ${title}...`}
           className="border border-slate-300 rounded px-3 py-1.5 focus:border-[#007bff] focus:outline-none w-64 text-sm"
         />
         <button 
-          onClick={() => { onAdd(val); setVal(''); }}
-          className="bg-[#007bff] hover:bg-[#0069d9] text-white px-4 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm"
+          onClick={handleAdd}
+          disabled={!val.trim()}
+          className="bg-[#007bff] hover:bg-[#0069d9] text-white px-4 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm disabled:opacity-50"
         >
           <FiPlus /> Add
         </button>
@@ -419,13 +511,43 @@ const ConfigListEditor = ({ title, description, items = [], onAdd, onRemove }: a
         ) : (
           items.map((item: string, idx: number) => (
             <div key={idx} className="flex justify-between items-center p-2.5 border-b border-slate-100 last:border-0 hover:bg-slate-50 group">
-              <span className="text-sm font-bold text-slate-700">{item}</span>
-              <button 
-                onClick={() => onRemove(item)}
-                className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-              >
-                <FiTrash2 />
-              </button>
+              {editingIdx === idx ? (
+                <div className="flex-1 flex gap-2">
+                  <input 
+                    type="text"
+                    value={editVal}
+                    onChange={e => setEditVal(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleEditSave(item);
+                      if (e.key === 'Escape') setEditingIdx(-1);
+                    }}
+                    autoFocus
+                    className="border border-slate-300 rounded px-2 py-1 text-sm flex-1 focus:border-[#007bff] focus:outline-none"
+                  />
+                  <button onClick={() => handleEditSave(item)} className="text-green-600 hover:bg-green-100 p-1 rounded transition-colors"><FiCheck /></button>
+                  <button onClick={() => setEditingIdx(-1)} className="text-red-500 hover:bg-red-100 p-1 rounded transition-colors"><FiX /></button>
+                </div>
+              ) : (
+                <>
+                  <span className="text-sm font-bold text-slate-700">{item}</span>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => { setEditingIdx(idx); setEditVal(item); }}
+                      className="text-blue-500 hover:text-blue-700 p-1 bg-blue-50 hover:bg-blue-100 rounded transition-colors"
+                      title="Edit"
+                    >
+                      <FiEdit2 />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(item)}
+                      className="text-red-500 hover:text-red-700 p-1 bg-red-50 hover:bg-red-100 rounded transition-colors"
+                      title="Delete"
+                    >
+                      <FiTrash2 />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))
         )}
