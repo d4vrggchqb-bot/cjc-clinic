@@ -49,6 +49,15 @@ const Dashboard: React.FC = () => {
   });
   const [isDispensing, setIsDispensing] = useState(false);
 
+  // Dispense Search State
+  const [dispenseSearch, setDispenseSearch] = useState('');
+  const [dispenseSearchResults, setDispenseSearchResults] = useState<any[]>([]);
+  const [showDispenseSearchDropdown, setShowDispenseSearchDropdown] = useState(false);
+  const [isDispenseSearching, setIsDispenseSearching] = useState(false);
+  const [selectedDispensePatient, setSelectedDispensePatient] = useState<any | null>(null);
+  const [isGuestDispense, setIsGuestDispense] = useState(false);
+  const dispenseSearchRef = React.useRef<HTMLDivElement>(null);
+
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#C01D38', '#455A64'];
 
   useEffect(() => {
@@ -141,6 +150,37 @@ const Dashboard: React.FC = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Quick Dispense: Click outside search dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dispenseSearchRef.current && !dispenseSearchRef.current.contains(event.target as Node)) {
+        setShowDispenseSearchDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Quick Dispense: Search logic
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (dispenseSearch.trim().length >= 2) {
+        setIsDispenseSearching(true);
+        apiFetch(`/api/index.php?route=patients&action=list&search=${encodeURIComponent(dispenseSearch)}&per_page=5`)
+          .then(res => {
+            if (res.profiles) setDispenseSearchResults(res.profiles);
+            setShowDispenseSearchDropdown(true);
+          })
+          .catch(err => toast.error("Search error"))
+          .finally(() => setIsDispenseSearching(false));
+      } else {
+        setDispenseSearchResults([]);
+        setShowDispenseSearchDropdown(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [dispenseSearch]);
+
   const handleQuickAdmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatient) {
@@ -208,9 +248,20 @@ const Dashboard: React.FC = () => {
       toast.error('Quantity must be at least 1.');
       return;
     }
-    if (!dispenseData.disposed_to.trim()) {
-      toast.error('Please specify who received the item.');
-      return;
+    
+    let finalDisposedToName = '';
+    if (isGuestDispense) {
+      if (!dispenseData.disposed_to.trim()) {
+        toast.error('Please specify the guest name.');
+        return;
+      }
+      finalDisposedToName = dispenseData.disposed_to + ' (Guest)';
+    } else {
+      if (!selectedDispensePatient) {
+        toast.error('Please select a patient or use guest option.');
+        return;
+      }
+      finalDisposedToName = selectedDispensePatient.name;
     }
 
     setIsDispensing(true);
@@ -220,7 +271,7 @@ const Dashboard: React.FC = () => {
       // or 'College Clinic' as default if 'All Branches' is selected
       const branchToUse = selectedBranch === 'All Branches' ? 'College Clinic' : selectedBranch;
       
-      const finalDisposedTo = dispenseData.reason.trim() ? `${dispenseData.disposed_to} - ${dispenseData.reason}` : dispenseData.disposed_to;
+      const finalDisposedTo = dispenseData.reason.trim() ? `${finalDisposedToName} - ${dispenseData.reason}` : finalDisposedToName;
       
       const res = await apiFetch('/api/index.php?route=inventory&action=dispense', { 
         method: 'POST', 
@@ -235,6 +286,9 @@ const Dashboard: React.FC = () => {
         toast.success('Dispensed successfully!', { id: toastId });
         setShowQuickDispense(false);
         setDispenseData({ item_id: 0, quantity: 1, disposed_to: '', reason: '' });
+        setSelectedDispensePatient(null);
+        setDispenseSearch('');
+        setIsGuestDispense(false);
       } else {
         toast.error(res.message || res.error || 'Error dispensing item', { id: toastId });
       }
@@ -667,15 +721,100 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Disposed To (Patient Name) <span className="text-red-500">*</span></label>
-                <input 
-                  required 
-                  type="text" 
-                  placeholder="e.g. John Doe" 
-                  className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
-                  value={dispenseData.disposed_to} 
-                  onChange={e => setDispenseData({...dispenseData, disposed_to: e.target.value})} 
-                />
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Disposed To <span className="text-red-500">*</span></label>
+                
+                <div className="flex items-center gap-4 mb-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input 
+                      type="radio" 
+                      checked={!isGuestDispense} 
+                      onChange={() => setIsGuestDispense(false)} 
+                      name="dispenseType"
+                    />
+                    Registered Patient
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input 
+                      type="radio" 
+                      checked={isGuestDispense} 
+                      onChange={() => {
+                        setIsGuestDispense(true);
+                        setSelectedDispensePatient(null);
+                        setDispenseSearch('');
+                      }} 
+                      name="dispenseType"
+                    />
+                    Guest
+                  </label>
+                </div>
+
+                {!isGuestDispense ? (
+                  <div className="relative" ref={dispenseSearchRef}>
+                    {!selectedDispensePatient ? (
+                      <div>
+                        <div className="relative flex items-center">
+                          <FiSearch className="absolute left-3 text-slate-400 w-5 h-5" />
+                          <input 
+                            type="text" 
+                            value={dispenseSearch}
+                            onChange={(e) => setDispenseSearch(e.target.value)}
+                            onFocus={() => {
+                              if (dispenseSearchResults.length > 0) setShowDispenseSearchDropdown(true);
+                            }}
+                            placeholder="Search registered patient..."
+                            className="w-full border border-slate-300 rounded-md px-3 py-2.5 pl-10 text-sm focus:outline-none focus:border-[#C01D38]"
+                          />
+                        </div>
+                        {showDispenseSearchDropdown && dispenseSearch.length >= 2 && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-64 overflow-y-auto z-20">
+                            {isDispenseSearching ? (
+                              <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
+                            ) : dispenseSearchResults.length > 0 ? (
+                              dispenseSearchResults.map(p => (
+                                <div 
+                                  key={p.id}
+                                  onClick={() => { setSelectedDispensePatient(p); setShowDispenseSearchDropdown(false); }}
+                                  className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                                >
+                                  <div className="font-bold text-sm text-slate-800">{p.name}</div>
+                                  <div className="text-xs text-slate-500">{p.patient_id_number || 'No ID'} - {p.category}</div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="p-4 text-center">
+                                <p className="text-sm text-slate-500">No patients found.</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 px-4 py-3 rounded-md border border-slate-200 relative flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-sm text-slate-800">{selectedDispensePatient.name}</div>
+                          <div className="text-xs text-slate-500">{selectedDispensePatient.patient_id_number || 'No ID'}</div>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => { setSelectedDispensePatient(null); setDispenseSearch(''); }}
+                          className="text-slate-400 hover:text-red-600 p-1.5 rounded-full hover:bg-slate-200 transition-colors"
+                          title="Clear selected patient"
+                        >
+                          <FiX className="w-5 h-5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <input 
+                    required 
+                    type="text" 
+                    placeholder="Enter guest name..." 
+                    className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
+                    value={dispenseData.disposed_to} 
+                    onChange={e => setDispenseData({...dispenseData, disposed_to: e.target.value})} 
+                  />
+                )}
               </div>
 
               <div>
@@ -691,7 +830,7 @@ const Dashboard: React.FC = () => {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setShowQuickDispense(false)} className="px-4 py-2 border rounded-md font-medium text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
-                <button type="submit" disabled={isDispensing || dispenseData.item_id === 0 || !dispenseData.disposed_to} className="px-5 py-2 bg-slate-700 text-white rounded-md hover:bg-slate-800 font-semibold transition-colors disabled:opacity-50">
+                <button type="submit" disabled={isDispensing || dispenseData.item_id === 0 || (isGuestDispense ? !dispenseData.disposed_to : !selectedDispensePatient)} className="px-5 py-2 bg-slate-700 text-white rounded-md hover:bg-slate-800 font-semibold transition-colors disabled:opacity-50">
                   {isDispensing ? 'Dispensing...' : 'Dispense Item'}
                 </button>
               </div>
