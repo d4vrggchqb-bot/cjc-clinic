@@ -1,5 +1,5 @@
 // Base URL of the PHP API (when running decoupled)
-export const API_BASE = 'http://localhost/cjc-clinic';
+export const API_BASE = 'http://localhost:8000';
 
 let cachedCsrfToken: string | null = null;
 
