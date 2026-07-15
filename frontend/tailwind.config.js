@@ -6,7 +6,11 @@ export default {
     "./src/**/*.{ts,tsx,js,jsx,html}"
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['Montserrat', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
 }
