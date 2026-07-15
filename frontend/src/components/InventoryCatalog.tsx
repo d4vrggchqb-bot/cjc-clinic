@@ -282,8 +282,8 @@ const InventoryCatalog: React.FC = () => {
                 <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Brand Name</label>
-                <input type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} />
+                <label className="block text-sm font-medium mb-1">Brand Name {newItem.category === 'medicine' && <span className="text-red-500">*</span>}</label>
+                <input required={newItem.category === 'medicine'} type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} />
               </div>
               {newItem.category === 'medicine' && (
                 <div>
