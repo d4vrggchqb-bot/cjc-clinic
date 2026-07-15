@@ -282,7 +282,7 @@ const Login: React.FC = () => {
 
       {/* Right Side: Branding */}
       <section 
-        className="w-full lg:w-1/2 flex-col items-center justify-center border-l border-slate-100 p-12 hidden lg:flex" 
+        className="hidden lg:flex w-full lg:w-1/2 flex-col items-center justify-center border-l border-slate-100 p-12" 
         style={{ backgroundColor: '#ffffff' }}
       >
         <div className="text-center max-w-md w-full">
