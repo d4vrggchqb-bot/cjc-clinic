@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiPlus, FiPrinter } from 'react-icons/fi';
+import { FiPlus, FiPrinter, FiSearch, FiX } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 import { apiFetch } from '../utils/api';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -25,6 +26,28 @@ const Dashboard: React.FC = () => {
     expiringItems: [] as any[],
     lowStockItems: [] as any[]
   });
+
+  // Quick Admit State
+  const [showQuickAdmit, setShowQuickAdmit] = useState(false);
+  const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
+  const [purpose, setPurpose] = useState('');
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const searchRef = React.useRef<HTMLDivElement>(null);
+
+  // Quick Dispense State
+  const [showQuickDispense, setShowQuickDispense] = useState(false);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [dispenseData, setDispenseData] = useState({
+    item_id: 0,
+    quantity: 1,
+    disposed_to: '',
+    reason: ''
+  });
+  const [isDispensing, setIsDispensing] = useState(false);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#C01D38', '#455A64'];
 
@@ -87,6 +110,141 @@ const Dashboard: React.FC = () => {
 
   }, [selectedBranch]);
 
+  // Quick Admit: Click outside search dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Quick Admit: Search logic
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (search.trim().length >= 2) {
+        setIsSearching(true);
+        apiFetch(`/api/index.php?route=patients&action=list&search=${encodeURIComponent(search)}&per_page=5`)
+          .then(res => {
+            if (res.profiles) setSearchResults(res.profiles);
+            setShowSearchDropdown(true);
+          })
+          .catch(err => toast.error("Search error"))
+          .finally(() => setIsSearching(false));
+      } else {
+        setSearchResults([]);
+        setShowSearchDropdown(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const handleQuickAdmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatient) {
+      toast.error('Please select a patient.');
+      return;
+    }
+    if (!purpose.trim()) {
+      toast.error('Please enter a purpose.');
+      return;
+    }
+
+    setIsCheckingIn(true);
+    const toastId = toast.loading('Admitting patient...');
+    try {
+      const res = await apiFetch(`/api/index.php?route=consultations&action=create`, {
+        method: 'POST',
+        body: JSON.stringify({
+          profile_id: selectedPatient.id,
+          purpose: purpose
+        })
+      });
+
+      if (res.success) {
+        toast.success('Patient admitted to queue successfully!', { id: toastId });
+        setShowQuickAdmit(false);
+        setSelectedPatient(null);
+        setSearch('');
+        setPurpose('');
+        // We could refresh stats here if needed
+      } else {
+        toast.error(res.message || 'Failed to check in.', { id: toastId });
+      }
+    } catch (err) {
+      toast.error('An error occurred.', { id: toastId });
+    } finally {
+      setIsCheckingIn(false);
+    }
+  };
+
+  const fetchInventoryItems = async () => {
+    try {
+      const res = await apiFetch('/api/index.php?route=inventory&action=items');
+      if (res.items) {
+        setInventoryItems(res.items);
+      }
+    } catch (err) {
+      console.error("Failed to fetch inventory for dispense", err);
+    }
+  };
+
+  // Fetch inventory when quick dispense modal opens
+  useEffect(() => {
+    if (showQuickDispense && inventoryItems.length === 0) {
+      fetchInventoryItems();
+    }
+  }, [showQuickDispense]);
+
+  const handleQuickDispense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (dispenseData.item_id === 0) {
+      toast.error('Please select an item.');
+      return;
+    }
+    if (dispenseData.quantity < 1) {
+      toast.error('Quantity must be at least 1.');
+      return;
+    }
+    if (!dispenseData.disposed_to.trim()) {
+      toast.error('Please specify who received the item.');
+      return;
+    }
+
+    setIsDispensing(true);
+    const toastId = toast.loading('Dispensing item...');
+    try {
+      // For dashboard quick dispense, we use the currently selected branch 
+      // or 'College Clinic' as default if 'All Branches' is selected
+      const branchToUse = selectedBranch === 'All Branches' ? 'College Clinic' : selectedBranch;
+      
+      const finalDisposedTo = dispenseData.reason.trim() ? `${dispenseData.disposed_to} - ${dispenseData.reason}` : dispenseData.disposed_to;
+      
+      const res = await apiFetch('/api/index.php?route=inventory&action=dispense', { 
+        method: 'POST', 
+        body: JSON.stringify({ 
+          ...dispenseData, 
+          disposed_to: finalDisposedTo,
+          clinic_branch: branchToUse 
+        }) 
+      });
+
+      if (res.success || !res.error) { // The backend dispense might not return success boolean directly if it just finishes
+        toast.success('Dispensed successfully!', { id: toastId });
+        setShowQuickDispense(false);
+        setDispenseData({ item_id: 0, quantity: 1, disposed_to: '', reason: '' });
+      } else {
+        toast.error(res.message || res.error || 'Error dispensing item', { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error dispensing item', { id: toastId });
+    } finally {
+      setIsDispensing(false);
+    }
+  };
+
   const MetricCard = ({ title, value, subtext, valueColor }: { title: string, value: number, subtext: string, valueColor: string }) => (
     <div className="bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-5 flex flex-col items-center justify-center border border-slate-100 flex-1 min-w-[150px]">
       <h3 className="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">{title}</h3>
@@ -122,12 +280,12 @@ const Dashboard: React.FC = () => {
             <FiPrinter className="w-4 h-4" /> Export Report
           </button>
           <button 
-            onClick={() => navigate('/patient-list')} 
+            onClick={() => setShowQuickAdmit(true)} 
             className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
             <FiPlus className="w-4 h-4" strokeWidth={3} /> Quick Admit
           </button>
           <button 
-            onClick={() => navigate('/inventory')}
+            onClick={() => setShowQuickDispense(true)}
             className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
             Quick Dispense
           </button>
@@ -371,6 +529,176 @@ const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Quick Admit Modal */}
+      {showQuickAdmit && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg w-full max-w-lg shadow-xl" ref={searchRef}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <FiPlus className="text-[#C01D38]" /> Quick Admit
+              </h3>
+              <button onClick={() => setShowQuickAdmit(false)} className="text-slate-400 hover:text-slate-600">
+                <FiX size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleQuickAdmit} className="space-y-4">
+              <div className="relative">
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Select Patient <span className="text-red-500">*</span></label>
+                {!selectedPatient ? (
+                  <div>
+                    <div className="relative flex items-center">
+                      <FiSearch className="absolute left-3 text-slate-400 w-5 h-5" />
+                      <input 
+                        type="text" 
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onFocus={() => {
+                          if (searchResults.length > 0) setShowSearchDropdown(true);
+                        }}
+                        placeholder="Search by name or ID..."
+                        className="w-full border border-slate-300 rounded-md px-3 py-2.5 pl-10 text-sm focus:outline-none focus:border-[#C01D38]"
+                      />
+                    </div>
+                    {showSearchDropdown && search.length >= 2 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-64 overflow-y-auto z-20">
+                        {isSearching ? (
+                          <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
+                        ) : searchResults.length > 0 ? (
+                          searchResults.map(p => (
+                            <div 
+                              key={p.id}
+                              onClick={() => { setSelectedPatient(p); setShowSearchDropdown(false); }}
+                              className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                            >
+                              <div className="font-bold text-sm text-slate-800">{p.name}</div>
+                              <div className="text-xs text-slate-500">{p.patient_id_number || 'No ID'}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-4 text-center">
+                            <p className="text-sm text-slate-500">No patients found.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 px-4 py-3 rounded-md border border-slate-200 relative flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-sm text-slate-800">{selectedPatient.name}</div>
+                      <div className="text-xs text-slate-500">{selectedPatient.patient_id_number || 'No ID'}</div>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => { setSelectedPatient(null); setSearch(''); }}
+                      className="text-slate-400 hover:text-red-600 p-1.5 rounded-full hover:bg-slate-200 transition-colors"
+                      title="Clear selected patient"
+                    >
+                      <FiX className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose <span className="text-red-500">*</span></label>
+                <input 
+                  type="text" 
+                  value={purpose}
+                  onChange={e => setPurpose(e.target.value)}
+                  placeholder="e.g. Headache, Checkup, Request"
+                  className="w-full border border-slate-300 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-[#C01D38]" 
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setShowQuickAdmit(false)} className="px-4 py-2 border rounded-md font-medium text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+                <button type="submit" disabled={isCheckingIn || !selectedPatient || !purpose.trim()} className="px-5 py-2 bg-[#C01D38] hover:bg-[#a0182f] text-white rounded-md font-semibold transition-colors disabled:opacity-50">
+                  {isCheckingIn ? 'Admitting...' : 'Admit Patient'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Dispense Modal */}
+      {showQuickDispense && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <FiPlus className="text-slate-700" /> Quick Dispense
+              </h3>
+              <button onClick={() => setShowQuickDispense(false)} className="text-slate-400 hover:text-slate-600">
+                <FiX size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickDispense} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Item to Dispense <span className="text-red-500">*</span></label>
+                <select 
+                  className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
+                  value={dispenseData.item_id} 
+                  onChange={e => setDispenseData({...dispenseData, item_id: parseInt(e.target.value)})}
+                >
+                  <option value={0}>-- Select Item --</option>
+                  {inventoryItems.map(item => (
+                    <option key={item.id} value={item.id}>
+                      {item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''} {item.dosage ? `- ${item.dosage}` : ''} {item.formulation ? `(${item.formulation})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Quantity <span className="text-red-500">*</span></label>
+                <input 
+                  required 
+                  type="number" 
+                  min="1" 
+                  className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
+                  value={dispenseData.quantity} 
+                  onChange={e => setDispenseData({...dispenseData, quantity: parseInt(e.target.value)})} 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Disposed To (Patient Name) <span className="text-red-500">*</span></label>
+                <input 
+                  required 
+                  type="text" 
+                  placeholder="e.g. John Doe" 
+                  className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
+                  value={dispenseData.disposed_to} 
+                  onChange={e => setDispenseData({...dispenseData, disposed_to: e.target.value})} 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Reason (Optional)</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Headache, Fever" 
+                  className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
+                  value={dispenseData.reason} 
+                  onChange={e => setDispenseData({...dispenseData, reason: e.target.value})} 
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setShowQuickDispense(false)} className="px-4 py-2 border rounded-md font-medium text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+                <button type="submit" disabled={isDispensing || dispenseData.item_id === 0 || !dispenseData.disposed_to} className="px-5 py-2 bg-slate-700 text-white rounded-md hover:bg-slate-800 font-semibold transition-colors disabled:opacity-50">
+                  {isDispensing ? 'Dispensing...' : 'Dispense Item'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

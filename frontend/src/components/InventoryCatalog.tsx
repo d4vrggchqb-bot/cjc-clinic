@@ -10,6 +10,7 @@ interface InventoryItem {
   brand_name: string | null;
   generic_name: string;
   dosage: string | null;
+  formulation: string | null;
   alert_threshold: number;
 }
 
@@ -38,10 +39,10 @@ const InventoryCatalog: React.FC = () => {
   const [showDispense, setShowDispense] = useState<number | null>(null); // item_id
   
   // Form States
-  const [newItem, setNewItem] = useState({ category: 'medicine', brand_name: '', generic_name: '', dosage: '', alert_threshold: 20 });
+  const [newItem, setNewItem] = useState({ category: 'medicine', brand_name: '', generic_name: '', dosage: '', formulation: '', alert_threshold: 20 });
   const [newBatch, setNewBatch] = useState({ item_id: 0, clinic_branch: 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '' });
   const [editBatchData, setEditBatchData] = useState({ batch_id: 0, batch_number: '', date_arrived: '', expired_on: '', stock_remaining: 0 });
-  const [dispenseData, setDispenseData] = useState({ clinic_branch: 'College Clinic', quantity: 1, disposed_to: '' });
+  const [dispenseData, setDispenseData] = useState({ clinic_branch: 'College Clinic', quantity: 1, disposed_to: '', reason: '' });
 
   const fetchData = async () => {
     try {
@@ -110,9 +111,10 @@ const InventoryCatalog: React.FC = () => {
     });
     if (!confirmed) return;
     try {
+      const finalDisposedTo = dispenseData.reason.trim() ? `${dispenseData.disposed_to} - ${dispenseData.reason}` : dispenseData.disposed_to;
       await apiFetch('/api/index.php?route=inventory&action=dispense', { 
         method: 'POST', 
-        body: JSON.stringify({ ...dispenseData, item_id: showDispense }) 
+        body: JSON.stringify({ ...dispenseData, disposed_to: finalDisposedTo, item_id: showDispense }) 
       });
       alert('Dispensed successfully (FEFO logic applied)!');
       setShowDispense(null);
@@ -176,7 +178,11 @@ const InventoryCatalog: React.FC = () => {
                   <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => toggleExpand(item.id)}>
                     <td className="p-3">
                       <div className="font-medium text-slate-800">{item.generic_name}</div>
-                      <div className="text-xs text-slate-500">{item.brand_name || 'No Brand'} {item.dosage && `- ${item.dosage}`}</div>
+                      <div className="text-xs text-slate-500">
+                        {item.brand_name || 'No Brand'} 
+                        {item.dosage ? ` - ${item.dosage}` : ''}
+                        {item.formulation ? ` (${item.formulation})` : ''}
+                      </div>
                     </td>
                     <td className="p-3">
                       <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-md capitalize">{item.category}</span>
@@ -285,6 +291,10 @@ const InventoryCatalog: React.FC = () => {
                   <input type="text" className="w-full border p-2 rounded" value={newItem.dosage} onChange={e => setNewItem({...newItem, dosage: e.target.value})} />
                 </div>
               )}
+              <div>
+                <label className="block text-sm font-medium mb-1">Formulation / Unit (e.g. Tablet, Syrup, Box)</label>
+                <input type="text" className="w-full border p-2 rounded" value={newItem.formulation} onChange={e => setNewItem({...newItem, formulation: e.target.value})} />
+              </div>
               <div className="flex justify-end space-x-2 mt-4">
                 <button type="button" onClick={() => setShowAddItem(false)} className="px-4 py-2 border rounded">Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-red-700 text-white rounded">Save Item</button>
@@ -355,8 +365,12 @@ const InventoryCatalog: React.FC = () => {
                 <input required type="number" min="1" className="w-full border p-2 rounded" value={dispenseData.quantity} onChange={e => setDispenseData({...dispenseData, quantity: parseInt(e.target.value)})} />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Disposed To / Reason <span className="text-red-500">*</span></label>
-                <input required type="text" placeholder="e.g. Patient John Doe" className="w-full border p-2 rounded" value={dispenseData.disposed_to} onChange={e => setDispenseData({...dispenseData, disposed_to: e.target.value})} />
+                <label className="block text-sm font-medium mb-1">Disposed To (Patient Name) <span className="text-red-500">*</span></label>
+                <input required type="text" placeholder="e.g. John Doe" className="w-full border p-2 rounded" value={dispenseData.disposed_to} onChange={e => setDispenseData({...dispenseData, disposed_to: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Reason (Optional)</label>
+                <input type="text" placeholder="e.g. Headache, Fever" className="w-full border p-2 rounded" value={dispenseData.reason} onChange={e => setDispenseData({...dispenseData, reason: e.target.value})} />
               </div>
               <div className="flex justify-end space-x-2 mt-4">
                 <button type="button" onClick={() => setShowDispense(null)} className="px-4 py-2 border rounded">Cancel</button>

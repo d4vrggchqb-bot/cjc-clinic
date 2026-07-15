@@ -21,12 +21,13 @@ class InventoryController {
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         $pdo = cjcDatabaseConnection();
-        $stmt = $pdo->prepare("INSERT INTO inventory_items (category, brand_name, generic_name, dosage, alert_threshold) VALUES (?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO inventory_items (category, brand_name, generic_name, dosage, formulation, alert_threshold) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $input['category'] ?? 'medicine',
             $input['brand_name'] ?? null,
             $input['generic_name'] ?? '',
             $input['dosage'] ?? null,
+            $input['formulation'] ?? null,
             $input['alert_threshold'] ?? 20
         ]);
         $this->jsonResponse(['success' => true, 'id' => $pdo->lastInsertId()]);
@@ -52,7 +53,7 @@ class InventoryController {
         }
 
         $stmt = $pdo->prepare("
-            SELECT b.*, i.generic_name, i.brand_name, i.category, i.dosage
+            SELECT b.*, i.generic_name, i.brand_name, i.category, i.dosage, i.formulation
             FROM inventory_batches b
             JOIN inventory_items i ON b.item_id = i.id
             $where
@@ -162,7 +163,7 @@ class InventoryController {
         $pdo = cjcDatabaseConnection();
         $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
         $stmt = $pdo->prepare("
-            SELECT i.id, i.category, i.generic_name, i.brand_name, i.dosage, IFNULL(SUM(b.stock_remaining), 0) as total_stock, i.alert_threshold
+            SELECT i.id, i.category, i.generic_name, i.brand_name, i.dosage, i.formulation, IFNULL(SUM(b.stock_remaining), 0) as total_stock, i.alert_threshold
             FROM inventory_items i
             LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.clinic_branch = :branch
             GROUP BY i.id

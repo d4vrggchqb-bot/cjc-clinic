@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS `inventory_items` (
   `brand_name` VARCHAR(100) DEFAULT NULL,
   `generic_name` VARCHAR(100) NOT NULL,
   `dosage` VARCHAR(50) DEFAULT NULL,
+  `formulation` VARCHAR(100) DEFAULT NULL,
   `alert_threshold` INT DEFAULT 20,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
