@@ -75,16 +75,19 @@ class DashboardController {
             error_log("[CJC-CLINIC] dashboard inventory_count error: " . $e->getMessage());
         }
 
-        $colleges = [
-            'BED Department',
-            'College of Accounting, Business and Entreprenueurship (CABE)',
-            'College of Education and Sciences (CEDAS)',
-            'College of Health Sciences (CHS)',
-            'College of Computing and Information Sciences (CCIS)',
-            'College of Engineering (COE)',
-            'College of Special Programs (CSP)',
-        ];
-        $visitsByCollege = array_fill_keys($colleges, 0);
+        $colleges = [];
+        try {
+            $stmt = $pdo->query("SELECT setting_value FROM settings WHERE setting_key IN ('departments', 'bed_departments')");
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $values = json_decode($row['setting_value'], true);
+                if (is_array($values)) {
+                    $colleges = array_merge($colleges, $values);
+                }
+            }
+        } catch (Exception $e) {
+            error_log("[CJC-CLINIC] dashboard fetch colleges error: " . $e->getMessage());
+        }
+        $visitsByCollege = empty($colleges) ? [] : array_fill_keys($colleges, 0);
 
         try {
             $hasCollegeInConsult = false;
