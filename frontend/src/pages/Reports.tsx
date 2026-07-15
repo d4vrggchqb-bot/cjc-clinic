@@ -262,7 +262,7 @@ const Reports: React.FC = () => {
                       data={getVisitsChartData()!} 
                       options={{
                         plugins: {
-                          legend: { position: 'bottom', labels: { padding: 20, font: { family: 'Inter', weight: 'bold' } } }
+                          legend: { position: 'bottom', labels: { padding: 20, font: { family: 'Roboto', weight: 'bold' } } }
                         }
                       }} 
                     />
