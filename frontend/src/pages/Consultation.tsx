@@ -729,7 +729,7 @@ const Consultation: React.FC = () => {
               </button>
             </div>
             
-            {(userRole === 'Superadmin' || userRole === 'Admin') && (
+            {(userRole === 'Superadmin') && (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500 uppercase">Branch:</span>
                 <select 

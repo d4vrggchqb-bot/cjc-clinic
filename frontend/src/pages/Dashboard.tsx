@@ -87,7 +87,7 @@ const Dashboard: React.FC = () => {
 
         if (res) {
           if (res.user_role) setUserRole(res.user_role);
-          if (res.current_branch && res.user_role !== 'Superadmin' && res.user_role !== 'Admin') {
+          if (res.current_branch && res.user_role !== 'Superadmin') {
               setSelectedBranch(res.current_branch);
           }
           
@@ -316,7 +316,7 @@ const Dashboard: React.FC = () => {
           <p className="text-slate-400 text-sm font-medium">Overview of clinic activity</p>
         </div>
         <div className="flex gap-3 items-center">
-          {(userRole === 'Superadmin' || userRole === 'Admin') && (
+          {(userRole === 'Superadmin') && (
             <select 
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}

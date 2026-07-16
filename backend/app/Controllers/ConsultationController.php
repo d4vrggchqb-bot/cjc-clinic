@@ -45,7 +45,7 @@ class ConsultationController {
         
         // Handle branch filtering
         $requestBranch = $_GET['branch'] ?? 'All Branches';
-        if (!in_array($userRole, ['Admin', 'Superadmin'])) {
+        if ($userRole !== 'Superadmin') {
             $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
             $whereClause .= " AND c.clinic_branch = :branch";
             $params['branch'] = $branch;

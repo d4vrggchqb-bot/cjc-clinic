@@ -60,7 +60,7 @@ const Reports: React.FC = () => {
       setData(res);
       setUserRole(res.user_role);
       
-      if (res.current_branch && res.user_role !== 'Superadmin' && res.user_role !== 'Admin') {
+      if (res.current_branch && res.user_role !== 'Superadmin') {
         setSelectedBranch(res.current_branch);
       }
     } catch (err) {
@@ -169,7 +169,7 @@ const Reports: React.FC = () => {
             />
           </div>
 
-          {(userRole === 'Superadmin' || userRole === 'Admin') && (
+          {(userRole === 'Superadmin') && (
             <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
               <span className="px-3 text-slate-400 flex items-center">
                 <FiFilter />

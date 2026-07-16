@@ -15,11 +15,17 @@ import { ConfirmProvider } from './context/ConfirmContext';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     // Check if session is valid
     apiFetch('/api/index.php?action=check_session')
-      .then((res) => setIsAuthenticated(res.success))
+      .then((res) => {
+        setIsAuthenticated(res.success);
+        if (res.success && res.user) {
+          setUser(res.user);
+        }
+      })
       .catch(() => setIsAuthenticated(false));
   }, []);
 
@@ -27,7 +33,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <div className="flex h-screen items-center justify-center">Loading...</div>;
   }
 
-  return isAuthenticated ? <Layout>{children}</Layout> : <Navigate to="/login" replace />;
+  return isAuthenticated ? <Layout user={user}>{children}</Layout> : <Navigate to="/login" replace />;
 };
 
 const PlaceholderPage = ({ title }: { title: string }) => (

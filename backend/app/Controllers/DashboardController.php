@@ -16,14 +16,14 @@ class DashboardController {
         $userBranch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
         $branch = $userBranch;
         
-        if (in_array($userRole, ['Superadmin', 'Admin']) && isset($_GET['branch']) && $_GET['branch'] !== 'All Branches') {
+        if ($userRole === 'Superadmin' && isset($_GET['branch']) && $_GET['branch'] !== 'All Branches') {
             $branch = $_GET['branch'];
         }
 
         $branchConditionAnd = '';
         $branchConditionWhere = '';
         $branchParams = [];
-        if (!in_array($userRole, ['Superadmin', 'Admin']) || (isset($_GET['branch']) && $_GET['branch'] !== 'All Branches')) {
+        if ($userRole !== 'Superadmin' || (isset($_GET['branch']) && $_GET['branch'] !== 'All Branches')) {
             $branchConditionAnd = 'AND clinic_branch = :branch';
             $branchConditionWhere = 'WHERE clinic_branch = :branch';
             $branchParams = ['branch' => $branch];

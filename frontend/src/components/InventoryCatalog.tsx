@@ -6,7 +6,7 @@ import { useConfirm } from '../context/ConfirmContext';
 
 interface InventoryItem {
   id: number;
-  category: 'medicine' | 'supply' | 'equipment';
+  category: string;
   brand_name: string | null;
   generic_name: string;
   dosage: string | null;
@@ -39,7 +39,7 @@ const InventoryCatalog: React.FC = () => {
   const [showDispense, setShowDispense] = useState<number | null>(null); // item_id
   
   // Form States
-  const [newItem, setNewItem] = useState({ category: 'medicine', brand_name: '', generic_name: '', dosage: '', formulation: '', alert_threshold: 20 });
+  const [newItem, setNewItem] = useState({ category: 'medicine', customCategory: '', brand_name: '', generic_name: '', dosage: '', formulation: '', alert_threshold: 20 });
   const [newBatch, setNewBatch] = useState({ item_id: 0, clinic_branch: 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '' });
   const [editBatchData, setEditBatchData] = useState({ batch_id: 0, batch_number: '', date_arrived: '', expired_on: '', stock_remaining: 0 });
   const [dispenseData, setDispenseData] = useState({ clinic_branch: 'College Clinic', quantity: 1, disposed_to: '', reason: '' });
@@ -61,13 +61,28 @@ const InventoryCatalog: React.FC = () => {
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    let finalCategory = newItem.category;
+    if (finalCategory === 'other') {
+      if (!newItem.customCategory || !newItem.customCategory.trim()) {
+        alert('Please specify the category.');
+        return;
+      }
+      finalCategory = newItem.customCategory.trim();
+    }
+
+    const payload = {
+      ...newItem,
+      category: finalCategory
+    };
+
     const confirmed = await confirm({
       title: 'Save Item',
       message: 'Are you sure you want to save this new item to the catalog?',
       type: 'info'
     });
     if (!confirmed) return;
-    await apiFetch('/api/index.php?route=inventory&action=add_item', { method: 'POST', body: JSON.stringify(newItem) });
+    await apiFetch('/api/index.php?route=inventory&action=add_item', { method: 'POST', body: JSON.stringify(payload) });
     setShowAddItem(false);
     fetchData();
   };
@@ -167,7 +182,11 @@ const InventoryCatalog: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {items.filter(item => categoryFilter === 'all' || item.category === categoryFilter).map(item => {
+            {items.filter(item => {
+              if (categoryFilter === 'all') return true;
+              if (categoryFilter === 'other') return !['medicine', 'supply', 'equipment'].includes(item.category);
+              return item.category === categoryFilter;
+            }).map(item => {
               const totalStock = getTotalStock(item.id);
               const isLowStock = totalStock <= item.alert_threshold;
               const isExpanded = expandedItemId === item.id;
@@ -275,26 +294,87 @@ const InventoryCatalog: React.FC = () => {
                   <option value="medicine">Medicine</option>
                   <option value="supply">Supply</option>
                   <option value="equipment">Equipment</option>
+                  <option value="other">Others</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Generic Name <span className="text-red-500">*</span></label>
-                <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Brand Name {newItem.category === 'medicine' && <span className="text-red-500">*</span>}</label>
-                <input required={newItem.category === 'medicine'} type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} />
-              </div>
-              {newItem.category === 'medicine' && (
+              {newItem.category === 'other' && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">Dosage (e.g. 500mg)</label>
-                  <input type="text" className="w-full border p-2 rounded" value={newItem.dosage} onChange={e => setNewItem({...newItem, dosage: e.target.value})} />
+                  <label className="block text-sm font-medium mb-1">Specify Category <span className="text-red-500">*</span></label>
+                  <input required type="text" className="w-full border p-2 rounded" value={newItem.customCategory || ''} onChange={e => setNewItem({...newItem, customCategory: e.target.value})} placeholder="Please specify category" />
                 </div>
               )}
-              <div>
-                <label className="block text-sm font-medium mb-1">Formulation / Unit (e.g. Tablet, Syrup, Box)</label>
-                <input type="text" className="w-full border p-2 rounded" value={newItem.formulation} onChange={e => setNewItem({...newItem, formulation: e.target.value})} />
-              </div>
+              {/* Conditional Fields based on Category */}
+              {newItem.category === 'medicine' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Generic Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Brand Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Dosage (e.g. 500mg)</label>
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.dosage} onChange={e => setNewItem({...newItem, dosage: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Formulation / Unit (e.g. Tablet, Syrup, Box)</label>
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.formulation} onChange={e => setNewItem({...newItem, formulation: e.target.value})} />
+                  </div>
+                </>
+              )}
+
+              {newItem.category === 'supply' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Supply Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Brand Name (Optional)</label>
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Unit / Measurement (e.g. Box, Pcs, Roll)</label>
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.formulation} onChange={e => setNewItem({...newItem, formulation: e.target.value})} />
+                  </div>
+                </>
+              )}
+
+              {newItem.category === 'equipment' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Equipment Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Brand / Model (Optional)</label>
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Description / Specs (Optional)</label>
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.dosage} onChange={e => setNewItem({...newItem, dosage: e.target.value})} />
+                  </div>
+                </>
+              )}
+
+              {newItem.category === 'other' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Item Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Description / Brand (Optional)</label>
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Unit / Measurement (Optional)</label>
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.formulation} onChange={e => setNewItem({...newItem, formulation: e.target.value})} />
+                  </div>
+                </>
+              )}
               <div className="flex justify-end space-x-2 mt-4">
                 <button type="button" onClick={() => setShowAddItem(false)} className="px-4 py-2 border rounded">Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-red-700 text-white rounded">Save Item</button>

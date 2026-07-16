@@ -23,14 +23,14 @@ class ReportController {
         $endDate = $_GET['end_date'] ?? date('Y-m-d');
         
         $branch = $userBranch;
-        if (in_array($userRole, ['Superadmin', 'Admin']) && isset($_GET['branch']) && $_GET['branch'] !== 'All Branches') {
+        if ($userRole === 'Superadmin' && isset($_GET['branch']) && $_GET['branch'] !== 'All Branches') {
             $branch = $_GET['branch'];
         }
 
         $branchConditionAnd = '';
         $branchParams = ['start_date' => $startDate . ' 00:00:00', 'end_date' => $endDate . ' 23:59:59'];
         
-        if (!in_array($userRole, ['Superadmin', 'Admin']) || (isset($_GET['branch']) && $_GET['branch'] !== 'All Branches')) {
+        if ($userRole !== 'Superadmin' || (isset($_GET['branch']) && $_GET['branch'] !== 'All Branches')) {
             $branchConditionAnd = 'AND clinic_branch = :branch';
             $branchParams['branch'] = $branch;
         } else {
