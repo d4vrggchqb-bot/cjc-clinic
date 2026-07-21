@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
+import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
+
+const GOOGLE_CLIENT_ID = '814203352511-rp2uq7eajh56v8k9gnspbmureb2hpk3a.apps.googleusercontent.com';
 
 const Login: React.FC = () => {
   const [view, setView] = useState<'login' | 'request_reset' | 'perform_reset'>('login');
@@ -37,6 +40,31 @@ const Login: React.FC = () => {
     } catch (err) {
       setError('Network error. Could not connect to the server.');
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    setError('');
+    setMessage('');
+    
+    try {
+      const response = await apiFetch('/api/index.php?action=google_login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: credentialResponse.credential }),
+      });
+
+      if (response.success) {
+        navigate('/dashboard');
+      } else {
+        setError(response.error || 'Google Login failed. Ensure you are using a @g.cjc.edu.ph account.');
+      }
+    } catch (err) {
+      setError('Network error. Could not connect to the server.');
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError('Google Sign-In was unsuccessful. Try again later.');
   };
 
   const handleRequestReset = async (e: React.FormEvent) => {
@@ -184,10 +212,30 @@ const Login: React.FC = () => {
                 {/* Submit Button */}
                 <button 
                   type="submit" 
-                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-sm hover:bg-[#a0182f] transition-colors shadow-sm"
+                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-sm hover:bg-[#a0182f] transition-colors shadow-sm mb-6"
                 >
                   SIGN IN
                 </button>
+                
+                <div className="relative flex items-center justify-center w-full mb-6">
+                  <div className="border-t border-slate-200 w-full"></div>
+                  <span className="absolute bg-white px-3 text-xs text-slate-400 font-medium tracking-wide">OR</span>
+                </div>
+                
+                <div className="flex justify-center w-full">
+                  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={handleGoogleError}
+                      useOneTap
+                      theme="outline"
+                      size="large"
+                      width="100%"
+                      text="continue_with"
+                      shape="rectangular"
+                    />
+                  </GoogleOAuthProvider>
+                </div>
               </form>
             )}
 

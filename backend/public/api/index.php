@@ -39,6 +39,8 @@ switch ($route) {
             $controller->requestPasswordReset();
         } elseif ($action === 'perform_password_reset') {
             $controller->performPasswordReset();
+        } elseif ($action === 'google_login') {
+            $controller->googleLogin();
         }
         break;
 

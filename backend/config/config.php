@@ -169,6 +169,7 @@ function cjcRedirectToLogin(): void
 // ─── Cryptographic Helpers ───────────────────────────────────────────────────
 // Fallback key if not provided by environment. In production, set this securely.
 define('CJC_APP_KEY', getenv('CJC_APP_KEY') ?: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08');
+define('CJC_GOOGLE_CLIENT_ID', getenv('GOOGLE_CLIENT_ID') ?: '814203352511-rp2uq7eajh56v8k9gnspbmureb2hpk3a.apps.googleusercontent.com');
 
 /**
  * Encrypts data using AES-256-CBC.

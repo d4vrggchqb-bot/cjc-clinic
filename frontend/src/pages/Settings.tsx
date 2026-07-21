@@ -91,7 +91,7 @@ export default function Settings() {
   }, [activeTab]);
 
   const handleAddUser = async () => {
-    if (!newUser.username || !newUser.password) return alert('Username and password required');
+    if (!newUser.username) return alert('Email / Username is required');
     try {
       const res = await apiFetch('/api/index.php?route=auth&action=create_user', {
         method: 'POST',
@@ -101,7 +101,7 @@ export default function Settings() {
         setNewUser({ username: '', password: '', role: 'Staff', clinic_branch: 'College Clinic' });
         fetchUsers();
       } else {
-        alert(res.message);
+        alert(res.error || res.message || 'Failed to add user');
       }
     } catch (e) { alert('Failed to add user'); }
   };
@@ -315,8 +315,8 @@ export default function Settings() {
                 <p className="text-slate-500 text-sm mb-4">Accounts that can log in to CJC-Clinic+.</p>
                 
                 <div className="flex gap-2 mb-4 bg-slate-50 p-3 rounded border border-slate-200">
-                  <input type="text" placeholder="Username" className="border px-2 py-1 text-sm rounded flex-1" value={newUser.username} onChange={e=>setNewUser({...newUser, username: e.target.value})}/>
-                  <input type="password" placeholder="Password" className="border px-2 py-1 text-sm rounded flex-1" value={newUser.password} onChange={e=>setNewUser({...newUser, password: e.target.value})}/>
+                  <input type="text" placeholder="Google Email (@g.cjc.edu.ph)" className="border px-2 py-1 text-sm rounded flex-1" value={newUser.username} onChange={e=>setNewUser({...newUser, username: e.target.value})}/>
+                  <input type="password" placeholder="Password (Optional)" className="border px-2 py-1 text-sm rounded flex-1" value={newUser.password} onChange={e=>setNewUser({...newUser, password: e.target.value})}/>
                   <select className="border px-2 py-1 text-sm rounded" value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})}>
                     <option>Staff</option>
                     <option>Nurse</option>
@@ -335,7 +335,7 @@ export default function Settings() {
                 <table className="w-full text-left text-sm border-collapse border border-slate-200">
                   <thead className="bg-slate-100 border-b border-slate-200">
                     <tr>
-                      <th className="px-4 py-2 font-bold">Username</th>
+                      <th className="px-4 py-2 font-bold">Email / Username</th>
                       <th className="px-4 py-2 font-bold">Role</th>
                       <th className="px-4 py-2 font-bold">Branch</th>
                       <th className="px-4 py-2 font-bold">Action</th>
