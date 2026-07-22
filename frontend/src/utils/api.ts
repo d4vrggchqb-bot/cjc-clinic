@@ -42,6 +42,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     ...options,
     headers,
     credentials: 'include', // Extremely important for PHP sessions to persist!
+    cache: 'no-store', // Prevent stale data on navigation
   });
 
   return res.json();

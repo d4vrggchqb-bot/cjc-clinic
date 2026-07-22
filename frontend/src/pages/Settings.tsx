@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiSettings, FiBookOpen, FiActivity, FiUsers, FiUpload, FiDownload, FiInfo, FiPlus, FiTrash2, FiSave, FiHardDrive, FiEdit2, FiCheck, FiX } from 'react-icons/fi';
+import { FiSettings, FiBookOpen, FiActivity, FiUsers, FiUpload, FiDownload, FiInfo, FiPlus, FiTrash2, FiSave, FiHardDrive, FiEdit2, FiCheck, FiX, FiChevronRight, FiChevronDown } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function Settings() {
@@ -28,11 +28,9 @@ export default function Settings() {
         if (res.settings) {
           setSettings({
             school_year: res.settings.school_year || '',
-            departments: Array.isArray(res.settings.departments) ? res.settings.departments : [],
-            courses: Array.isArray(res.settings.courses) ? res.settings.courses : [],
-            bed_departments: Array.isArray(res.settings.bed_departments) ? res.settings.bed_departments : [],
-            bed_programs: Array.isArray(res.settings.bed_programs) ? res.settings.bed_programs : [],
-            bed_year_levels: Array.isArray(res.settings.bed_year_levels) ? res.settings.bed_year_levels : [],
+            departments_hierarchy: Array.isArray(res.settings.departments_hierarchy) ? res.settings.departments_hierarchy : [],
+            bed_hierarchy: Array.isArray(res.settings.bed_hierarchy) ? res.settings.bed_hierarchy : [],
+            college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
             cues: Array.isArray(res.settings.cues) ? res.settings.cues : [],
           });
         }
@@ -43,16 +41,19 @@ export default function Settings() {
 
   const saveSettings = async (newSettings: any) => {
     try {
-      await apiFetch('/api/index.php?route=settings&action=update', {
+      const res = await apiFetch('/api/index.php?route=settings&action=update', {
         method: 'POST',
         body: JSON.stringify(newSettings)
       });
-      // Optionally show a toast here
+      if (res && res.success === false) {
+        alert('Failed to save settings: ' + (res.message || 'Unknown error'));
+      }
     } catch (e) {
-      alert('Failed to save settings');
+      alert('Failed to save settings due to a network error.');
     }
   };
 
+  // FLAT ARRAY HANDLERS (for cues, college_year_levels)
   const handleArrayAdd = (key: string, value: string) => {
     if (!value.trim()) return;
     const currentArray = settings[key] || [];
@@ -77,6 +78,13 @@ export default function Settings() {
     const updated = { ...settings, [key]: updatedArray };
     setSettings(updated);
     saveSettings({ [key]: updated[key] });
+  };
+
+  // HIERARCHY HANDLERS
+  const handleHierarchySave = (key: string, newHierarchy: any[]) => {
+    const updated = { ...settings, [key]: newHierarchy };
+    setSettings(updated);
+    saveSettings({ [key]: newHierarchy });
   };
 
   // User Management
@@ -145,7 +153,6 @@ export default function Settings() {
       const res = await fetch('/api/index.php?route=settings&action=import', {
         method: 'POST',
         body: formData,
-        // No Content-Type header so browser sets multipart boundary
       });
       const data = await res.json();
       alert(data.message || (data.success ? 'Import successful' : 'Import failed'));
@@ -157,7 +164,6 @@ export default function Settings() {
     }
   };
 
-  // Backup & Export
   const handleBackupDb = async () => {
     const confirmed = await confirm({
       title: 'Backup Database',
@@ -190,7 +196,6 @@ export default function Settings() {
         <p className="text-slate-500 text-sm">Manage clinic configuration, accounts, and preferences</p>
       </div>
 
-      {/* Tabs */}
       <div className="bg-white border-b border-slate-200 px-6 flex gap-1 pt-2 shadow-sm z-10 relative">
         {[
           { id: 'academic', label: 'Academic Setup', icon: FiBookOpen },
@@ -214,14 +219,11 @@ export default function Settings() {
         ))}
       </div>
 
-      {/* Tab Content Area */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-6">
 
-          {/* ACADEMIC SETUP TAB */}
           {activeTab === 'academic' && (
             <>
-              {/* School Year */}
               <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
                 <h3 className="text-[#8c1526] font-bold text-lg mb-2">School Year</h3>
                 <p className="text-slate-500 text-sm mb-4">The active school year shown on records and reports.</p>
@@ -242,60 +244,42 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Departments */}
-              <ConfigListEditor 
-                title="Departments / Colleges" 
-                description="Abbreviations shown in the College/Dept dropdown when enrolling a patient (e.g. CCIS, COE)."
-                items={settings.departments}
-                onAdd={(v) => handleArrayAdd('departments', v)}
-                onRemove={(v) => handleArrayRemove('departments', v)}
-                onEdit={(oldVal, newVal) => handleArrayEdit('departments', oldVal, newVal)}
+              {/* Hierarchical Editor for College Departments and Programs */}
+              <HierarchyEditor
+                title="College Departments & Programs"
+                description="Manage colleges and their respective Bachelor's degrees."
+                items={settings.departments_hierarchy}
+                parentKey="department"
+                childKey="programs"
+                childLabel="Program"
+                onSave={(newHierarchy) => handleHierarchySave('departments_hierarchy', newHierarchy)}
               />
 
-              {/* Courses */}
+              {/* College Year Levels - Flat Array */}
               <ConfigListEditor 
-                title="Courses / Programs (College)" 
-                description="Course names shown in the Course dropdown when enrolling a patient (e.g. BSCS, BSN)."
-                items={settings.courses}
-                onAdd={(v) => handleArrayAdd('courses', v)}
-                onRemove={(v) => handleArrayRemove('courses', v)}
-                onEdit={(oldVal, newVal) => handleArrayEdit('courses', oldVal, newVal)}
+                title="Year Levels (College)" 
+                description="Year levels shown when enrolling a College patient (e.g. 1st Year, 2nd Year)."
+                items={settings.college_year_levels}
+                onAdd={(v) => handleArrayAdd('college_year_levels', v)}
+                onRemove={(v) => handleArrayRemove('college_year_levels', v)}
+                onEdit={(oldVal, newVal) => handleArrayEdit('college_year_levels', oldVal, newVal)}
               />
 
-              {/* BED Config */}
+              {/* BED Config - Hierarchical */}
               <div className="mt-8 border-t border-slate-200 pt-6">
-                <h2 className="text-xl font-bold text-[#8c1526] mb-4">Basic Education (BED) Setup</h2>
-                <div className="space-y-6">
-                  <ConfigListEditor 
-                    title="BED Departments" 
-                    description="Departments for BED (e.g. BED Department)."
-                    items={settings.bed_departments}
-                    onAdd={(v) => handleArrayAdd('bed_departments', v)}
-                    onRemove={(v) => handleArrayRemove('bed_departments', v)}
-                    onEdit={(oldVal, newVal) => handleArrayEdit('bed_departments', oldVal, newVal)}
-                  />
-                  <ConfigListEditor 
-                    title="BED Programs" 
-                    description="Programs for BED (e.g. Senior High School, Grade School)."
-                    items={settings.bed_programs}
-                    onAdd={(v) => handleArrayAdd('bed_programs', v)}
-                    onRemove={(v) => handleArrayRemove('bed_programs', v)}
-                    onEdit={(oldVal, newVal) => handleArrayEdit('bed_programs', oldVal, newVal)}
-                  />
-                  <ConfigListEditor 
-                    title="BED Year/Grade Levels" 
-                    description="Year or Grade levels for BED (e.g. Grade 11, Grade 12)."
-                    items={settings.bed_year_levels}
-                    onAdd={(v) => handleArrayAdd('bed_year_levels', v)}
-                    onRemove={(v) => handleArrayRemove('bed_year_levels', v)}
-                    onEdit={(oldVal, newVal) => handleArrayEdit('bed_year_levels', oldVal, newVal)}
-                  />
-                </div>
+                <HierarchyEditor
+                  title="Basic Education (BED) Setup"
+                  description="Manage BED Programs (e.g., Grade School, Junior High School) and their specific Year Levels."
+                  items={settings.bed_hierarchy}
+                  parentKey="program"
+                  childKey="year_levels"
+                  childLabel="Year Level"
+                  onSave={(newHierarchy) => handleHierarchySave('bed_hierarchy', newHierarchy)}
+                />
               </div>
             </>
           )}
 
-          {/* CLINICAL PRESETS TAB */}
           {activeTab === 'clinical' && (
             <ConfigListEditor 
               title="Cues Presets" 
@@ -307,7 +291,6 @@ export default function Settings() {
             />
           )}
 
-          {/* USER ACCOUNTS TAB */}
           {activeTab === 'users' && (
             <>
               <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
@@ -371,7 +354,6 @@ export default function Settings() {
             </>
           )}
 
-          {/* DATA IMPORT TAB */}
           {activeTab === 'import' && (
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
               <h3 className="text-[#8c1526] font-bold text-lg mb-2">Import Enrollee List</h3>
@@ -407,7 +389,6 @@ export default function Settings() {
             </div>
           )}
 
-          {/* BACKUP TAB */}
           {activeTab === 'backup' && (
             <>
               <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
@@ -435,7 +416,7 @@ export default function Settings() {
   );
 }
 
-// Reusable component for string array lists
+// Flat Array Editor Component
 const ConfigListEditor = ({ title, description, items = [], onAdd, onRemove, onEdit }: any) => {
   const [val, setVal] = useState('');
   const [editingIdx, setEditingIdx] = useState(-1);
@@ -548,6 +529,195 @@ const ConfigListEditor = ({ title, description, items = [], onAdd, onRemove, onE
                   </div>
                 </>
               )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+// Master-Detail Hierarchy Editor Component
+const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, childLabel, onSave }: any) => {
+  const [val, setVal] = useState('');
+  const [expandedIdx, setExpandedIdx] = useState(-1);
+  const { confirm } = useConfirm();
+
+  const handleAddParent = async () => {
+    if (!val.trim()) return;
+    const exists = items.some((i: any) => i[parentKey].toLowerCase() === val.trim().toLowerCase());
+    if (exists) return alert('This item already exists.');
+
+    const confirmed = await confirm({
+      title: 'Add Category',
+      message: `Are you sure you want to add "${val.trim()}"?`,
+      type: 'info'
+    });
+    if (confirmed) {
+      const newItems = [...items, { [parentKey]: val.trim(), [childKey]: [] }];
+      onSave(newItems);
+      setVal('');
+    }
+  };
+
+  const handleDeleteParent = async (idx: number, parentName: string) => {
+    const confirmed = await confirm({
+      title: 'Delete Category',
+      message: `Are you sure you want to completely delete "${parentName}" and ALL of its nested items? This cannot be undone.`,
+      type: 'danger'
+    });
+    if (confirmed) {
+      const newItems = [...items];
+      newItems.splice(idx, 1);
+      onSave(newItems);
+      if (expandedIdx === idx) setExpandedIdx(-1);
+    }
+  };
+
+  const handleAddChild = async (parentIdx: number, parentName: string, childVal: string) => {
+    if (!childVal.trim()) return;
+    const parentObj = items[parentIdx];
+    if (parentObj[childKey].includes(childVal.trim())) return alert('Item already exists.');
+
+    const confirmed = await confirm({
+      title: `Add ${childLabel}`,
+      message: `Are you sure you want to add "${childVal.trim()}" to "${parentName}"?`,
+      type: 'info'
+    });
+    if (confirmed) {
+      const newItems = [...items];
+      newItems[parentIdx][childKey].push(childVal.trim());
+      onSave(newItems);
+    }
+  };
+
+  const handleDeleteChild = async (parentIdx: number, childIdx: number, parentName: string, childName: string) => {
+    const confirmed = await confirm({
+      title: `Delete ${childLabel}`,
+      message: `Are you sure you want to delete "${childName}" from "${parentName}"?`,
+      type: 'danger'
+    });
+    if (confirmed) {
+      const newItems = [...items];
+      newItems[parentIdx][childKey].splice(childIdx, 1);
+      onSave(newItems);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+      <h3 className="text-[#8c1526] font-bold text-lg mb-2">{title}</h3>
+      <p className="text-slate-500 text-sm mb-4">{description}</p>
+      
+      {/* Add Parent */}
+      <div className="flex gap-2 mb-4">
+        <input 
+          type="text" 
+          value={val} 
+          onChange={e=>setVal(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAddParent()}
+          placeholder={`Add new category...`}
+          className="border border-slate-300 rounded px-3 py-1.5 focus:border-[#007bff] focus:outline-none w-64 text-sm"
+        />
+        <button 
+          onClick={handleAddParent}
+          disabled={!val.trim()}
+          className="bg-[#007bff] hover:bg-[#0069d9] text-white px-4 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm disabled:opacity-50"
+        >
+          <FiPlus /> Add
+        </button>
+      </div>
+
+      <div className="border border-slate-200 rounded bg-slate-50">
+        {items.length === 0 ? (
+          <div className="p-3 text-sm text-slate-400 bg-white">No categories found.</div>
+        ) : (
+          items.map((item: any, idx: number) => {
+            const isExpanded = expandedIdx === idx;
+            const parentName = item[parentKey];
+            const children = item[childKey] || [];
+            return (
+              <div key={idx} className="border-b border-slate-200 last:border-0 bg-white">
+                <div 
+                  className={`flex justify-between items-center p-3 cursor-pointer hover:bg-slate-50 transition-colors ${isExpanded ? 'bg-slate-50' : ''}`}
+                  onClick={() => setExpandedIdx(isExpanded ? -1 : idx)}
+                >
+                  <div className="flex items-center gap-2">
+                    {isExpanded ? <FiChevronDown className="text-slate-400" /> : <FiChevronRight className="text-slate-400" />}
+                    <span className="font-bold text-slate-800">{parentName}</span>
+                    <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">{children.length} {childLabel}s</span>
+                  </div>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleDeleteParent(idx, parentName); }}
+                    className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"
+                    title="Delete Category"
+                  >
+                    <FiTrash2 />
+                  </button>
+                </div>
+                
+                {isExpanded && (
+                  <div className="pl-8 pr-4 pb-4 pt-2 bg-slate-50/50">
+                    <ChildEditor 
+                      parentName={parentName}
+                      childrenItems={children}
+                      childLabel={childLabel}
+                      onAdd={(childVal) => handleAddChild(idx, parentName, childVal)}
+                      onRemove={(childIdx, childName) => handleDeleteChild(idx, childIdx, parentName, childName)}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ChildEditor = ({ parentName, childrenItems, childLabel, onAdd, onRemove }: any) => {
+  const [val, setVal] = useState('');
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <input 
+          type="text" 
+          value={val} 
+          onChange={e=>setVal(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && val.trim()) {
+              onAdd(val);
+              setVal('');
+            }
+          }}
+          placeholder={`Add ${childLabel} under ${parentName}...`}
+          className="border border-slate-300 rounded px-2 py-1 text-sm focus:border-[#007bff] focus:outline-none flex-1"
+        />
+        <button 
+          onClick={() => { onAdd(val); setVal(''); }}
+          disabled={!val.trim()}
+          className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded text-sm font-bold flex items-center gap-1 transition-colors disabled:opacity-50"
+        >
+          <FiPlus /> Add
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-1">
+        {childrenItems.length === 0 ? (
+          <div className="text-xs text-slate-400 italic">No items yet.</div>
+        ) : (
+          childrenItems.map((child: string, cIdx: number) => (
+            <div key={cIdx} className="flex justify-between items-center bg-white border border-slate-200 p-1.5 px-3 rounded shadow-sm group">
+              <span className="text-sm text-slate-700">{child}</span>
+              <button 
+                onClick={() => onRemove(cIdx, child)}
+                className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <FiX />
+              </button>
             </div>
           ))
         )}

@@ -39,13 +39,11 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
   const [error, setError] = useState('');
   const [idChecking, setIdChecking] = useState(false);
   const [isIdDuplicate, setIsIdDuplicate] = useState(false);
-  const [globalSettings, setGlobalSettings] = useState({ 
+  const [globalSettings, setGlobalSettings] = useState<any>({ 
     school_year: '2026-2027', 
-    departments: [], 
-    courses: [],
-    bed_departments: [],
-    bed_programs: [],
-    bed_year_levels: []
+    departments_hierarchy: [],
+    bed_hierarchy: [],
+    college_year_levels: []
   });
 
   // Fetch settings once when the component mounts
@@ -56,11 +54,9 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
           const sy = res.settings.school_year || '2026-2027';
           setGlobalSettings({
             school_year: sy,
-            departments: Array.isArray(res.settings.departments) ? res.settings.departments : [],
-            courses: Array.isArray(res.settings.courses) ? res.settings.courses : [],
-            bed_departments: Array.isArray(res.settings.bed_departments) ? res.settings.bed_departments : [],
-            bed_programs: Array.isArray(res.settings.bed_programs) ? res.settings.bed_programs : [],
-            bed_year_levels: Array.isArray(res.settings.bed_year_levels) ? res.settings.bed_year_levels : []
+            departments_hierarchy: Array.isArray(res.settings.departments_hierarchy) ? res.settings.departments_hierarchy : [],
+            bed_hierarchy: Array.isArray(res.settings.bed_hierarchy) ? res.settings.bed_hierarchy : [],
+            college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : []
           });
           // Update default form data if it's currently at the old hardcoded default
           setFormData(prev => ({
@@ -190,6 +186,15 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
       setLoading(false);
     }
   };
+
+  // Computed Arrays based on Hierarchy
+  const collegeDepartments = globalSettings.departments_hierarchy.map((d: any) => d.department) || [];
+  const selectedCollegeDept = globalSettings.departments_hierarchy.find((d: any) => d.department === formData.college_dept);
+  const collegePrograms = selectedCollegeDept ? selectedCollegeDept.programs : [];
+  
+  const bedPrograms = globalSettings.bed_hierarchy.map((b: any) => b.program) || [];
+  const selectedBedProgram = globalSettings.bed_hierarchy.find((b: any) => b.program === formData.course);
+  const bedYearLevels = selectedBedProgram ? selectedBedProgram.year_levels : [];
 
   if (!isOpen) return null;
 
@@ -356,10 +361,19 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className={labelClass}>College / Dept <span className="text-red-500">*</span></label>
-                          <select name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass}>
+                          <select name="college_dept" value={formData.college_dept} onChange={(e) => setFormData({...formData, college_dept: e.target.value, course: ''})} className={inputClass}>
                             <option value="">Select Department</option>
-                            {globalSettings.departments.map((dept: string, idx: number) => (
+                            {collegeDepartments.map((dept: string, idx: number) => (
                               <option key={idx} value={dept}>{dept}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Course/Program</label>
+                          <select name="course" value={formData.course} onChange={handleChange} className={inputClass} disabled={!formData.college_dept}>
+                            <option value="">Select Course/Program</option>
+                            {collegePrograms.map((course: string, idx: number) => (
+                              <option key={idx} value={course}>{course}</option>
                             ))}
                           </select>
                         </div>
@@ -367,19 +381,8 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
                           <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass}>
                             <option value="">Select Year</option>
-                            <option value="1st Year">1st Year</option>
-                            <option value="2nd Year">2nd Year</option>
-                            <option value="3rd Year">3rd Year</option>
-                            <option value="4th Year">4th Year</option>
-                            <option value="5th Year">5th Year</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className={labelClass}>Course/Program</label>
-                          <select name="course" value={formData.course} onChange={handleChange} className={inputClass}>
-                            <option value="">Select Course/Program</option>
-                            {globalSettings.courses.map((course: string, idx: number) => (
-                              <option key={idx} value={course}>{course}</option>
+                            {globalSettings.college_year_levels.map((yr: string, idx: number) => (
+                              <option key={idx} value={yr}>{yr}</option>
                             ))}
                           </select>
                         </div>
@@ -387,19 +390,14 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <label className={labelClass}>College / Dept. <span className="text-red-500">*</span></label>
-                          <select name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass}>
-                            <option value="">Select Department</option>
-                            {globalSettings.bed_departments.map((dept: string, idx: number) => (
-                              <option key={idx} value={dept}>{dept}</option>
-                            ))}
-                          </select>
+                          <label className={labelClass}>Department <span className="text-red-500">*</span></label>
+                          <input type="text" value="Basic Education" readOnly className={`${inputClass} bg-slate-100 text-slate-500 cursor-not-allowed`} />
                         </div>
                         <div>
                           <label className={labelClass}>Program <span className="text-red-500">*</span></label>
-                          <select name="course" value={formData.course} onChange={handleChange} className={inputClass}>
+                          <select name="course" value={formData.course} onChange={(e) => setFormData({...formData, course: e.target.value, year_level: ''})} className={inputClass}>
                             <option value="">Select Program</option>
-                            {globalSettings.bed_programs.map((prog: string, idx: number) => (
+                            {bedPrograms.map((prog: string, idx: number) => (
                               <option key={idx} value={prog}>{prog}</option>
                             ))}
                           </select>
@@ -408,7 +406,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
                           <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass} disabled={!formData.course}>
                             <option value="">Select Year Level</option>
-                            {globalSettings.bed_year_levels.map((yr: string, idx: number) => (
+                            {bedYearLevels.map((yr: string, idx: number) => (
                               <option key={idx} value={yr}>{yr}</option>
                             ))}
                           </select>
@@ -421,7 +419,13 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                   <div className="animate-in fade-in duration-300">
                     <div>
                       <label className={labelClass}>Department / Office <span className="text-red-500">*</span></label>
-                      <input type="text" name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass} placeholder="e.g. Faculty, HR Office" />
+                      <select name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass}>
+                        <option value="">Select Department</option>
+                        {collegeDepartments.map((dept: string, idx: number) => (
+                          <option key={idx} value={dept}>{dept}</option>
+                        ))}
+                        <option value="Basic Education">Basic Education</option>
+                      </select>
                     </div>
                   </div>
                 )}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiDownload, FiCalendar, FiFilter, FiFileText, FiActivity, FiUsers, FiTrendingUp } from 'react-icons/fi';
+import { FiDownload, FiCalendar, FiFilter, FiFileText, FiActivity, FiUsers, FiTrendingUp, FiX } from 'react-icons/fi';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -28,9 +28,23 @@ const Reports: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('All Branches');
   
+  // New Filters
+  const [department, setDepartment] = useState('All Departments');
+  const [program, setProgram] = useState('All Programs');
+  const [yearLevel, setYearLevel] = useState('All Year Levels');
+  
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [userRole, setUserRole] = useState('');
+  
+  const [globalSettings, setGlobalSettings] = useState<any>({ 
+    departments_hierarchy: [],
+    bed_hierarchy: [],
+    college_year_levels: []
+  });
+  
+  // Modal State
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Default to today and first day of month
   useEffect(() => {
@@ -52,11 +66,26 @@ const Reports: React.FC = () => {
     setStartDate(formatDate(firstDay));
   }, []);
 
+  // Fetch settings on mount
+  useEffect(() => {
+    apiFetch('/api/index.php?route=settings&action=get')
+      .then(res => {
+        if (res.settings) {
+          setGlobalSettings({
+            departments_hierarchy: Array.isArray(res.settings.departments_hierarchy) ? res.settings.departments_hierarchy : [],
+            bed_hierarchy: Array.isArray(res.settings.bed_hierarchy) ? res.settings.bed_hierarchy : [],
+            college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : []
+          });
+        }
+      })
+      .catch(() => console.error("Failed to fetch settings"));
+  }, []);
+
   const fetchReport = async () => {
     if (!startDate || !endDate) return;
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/index.php?route=reports&action=generate&start_date=${startDate}&end_date=${endDate}&branch=${encodeURIComponent(selectedBranch)}`);
+      const res = await apiFetch(`/api/index.php?route=reports&action=generate&start_date=${startDate}&end_date=${endDate}&branch=${encodeURIComponent(selectedBranch)}&department=${encodeURIComponent(department)}&program=${encodeURIComponent(program)}&year_level=${encodeURIComponent(yearLevel)}`);
       setData(res);
       setUserRole(res.user_role);
       
@@ -73,14 +102,17 @@ const Reports: React.FC = () => {
     if (startDate && endDate) {
       fetchReport();
     }
-  }, [startDate, endDate, selectedBranch]);
+  }, [startDate, endDate, selectedBranch, department, program, yearLevel]);
 
-  const handleExportCSV = () => {
+  const handleExportClick = () => {
     if (!data || !data.export_data || data.export_data.length === 0) {
-      alert("No data available to export for this date range.");
+      alert("No data available to export for this date range and filters.");
       return;
     }
+    setShowExportModal(true);
+  };
 
+  const confirmExportCSV = () => {
     const exportData = data.export_data;
     const headers = Object.keys(exportData[0]).join(',');
     const rows = exportData.map((row: any) => {
@@ -104,6 +136,7 @@ const Reports: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setShowExportModal(false);
   };
 
   // Chart Data Preparation
@@ -140,15 +173,49 @@ const Reports: React.FC = () => {
     };
   };
 
+  // Computed Arrays for Filters
+  const allDepartments = [
+    ...(globalSettings.departments_hierarchy.map((d: any) => d.department)),
+    "Basic Education"
+  ];
+  
+  let dynamicPrograms: string[] = [];
+  let dynamicYearLevels: string[] = [];
+
+  if (department === 'Basic Education') {
+    dynamicPrograms = globalSettings.bed_hierarchy.map((b: any) => b.program);
+    if (program && program !== 'All Programs') {
+      const selectedBedProgram = globalSettings.bed_hierarchy.find((b: any) => b.program === program);
+      if (selectedBedProgram) {
+        dynamicYearLevels = selectedBedProgram.year_levels;
+      }
+    }
+  } else if (department !== 'All Departments') {
+    const selectedCollegeDept = globalSettings.departments_hierarchy.find((d: any) => d.department === department);
+    if (selectedCollegeDept) {
+      dynamicPrograms = selectedCollegeDept.programs;
+    }
+    dynamicYearLevels = globalSettings.college_year_levels;
+  }
+
   return (
     <div className="p-8 w-full max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div>
-          <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-2">Reports & Analytics</h1>
-          <p className="text-slate-500 text-sm font-medium">Generate specific date-range reports and visualize clinic data</p>
+      <div className="mb-8 flex flex-col justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <div className="flex justify-between items-start w-full mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-2">Reports & Analytics</h1>
+            <p className="text-slate-500 text-sm font-medium">Generate specific date-range reports and visualize clinic data</p>
+          </div>
+          <button 
+            onClick={handleExportClick}
+            className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 h-11 rounded-lg text-sm font-bold tracking-wide flex items-center gap-2 transition-colors shadow-md"
+          >
+            <FiDownload className="w-4 h-4" /> Export CSV
+          </button>
         </div>
         
+        {/* Filters */}
         <div className="flex gap-4 items-center flex-wrap">
           <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
             <span className="px-3 text-slate-400 flex items-center">
@@ -171,9 +238,6 @@ const Reports: React.FC = () => {
 
           {(userRole === 'Superadmin') && (
             <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-              <span className="px-3 text-slate-400 flex items-center">
-                <FiFilter />
-              </span>
               <select 
                 value={selectedBranch}
                 onChange={(e) => setSelectedBranch(e.target.value)}
@@ -187,12 +251,48 @@ const Reports: React.FC = () => {
             </div>
           )}
 
-          <button 
-            onClick={handleExportCSV}
-            className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 h-11 rounded-lg text-sm font-bold tracking-wide flex items-center gap-2 transition-colors shadow-md"
-          >
-            <FiDownload className="w-4 h-4" /> Export CSV
-          </button>
+          {/* New Filters */}
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <span className="px-3 text-slate-400 flex items-center">
+              <FiFilter />
+            </span>
+            <select 
+              value={department}
+              onChange={(e) => { setDepartment(e.target.value); setProgram('All Programs'); setYearLevel('All Year Levels'); }}
+              className="px-3 py-2 text-sm outline-none text-slate-700 bg-transparent"
+            >
+              <option value="All Departments">All Departments</option>
+              {allDepartments.map((dept: string, idx: number) => (
+                <option key={idx} value={dept}>{dept}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <select 
+              value={program}
+              onChange={(e) => { setProgram(e.target.value); setYearLevel('All Year Levels'); }}
+              className="px-3 py-2 text-sm outline-none text-slate-700 bg-transparent"
+            >
+              <option value="All Programs">All Programs</option>
+              {dynamicPrograms.map((prog: string, idx: number) => (
+                <option key={idx} value={prog}>{prog}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <select 
+              value={yearLevel}
+              onChange={(e) => setYearLevel(e.target.value)}
+              className="px-3 py-2 text-sm outline-none text-slate-700 bg-transparent pr-4"
+            >
+              <option value="All Year Levels">All Year Levels</option>
+              {dynamicYearLevels.map((yr: string, idx: number) => (
+                <option key={idx} value={yr}>{yr}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -306,23 +406,23 @@ const Reports: React.FC = () => {
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm lg:col-span-1">
               <h3 className="text-base font-bold text-slate-800 mb-6 flex items-center gap-2">
                 <div className="w-2 h-6 bg-emerald-500 rounded-full"></div>
-                Top Medicines Dispensed
+                Medicines Dispensed Log
               </h3>
               {data.medicines_dispensed.length === 0 ? (
                 <div className="text-slate-400 text-sm py-4 text-center">No medicines dispensed.</div>
               ) : (
                 <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                   {data.medicines_dispensed.map((m: any, i: number) => (
-                    <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-white hover:shadow-sm transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-white text-slate-400 flex items-center justify-center text-xs font-bold shadow-sm">
-                          {i + 1}
-                        </div>
+                    <div key={i} className="flex flex-col p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-white hover:shadow-sm transition-all">
+                      <div className="flex justify-between items-center mb-1">
                         <span className="text-slate-700 font-semibold text-sm">{m.medicine}</span>
+                        <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md text-xs">
+                          {m.count} qty
+                        </span>
                       </div>
-                      <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full text-sm">
-                        {m.count}
-                      </span>
+                      <div className="text-xs text-slate-500">
+                        Patient: <span className="font-medium text-slate-700">{m.patient}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -381,7 +481,7 @@ const Reports: React.FC = () => {
                   </table>
                   {data.export_data.length > 8 && (
                     <div className="text-center pt-4 pb-2 border-t border-slate-50">
-                      <button onClick={handleExportCSV} className="text-sm font-semibold text-[#A5192D] hover:underline">
+                      <button onClick={handleExportClick} className="text-sm font-semibold text-[#A5192D] hover:underline">
                         Export CSV to see all {data.export_data.length} records
                       </button>
                     </div>
@@ -391,6 +491,69 @@ const Reports: React.FC = () => {
             </div>
           </div>
           
+        </div>
+      )}
+
+      {/* Export Confirmation Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full m-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-800">Confirm Export</h2>
+              <button 
+                onClick={() => setShowExportModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <FiX />
+              </button>
+            </div>
+            
+            <p className="text-sm text-slate-500 mb-6">
+              You are about to download a CSV file of the logbook with the following filters applied:
+            </p>
+            
+            <div className="bg-slate-50 rounded-xl p-5 mb-8 space-y-3 border border-slate-100">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Date Range:</span>
+                <span className="font-semibold text-slate-700">{startDate} to {endDate}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Branch:</span>
+                <span className="font-semibold text-slate-700">{selectedBranch}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Department:</span>
+                <span className="font-semibold text-slate-700">{department}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Program:</span>
+                <span className="font-semibold text-slate-700">{program}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Year Level:</span>
+                <span className="font-semibold text-slate-700">{yearLevel}</span>
+              </div>
+              <div className="pt-3 mt-3 border-t border-slate-200 flex justify-between text-sm">
+                <span className="text-slate-500 font-medium">Total Records:</span>
+                <span className="font-bold text-[#A5192D]">{data?.export_data?.length || 0}</span>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 justify-end">
+              <button 
+                onClick={() => setShowExportModal(false)}
+                className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmExportCSV}
+                className="px-5 py-2.5 text-sm font-bold text-white bg-[#A5192D] hover:bg-[#8a1425] rounded-lg transition-colors flex items-center gap-2 shadow-sm"
+              >
+                <FiDownload /> Download CSV
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

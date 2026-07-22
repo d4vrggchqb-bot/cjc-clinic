@@ -143,7 +143,7 @@ class InventoryController {
                 $updateStmt->execute(['stock' => $newStock, 'stock2' => $newStock, 'id' => $batch['id']]);
                 
                 // Log deduction
-                $logStmt = $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, processed_by) VALUES (?, 'dispense', ?, ?, ?)");
+                $logStmt = $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'dispense', ?, ?, NULL, ?)");
                 $logStmt->execute([$batch['id'], -$consumed, $disposedTo, $_SESSION['cjc_user']['id']]);
                 
                 $remainingToDispense -= $consumed;

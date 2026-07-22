@@ -106,9 +106,11 @@ CREATE TABLE IF NOT EXISTS `inventory_logs` (
   `action_type` ENUM('restock', 'dispense', 'dispose', 'adjust') NOT NULL,
   `quantity_changed` INT NOT NULL,
   `disposed_to` VARCHAR(255) DEFAULT NULL,
+  `profile_id` INT DEFAULT NULL,
   `processed_by` INT DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`batch_id`) REFERENCES `inventory_batches`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE SET NULL,
   FOREIGN KEY (`processed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
 );
 
@@ -166,6 +168,12 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `status` ENUM('Scheduled', 'Completed', 'Cancelled', 'No-Show') DEFAULT 'Scheduled',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
+);
+
+-- 9. Settings Table
+CREATE TABLE IF NOT EXISTS `settings` (
+  `setting_key` VARCHAR(50) PRIMARY KEY,
+  `setting_value` TEXT NOT NULL
 );
 
 #php -S localhost:8000 -t backend/public

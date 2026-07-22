@@ -275,10 +275,11 @@ class ConsultationController {
             $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
             if (!empty($dispensedItems)) {
                 // Get patient name for disposed_to
-                $pStmt = $pdo->prepare("SELECT p.first_name, p.last_name FROM profiles p JOIN consultations c ON p.id = c.profile_id WHERE c.id = ?");
+                $pStmt = $pdo->prepare("SELECT p.id, p.first_name, p.last_name FROM profiles p JOIN consultations c ON p.id = c.profile_id WHERE c.id = ?");
                 $pStmt->execute([$id]);
                 $patient = $pStmt->fetch();
                 $disposedTo = $patient ? ($patient['first_name'] . ' ' . $patient['last_name']) : 'Patient';
+                $profileId = $patient ? $patient['id'] : null;
 
                 foreach ($dispensedItems as $dItem) {
                     $itemId = (int)$dItem['item_id'];
@@ -305,8 +306,8 @@ class ConsultationController {
                         $uStmt = $pdo->prepare("UPDATE inventory_batches SET stock_remaining = ?, status = IF(?=0, 'depleted', 'active') WHERE id = ?");
                         $uStmt->execute([$newStock, $newStock, $batch['id']]);
 
-                        $lStmt = $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, processed_by) VALUES (?, 'dispense', ?, ?, ?)");
-                        $lStmt->execute([$batch['id'], -$consumed, $disposedTo, $_SESSION['cjc_user']['id']]);
+                        $lStmt = $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'dispense', ?, ?, ?, ?)");
+                        $lStmt->execute([$batch['id'], -$consumed, $disposedTo, $profileId, $_SESSION['cjc_user']['id']]);
 
                         $remQty -= $consumed;
                     }

@@ -51,11 +51,11 @@ class SettingsController {
 
         try {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (:key, :val) ON DUPLICATE KEY UPDATE setting_value = :val");
+            $stmt = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (:key, :val) ON DUPLICATE KEY UPDATE setting_value = :val2");
             
             foreach ($input as $key => $val) {
                 $valueToStore = is_array($val) ? json_encode($val) : (string)$val;
-                $stmt->execute(['key' => $key, 'val' => $valueToStore]);
+                $stmt->execute(['key' => $key, 'val' => $valueToStore, 'val2' => $valueToStore]);
             }
             
             $pdo->commit();
