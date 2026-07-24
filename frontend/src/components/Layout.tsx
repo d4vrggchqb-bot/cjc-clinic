@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText, FiChevronLeft, FiChevronRight, FiCalendar } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
 
@@ -35,7 +35,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
     { id: 'consultation', label: 'CONSULTATION', icon: FiActivity },
     { id: 'appointments', label: 'APPOINTMENTS', icon: FiClock },
     { id: 'inventory', label: 'INVENTORY', icon: FiBox },
-    { id: 'borrowings', label: 'EQUIPMENT BOOKING', icon: FiFileText },
+    { id: 'borrowings', label: 'EQUIPMENT BOOKING', icon: FiCalendar },
     { id: 'reports', label: 'REPORTS', icon: FiFileText }
   ];
 

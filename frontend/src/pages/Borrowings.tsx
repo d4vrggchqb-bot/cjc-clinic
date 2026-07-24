@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import toast from 'react-hot-toast';
-import { FiCheckCircle, FiPackage, FiUser, FiPlus, FiBox } from 'react-icons/fi';
+import { FiCheckCircle, FiPackage, FiUser, FiPlus, FiBox, FiBriefcase, FiSearch } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
 const Borrowings: React.FC = () => {
@@ -150,8 +150,10 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState('');
   const [purpose, setPurpose] = useState('');
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
   const [selectedItems, setSelectedItems] = useState<{item_id: number, quantity: number, type: string}[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [catalogSearchTerm, setCatalogSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredProfiles, setFilteredProfiles] = useState<any[]>([]);
 
@@ -203,11 +205,38 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
       });
       return;
     }
-    setSelectedItems([...selectedItems, {
+    setSelectedItems(prev => [...prev, {
       item_id: item.id,
       quantity: 1,
       type: item.category === 'equipment' ? 'equipment' : 'supply'
     }]);
+  };
+
+  const handleQuickAddMedicalKit = () => {
+    // Defines common keywords for items that would belong in a Medical Kit
+    const medKitKeywords = ['alcohol', 'betadine', 'cotton', 'bandage', 'thermometer', 'first aid', 'kit'];
+    const itemsToAdd: any[] = [];
+    
+    inventory.forEach(item => {
+      const name = (item.generic_name + ' ' + item.brand_name).toLowerCase();
+      if (medKitKeywords.some(kw => name.includes(kw)) && item.total_stock > 0) {
+        if (!selectedItems.some(i => i.item_id === item.id) && !itemsToAdd.some(i => i.item_id === item.id)) {
+           itemsToAdd.push({
+             item_id: item.id,
+             quantity: 1,
+             type: item.category === 'equipment' ? 'equipment' : 'supply'
+           });
+        }
+      }
+    });
+
+    if (itemsToAdd.length > 0) {
+      setSelectedItems(prev => [...prev, ...itemsToAdd]);
+      toast.success(`Added ${itemsToAdd.length} Medical Kit items to cart!`);
+      if (!purpose) setPurpose('Intramurals / Sports Event');
+    } else {
+      toast.error('No available Medical Kit items found in inventory.');
+    }
   };
 
   const handleRemoveItem = (id: number) => {
@@ -250,6 +279,7 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
         body: JSON.stringify({
           profile_id: selectedProfile,
           purpose,
+          expected_return_date: expectedReturnDate || null,
           items: selectedItems.map(i => ({
             inventory_item_id: i.item_id,
             quantity: i.quantity,
@@ -316,30 +346,80 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose of Borrowing</label>
-              <input
-                type="text"
-                placeholder="e.g. Intramurals, First Aid, Class Demo"
-                required
-                className="w-full border border-slate-300 p-2.5 rounded-md focus:outline-none focus:border-[#A5192D] transition-colors"
-                value={purpose}
-                onChange={e => setPurpose(e.target.value)}
-              />
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose of Borrowing</label>
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. Intramurals, First Aid, Class Demo"
+                    required
+                    className="w-full border border-slate-300 p-2.5 rounded-md focus:outline-none focus:border-[#A5192D] transition-colors"
+                    value={purpose}
+                    onChange={e => setPurpose(e.target.value)}
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Intramurals', 'Field Trip', 'Class Activity', 'PE Class'].map(preset => (
+                      <button 
+                        key={preset} type="button" 
+                        onClick={() => setPurpose(preset)} 
+                        className={`text-[10px] px-2 py-1 rounded-md border font-bold transition-colors ${purpose === preset ? 'bg-[#A5192D] text-white border-[#A5192D]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Expected Return Date</label>
+                <input
+                  type="datetime-local"
+                  className="w-full border border-slate-300 p-2.5 rounded-md focus:outline-none focus:border-[#A5192D] transition-colors text-sm"
+                  value={expectedReturnDate}
+                  onChange={e => setExpectedReturnDate(e.target.value)}
+                />
+              </div>
             </div>
           </div>
         </section>
 
         {/* Section 2: Equipment Selection */}
         <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">2. Equipment & Supplies</h2>
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 border-b pb-2 gap-4">
+            <h2 className="text-xl font-bold text-slate-800">2. Equipment & Supplies</h2>
+            <button
+              type="button"
+              onClick={handleQuickAddMedicalKit}
+              className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-sm"
+            >
+              <FiBriefcase className="w-4 h-4" />
+              + Quick Add Medical Kit
+            </button>
+          </div>
           
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Catalog list */}
-            <div className="lg:w-1/2">
+            <div className="lg:w-1/2 flex flex-col">
               <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Available Catalog</h3>
-              <div className="border border-slate-200 rounded-md h-[300px] overflow-y-auto">
-                {inventory.map(item => {
+              <div className="mb-3 relative">
+                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="text"
+                  placeholder="Search available items..."
+                  className="w-full border border-slate-300 pl-9 p-2 rounded-md focus:outline-none focus:border-[#A5192D] transition-colors text-sm"
+                  value={catalogSearchTerm}
+                  onChange={e => setCatalogSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="border border-slate-200 rounded-md h-[300px] overflow-y-auto flex-1">
+                {inventory
+                  .filter(item => {
+                    if (!catalogSearchTerm) return true;
+                    const matchStr = `${item.generic_name} ${item.brand_name} ${item.category}`.toLowerCase();
+                    return matchStr.includes(catalogSearchTerm.toLowerCase());
+                  })
+                  .map(item => {
                   const isSelected = selectedItems.some(i => i.item_id === item.id);
                   const isOutOfStock = Number(item.total_stock) <= 0;
                   return (

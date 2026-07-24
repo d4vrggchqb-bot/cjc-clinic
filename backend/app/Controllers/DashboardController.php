@@ -77,11 +77,17 @@ class DashboardController {
 
         $colleges = [];
         try {
-            $stmt = $pdo->query("SELECT setting_value FROM settings WHERE setting_key IN ('departments', 'bed_departments')");
+            $stmt = $pdo->query("SELECT setting_value FROM settings WHERE setting_key IN ('departments_hierarchy', 'bed_hierarchy')");
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $values = json_decode($row['setting_value'], true);
                 if (is_array($values)) {
-                    $colleges = array_merge($colleges, $values);
+                    foreach ($values as $item) {
+                        if (isset($item['department'])) {
+                            $colleges[] = $item['department'];
+                        } elseif (isset($item['program'])) {
+                            $colleges[] = $item['program'];
+                        }
+                    }
                 }
             }
         } catch (Exception $e) {

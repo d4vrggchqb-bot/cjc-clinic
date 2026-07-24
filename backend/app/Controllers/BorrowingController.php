@@ -12,6 +12,7 @@ class BorrowingController {
         
         $profileId = $input['profile_id'] ?? null;
         $purpose = $input['purpose'] ?? '';
+        $expectedReturnDate = !empty($input['expected_return_date']) ? $input['expected_return_date'] : null;
         $items = $input['items'] ?? []; // Array of ['inventory_item_id', 'quantity', 'item_type', 'branch']
         
         if (!$profileId || empty($items)) {
@@ -23,8 +24,8 @@ class BorrowingController {
             $pdo->beginTransaction();
             
             // 1. Create the main borrowing record
-            $stmt = $pdo->prepare("INSERT INTO borrowings (profile_id, purpose, status) VALUES (?, ?, 'active')");
-            $stmt->execute([$profileId, $purpose]);
+            $stmt = $pdo->prepare("INSERT INTO borrowings (profile_id, purpose, expected_return_date, status) VALUES (?, ?, ?, 'active')");
+            $stmt->execute([$profileId, $purpose, $expectedReturnDate]);
             $borrowingId = $pdo->lastInsertId();
             
             // 2. Process each item
@@ -96,7 +97,7 @@ class BorrowingController {
         
         $pdo = cjcDatabaseConnection();
         $stmt = $pdo->prepare("
-            SELECT b.id, b.purpose, b.status, b.created_at, b.returned_at,
+            SELECT b.id, b.purpose, b.expected_return_date, b.status, b.created_at, b.returned_at,
                    bi.id as item_id, bi.quantity, bi.item_type, bi.status as item_status,
                    i.generic_name, i.brand_name
             FROM borrowings b
@@ -115,6 +116,7 @@ class BorrowingController {
                 $borrowings[$bId] = [
                     'id' => $bId,
                     'purpose' => $row['purpose'],
+                    'expected_return_date' => $row['expected_return_date'],
                     'status' => $row['status'],
                     'created_at' => $row['created_at'],
                     'returned_at' => $row['returned_at'],
@@ -140,7 +142,7 @@ class BorrowingController {
         $pdo = cjcDatabaseConnection();
         $stmt = $pdo->query("
             SELECT bi.id as borrowed_item_id, bi.quantity, b.created_at as item_created,
-                   b.id as borrowing_id, b.purpose, b.created_at,
+                   b.id as borrowing_id, b.purpose, b.expected_return_date, b.created_at,
                    p.first_name, p.last_name, p.course, p.year_level, p.profile_type,
                    i.generic_name, i.brand_name, i.id as inventory_item_id
             FROM borrowed_items bi
