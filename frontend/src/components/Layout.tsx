@@ -35,6 +35,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
     { id: 'consultation', label: 'CONSULTATION', icon: FiActivity },
     { id: 'appointments', label: 'APPOINTMENTS', icon: FiClock },
     { id: 'inventory', label: 'INVENTORY', icon: FiBox },
+    { id: 'borrowings', label: 'EQUIPMENT BOOKING', icon: FiFileText },
     { id: 'reports', label: 'REPORTS', icon: FiFileText }
   ];
 
@@ -94,13 +95,13 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                 key={item.id}
                 onClick={() => navigate(`/${item.id}`)}
                 title={isCollapsed ? item.label : ''}
-                className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-3.5 px-4'} py-3 rounded-md transition-all duration-200 border ${
+                className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-3.5 px-4'} py-3 rounded-xl transition-all duration-300 ${
                   isActive 
-                    ? 'bg-white border-white text-[#9B101E] font-bold shadow-md' 
-                    : 'bg-[#AB1A2A] border-[#C32C3E] text-white hover:bg-[#B71F30] font-semibold text-opacity-90 hover:text-opacity-100'
+                    ? 'bg-white/10 border border-white/20 text-white font-bold shadow-[0_4px_12px_rgba(0,0,0,0.1)] backdrop-blur-sm' 
+                    : 'bg-transparent border border-transparent text-white hover:bg-white/10 hover:text-white font-medium'
                 }`}
               >
-                <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-[#9B101E]' : 'text-white/80'}`} strokeWidth={isActive ? 3 : 2.5} />
+                <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-white/90'}`} strokeWidth={isActive ? 3 : 2.5} />
                 {!isCollapsed && <span className="text-[0.8rem] tracking-wider whitespace-nowrap">{item.label}</span>}
               </button>
             );
@@ -111,10 +112,10 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           <button
             onClick={() => navigate('/settings')}
             title={isCollapsed ? 'Settings' : ''}
-            className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-2.5 px-4'} w-full py-2.5 mb-2 text-[0.8rem] rounded-md transition-colors uppercase tracking-wider font-semibold ${
+            className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-2.5 px-4'} w-full py-2.5 mb-2 text-[0.8rem] rounded-xl transition-all duration-300 uppercase tracking-wider font-semibold ${
               page === 'settings' 
-                ? 'bg-white text-[#9B101E] shadow-sm' 
-                : 'text-[#9B101E] bg-white/90 hover:bg-white hover:shadow-sm'
+                ? 'bg-white/10 border border-white/20 text-white shadow-[0_4px_12px_rgba(0,0,0,0.1)] backdrop-blur-sm' 
+                : 'text-white bg-transparent border border-transparent hover:bg-white/10 hover:text-white'
             }`}
           >
             <FiSettings className="w-5 h-5" strokeWidth={2.5} />
@@ -123,17 +124,18 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           <button 
             onClick={handleLogout} 
             title={isCollapsed ? 'Sign Out' : ''}
-            className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-2.5 px-4'} justify-center w-full py-3 text-[0.8rem] text-white/80 hover:text-white hover:bg-black/10 rounded-md transition-colors uppercase tracking-wider font-semibold`}
+            className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-2.5 px-4'} w-full py-2.5 text-[0.8rem] text-white hover:text-white hover:bg-black/20 rounded-xl transition-all duration-300 uppercase tracking-wider font-semibold`}
           >
-            <FiLogOut className="w-5 h-5 opacity-80" strokeWidth={2.5} />
+            <FiLogOut className="w-5 h-5 opacity-90" strokeWidth={2.5} />
             {!isCollapsed && <span>Sign Out</span>}
           </button>
         </div>
       </aside>
       
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden relative">
-        <div className="absolute inset-0 bg-[#F4F6F8] -z-10"></div>
+      <main className="flex-1 flex flex-col overflow-hidden relative bg-[#f8fafc]">
+        {/* Subtle decorative background gradient */}
+        <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-slate-100 to-transparent -z-10"></div>
         <div className="flex-1 overflow-auto">
           {children}
         </div>

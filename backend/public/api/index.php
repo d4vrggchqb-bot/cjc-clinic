@@ -160,6 +160,22 @@ switch ($route) {
             $controller->generateReport();
         }
         break;
+
+    case 'borrowings':
+        require_once __DIR__ . '/../../app/Controllers/BorrowingController.php';
+        $controller = new BorrowingController();
+        if ($action === 'submit') {
+            $controller->submitForm();
+        } elseif ($action === 'profile_history') {
+            $controller->getProfileBorrowings();
+        } elseif ($action === 'checked_out') {
+            $controller->getCheckedOutEquipment();
+        } elseif ($action === 'recent_history') {
+            $controller->getRecentHistory();
+        } elseif ($action === 'return_item') {
+            $controller->returnEquipment();
+        }
+        break;
 }
 
 // Fallback 404

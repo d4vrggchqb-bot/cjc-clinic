@@ -228,6 +228,36 @@ class DashboardController {
             $lowStockItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {}
 
+        $currentlyCheckedOut = 0;
+        try {
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*) FROM borrowed_items bi 
+                JOIN borrowings b ON bi.borrowing_id = b.id 
+                WHERE bi.status = 'borrowed' AND bi.item_type = 'equipment' 
+                -- We can't strictly filter branch here unless borrowings table has clinic_branch, 
+                -- but we will assume global or if branch exists we can add it later.
+            ");
+            $stmt->execute();
+            $currentlyCheckedOut = (int)$stmt->fetchColumn();
+        } catch (PDOException $e) {}
+
+        $recentBorrowings = [];
+        try {
+            $stmt = $pdo->prepare("
+                SELECT b.id, b.purpose, b.created_at, p.id as profile_id, p.first_name, p.last_name, p.profile_type,
+                       GROUP_CONCAT(i.generic_name SEPARATOR ', ') as items
+                FROM borrowings b
+                JOIN profiles p ON b.profile_id = p.id
+                JOIN borrowed_items bi ON bi.borrowing_id = b.id
+                JOIN inventory_items i ON bi.inventory_item_id = i.id
+                GROUP BY b.id
+                ORDER BY b.created_at DESC
+                LIMIT 5
+            ");
+            $stmt->execute();
+            $recentBorrowings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {}
+
         $this->jsonResponse([
             'user_role' => $userRole,
             'current_branch' => $branch,
@@ -241,7 +271,9 @@ class DashboardController {
             'visit_trends' => $visitTrends,
             'top_dispensed' => $topDispensed,
             'expiring_items' => $expiringItems,
-            'low_stock_items' => $lowStockItems
+            'low_stock_items' => $lowStockItems,
+            'currently_checked_out' => $currentlyCheckedOut,
+            'recent_borrowings' => $recentBorrowings
         ]);
     }
 

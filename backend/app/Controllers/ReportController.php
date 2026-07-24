@@ -148,6 +148,59 @@ class ReportController {
             $exportData = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) { error_log('Reports Export Error: ' . $e->getMessage()); }
 
+        // 5. Equipment Borrowings Stats
+        $equipmentBorrowings = [];
+        try {
+            $sql = "
+                SELECT i.generic_name, COUNT(bi.id) as cnt
+                FROM borrowed_items bi
+                JOIN borrowings b ON bi.borrowing_id = b.id
+                JOIN inventory_items i ON bi.inventory_item_id = i.id
+                LEFT JOIN profiles p ON b.profile_id = p.id
+                WHERE b.created_at BETWEEN :start_date AND :end_date
+                AND bi.item_type = 'equipment'
+                $profileConditions
+                GROUP BY i.generic_name
+                ORDER BY cnt DESC
+                LIMIT 10
+            ";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($branchParams);
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $equipmentBorrowings[] = [
+                    'equipment' => $row['generic_name'],
+                    'count' => (int)$row['cnt']
+                ];
+            }
+        } catch (PDOException $e) { error_log('Reports Equipment Error: ' . $e->getMessage()); }
+
+        // 6. Borrowing Export Data
+        $borrowingExportData = [];
+        try {
+            $sql = "
+                SELECT 
+                    b.created_at as Date,
+                    p.patient_id_number as ID_Number,
+                    CONCAT(p.first_name, ' ', p.last_name) as Patient_Name,
+                    p.profile_type as Type,
+                    b.purpose as Purpose,
+                    i.generic_name as Item_Name,
+                    bi.item_type as Item_Type,
+                    bi.quantity as Quantity,
+                    bi.status as Status
+                FROM borrowings b
+                JOIN borrowed_items bi ON bi.borrowing_id = b.id
+                JOIN inventory_items i ON bi.inventory_item_id = i.id
+                LEFT JOIN profiles p ON b.profile_id = p.id
+                WHERE b.created_at BETWEEN :start_date AND :end_date
+                $profileConditions
+                ORDER BY b.created_at DESC
+            ";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($branchParams);
+            $borrowingExportData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) { error_log('Reports Borrowing Export Error: ' . $e->getMessage()); }
+
         $this->jsonResponse([
             'user_role' => $userRole,
             'current_branch' => $branch,
@@ -159,7 +212,9 @@ class ReportController {
             'visits_by_type' => $visitsByType,
             'top_diagnoses' => $topDiagnoses,
             'medicines_dispensed' => $medicinesDispensed,
-            'export_data' => $exportData
+            'equipment_borrowings' => $equipmentBorrowings,
+            'export_data' => $exportData,
+            'borrowing_export_data' => $borrowingExportData
         ]);
     }
 }

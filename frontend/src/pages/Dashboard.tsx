@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiPlus, FiPrinter, FiSearch, FiX } from 'react-icons/fi';
+import { FiPlus, FiPrinter, FiSearch, FiX, FiPieChart } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { apiFetch } from '../utils/api';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend, LineChart, Line
 } from 'recharts';
+import PatientViewModal from '../components/PatientViewModal';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -24,7 +25,9 @@ const Dashboard: React.FC = () => {
     visitTrends: [] as {date: string, visits: number}[],
     topDispensed: [] as {name: string, count: number}[],
     expiringItems: [] as any[],
-    lowStockItems: [] as any[]
+    lowStockItems: [] as any[],
+    currentlyCheckedOut: 0,
+    recentBorrowings: [] as any[]
   });
 
   // Quick Admit State
@@ -57,6 +60,10 @@ const Dashboard: React.FC = () => {
   const [selectedDispensePatient, setSelectedDispensePatient] = useState<any | null>(null);
   const [isGuestDispense, setIsGuestDispense] = useState(false);
   const dispenseSearchRef = React.useRef<HTMLDivElement>(null);
+
+  // Patient Modal State
+  const [showPatientModal, setShowPatientModal] = useState(false);
+  const [viewPatientId, setViewPatientId] = useState<number | null>(null);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#C01D38', '#455A64'];
 
@@ -102,7 +109,9 @@ const Dashboard: React.FC = () => {
             visitTrends: res.visit_trends || [],
             topDispensed: (res.top_dispensed || []).map((i: any) => ({ name: i.generic_name, count: i.cnt })),
             expiringItems: res.expiring_items || [],
-            lowStockItems: res.low_stock_items || []
+            lowStockItems: res.low_stock_items || [],
+            currentlyCheckedOut: res.currently_checked_out || 0,
+            recentBorrowings: res.recent_borrowings || []
           });
         }
       })
@@ -300,10 +309,11 @@ const Dashboard: React.FC = () => {
   };
 
   const MetricCard = ({ title, value, subtext, valueColor }: { title: string, value: number, subtext: string, valueColor: string }) => (
-    <div className="bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-5 flex flex-col items-center justify-center border border-slate-100 flex-1 min-w-[150px]">
-      <h3 className="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">{title}</h3>
-      <div className={`text-3xl font-bold mb-1 ${valueColor}`}>{value}</div>
-      <p className="text-[0.6rem] text-slate-300 text-center">{subtext}</p>
+    <div className="group relative overflow-hidden bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl shadow-slate-200/50 p-6 flex flex-col items-center justify-center border border-white/80 flex-1 min-w-[150px] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:bg-white/90 cursor-default">
+      <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+      <h3 className="text-xs font-extrabold text-slate-600 uppercase tracking-[0.2em] mb-3 text-center z-10">{title}</h3>
+      <div className={`text-4xl font-black tracking-tight mb-2 z-10 ${valueColor}`}>{value}</div>
+      <p className="text-xs text-slate-500 font-semibold text-center z-10">{subtext}</p>
     </div>
   );
 
@@ -329,18 +339,18 @@ const Dashboard: React.FC = () => {
             </select>
           )}
           <button 
-            onClick={() => window.print()}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
-            <FiPrinter className="w-4 h-4" /> Export Report
+            onClick={() => navigate('/reports')}
+            className="bg-white/80 backdrop-blur-sm border border-slate-200/50 hover:bg-white text-slate-700 px-4 py-2.5 rounded-xl text-sm font-semibold tracking-wide flex items-center gap-2 transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5">
+            <FiPieChart className="w-4 h-4" /> Go to Reports
           </button>
           <button 
             onClick={() => setShowQuickAdmit(true)} 
-            className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
+            className="bg-gradient-to-r from-[#C01D38] to-[#9B101E] hover:from-[#A5192D] hover:to-[#7A0D18] text-white px-5 py-2.5 rounded-xl text-sm font-semibold tracking-wide flex items-center gap-2 transition-all duration-300 shadow-[0_4px_14px_rgba(192,29,56,0.39)] hover:shadow-[0_6px_20px_rgba(192,29,56,0.23)] hover:-translate-y-0.5">
             <FiPlus className="w-4 h-4" strokeWidth={3} /> Quick Admit
           </button>
           <button 
             onClick={() => setShowQuickDispense(true)}
-            className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
+            className="bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold tracking-wide flex items-center gap-2 transition-all duration-300 shadow-[0_4px_14px_rgba(51,65,85,0.39)] hover:shadow-[0_6px_20px_rgba(51,65,85,0.23)] hover:-translate-y-0.5">
             Quick Dispense
           </button>
         </div>
@@ -348,16 +358,16 @@ const Dashboard: React.FC = () => {
 
       {/* Alerts Section */}
       {(stats.expiringItems.length > 0 || stats.lowStockItems.length > 0) && (
-        <div className="mb-8 space-y-3">
+        <div className="mb-8 space-y-4">
+          
+          {/* Expiring Items Alert */}
           {stats.expiringItems.length > 0 && (
-            <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 shadow-sm flex items-start gap-3">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-red-500 shrink-0 mt-0.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-orange-500 text-orange-800 p-5 rounded-2xl shadow-lg shadow-orange-100/50 flex items-start gap-3 w-full animate-fade-in backdrop-blur-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
               <div>
                 <h3 className="font-bold text-sm">Expiring Items Alert</h3>
-                <ul className="text-sm mt-1 list-disc list-inside">
-                  {stats.expiringItems.map((item, idx) => (
+                <ul className="text-sm mt-1 list-disc list-inside space-y-1">
+                  {stats.expiringItems.map((item: any, idx: number) => (
                     <li key={idx}>
                       <span className="font-semibold">{item.generic_name}</span> (Batch: {item.batch_number}) expires on <span className="font-semibold">{item.expired_on}</span> at {item.clinic_branch}
                     </li>
@@ -366,11 +376,11 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Low Stock Alert */}
           {stats.lowStockItems.length > 0 && (
-            <div className="bg-orange-50 border border-orange-200 text-orange-800 rounded-lg p-4 shadow-sm flex items-start gap-3">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-orange-500 shrink-0 mt-0.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+            <div className="bg-gradient-to-r from-red-50 to-rose-50 border-l-4 border-[#C01D38] text-rose-800 p-5 rounded-2xl shadow-lg shadow-rose-100/50 flex items-start gap-3 w-full animate-fade-in backdrop-blur-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
               <div>
                 <h3 className="font-bold text-sm">Low Stock Alert</h3>
                 <ul className="text-sm mt-1 list-disc list-inside">
@@ -386,11 +396,11 @@ const Dashboard: React.FC = () => {
 
           {/* AI Predictive Alerts */}
           {predictiveAlerts.length > 0 && (
-            <div className="bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700 p-4 rounded shadow-sm flex items-start gap-3 w-full animate-fade-in relative overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-l-4 border-indigo-500 text-indigo-800 p-5 rounded-2xl shadow-lg shadow-indigo-100/50 flex items-start gap-3 w-full animate-fade-in relative overflow-hidden backdrop-blur-sm">
               <div className="absolute -right-6 -top-6 text-indigo-100 opacity-50 transform rotate-12">
                 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 shrink-0 mt-0.5 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 shrink-0 mt-0.5 relative z-10 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="12" y1="16" x2="12" y2="12"></line>
                 <line x1="12" y1="8" x2="12.01" y2="8"></line>
@@ -403,7 +413,7 @@ const Dashboard: React.FC = () => {
                 <ul className="text-sm mt-1 list-disc list-inside space-y-1">
                   {predictiveAlerts.map((alert, idx) => (
                     <li key={idx}>
-                      <span className="font-semibold">{alert.name}</span> will run out in approx. <span className="font-semibold">{alert.days_remaining} days</span> based on recent dispensing trends.
+                      <span className="font-semibold">{alert.name}</span> will run out in approx. <span className="font-bold text-indigo-600">{alert.days_remaining} days</span> based on recent dispensing trends.
                     </li>
                   ))}
                 </ul>
@@ -445,12 +455,18 @@ const Dashboard: React.FC = () => {
           subtext="Overview of medicine supplies & equipments" 
           valueColor="text-[#455A64]" 
         />
+        <MetricCard 
+          title="CHECKED OUT" 
+          value={stats.currentlyCheckedOut} 
+          subtext="Equipments currently borrowed" 
+          valueColor="text-[#2E7D32]" 
+        />
       </div>
 
       {/* Visit Trends Line Chart */}
-      <div className="mb-6 bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-6 border border-slate-100 flex flex-col h-80">
-        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Weekly Visit Trends</h3>
-        <p className="text-xs text-slate-400 mb-6">Patient visits over the last 7 days</p>
+      <div className="mb-6 bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl shadow-slate-200/50 p-6 border border-white/80 flex flex-col h-80">
+        <h3 className="text-sm font-extrabold text-slate-600 uppercase tracking-wider mb-1">Weekly Visit Trends</h3>
+        <p className="text-xs text-slate-400 font-medium mb-6">Patient visits over the last 7 days</p>
         
         <div className="flex-1 w-full">
           {stats.visitTrends.length > 0 ? (
@@ -478,9 +494,9 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Left Block: Bar Chart */}
-        <div className="bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-6 border border-slate-100 h-96 flex flex-col">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Patient Visits by Department</h3>
-          <p className="text-xs text-slate-400 mb-6">Total visits distributed across colleges</p>
+        <div className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl shadow-slate-200/50 p-6 border border-white/80 h-96 flex flex-col">
+          <h3 className="text-sm font-extrabold text-slate-600 uppercase tracking-wider mb-1">Patient Visits by Department</h3>
+          <p className="text-xs text-slate-400 font-medium mb-6">Total visits distributed across colleges</p>
           
           <div className="flex-1 w-full">
             {stats.visitsByCollege.length > 0 ? (
@@ -512,9 +528,9 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Right Block: Pie Chart */}
-        <div className="bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-6 border border-slate-100 h-96 flex flex-col">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Top Diagnoses</h3>
-          <p className="text-xs text-slate-400 mb-6">Most common health issues diagnosed</p>
+        <div className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl shadow-slate-200/50 p-6 border border-white/80 h-96 flex flex-col">
+          <h3 className="text-sm font-extrabold text-slate-600 uppercase tracking-wider mb-1">Top Diagnoses</h3>
+          <p className="text-xs text-slate-400 font-medium mb-6">Most common health issues diagnosed</p>
           
           <div className="flex-1 w-full">
             {stats.topDiagnoses.length > 0 ? (
@@ -553,34 +569,76 @@ const Dashboard: React.FC = () => {
 
       </div>
 
-      {/* Bottom Block: Top Dispensed */}
-      <div className="mt-6 bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-6 border border-slate-100 flex flex-col">
-        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Top Dispensed Medicines & Supplies</h3>
-        <p className="text-xs text-slate-400 mb-6">Most frequently used items</p>
+      {/* Bottom Blocks */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         
-        <div className="w-full h-64">
-          {stats.topDispensed.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.topDispensed} margin={{ top: 5, right: 30, left: -20, bottom: 5 }} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                <XAxis type="number" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
-                <YAxis dataKey="name" type="category" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} width={120} />
-                <Tooltip 
-                  cursor={{fill: '#f8fafc'}}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {stats.topDispensed.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
-              <p className="text-sm font-medium">No dispensing data available</p>
-            </div>
-          )}
+        {/* Top Dispensed */}
+        <div className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl shadow-slate-200/50 p-6 border border-white/80 flex flex-col h-80">
+          <h3 className="text-sm font-extrabold text-slate-600 uppercase tracking-wider mb-1">Top Dispensed Medicines & Supplies</h3>
+          <p className="text-xs text-slate-400 font-medium mb-6">Most frequently used items</p>
+          
+          <div className="flex-1 w-full">
+            {stats.topDispensed.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.topDispensed} margin={{ top: 5, right: 30, left: -20, bottom: 5 }} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                  <XAxis type="number" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="name" type="category" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} width={120} />
+                  <Tooltip 
+                    cursor={{fill: '#f8fafc'}}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                    {stats.topDispensed.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                <p className="text-sm font-medium">No dispensing data available</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Borrowings */}
+        <div className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl shadow-slate-200/50 p-6 border border-white/80 flex flex-col h-80 overflow-hidden">
+          <h3 className="text-sm font-extrabold text-slate-600 uppercase tracking-wider mb-1">Recent Equipment Borrowings</h3>
+          <p className="text-xs text-slate-400 font-medium mb-4">Latest bookings (Click to view profile)</p>
+          
+          <div className="flex-1 w-full overflow-y-auto pr-2">
+            {stats.recentBorrowings.length > 0 ? (
+              <div className="space-y-3">
+                {stats.recentBorrowings.map((borrowing, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => {
+                      setViewPatientId(borrowing.profile_id);
+                      setShowPatientModal(true);
+                    }}
+                    className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm hover:shadow-md hover:border-indigo-100 cursor-pointer transition-all flex items-center justify-between"
+                  >
+                    <div>
+                      <h4 className="font-bold text-slate-700 text-sm">{borrowing.first_name} {borrowing.last_name}</h4>
+                      <p className="text-xs text-slate-500 truncate max-w-[200px]">{borrowing.items}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider bg-slate-50 px-2 py-1 rounded">
+                        {borrowing.profile_type}
+                      </span>
+                      <p className="text-xs text-slate-400 mt-1">{new Date(borrowing.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                <p className="text-sm font-medium">No recent borrowings</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -838,6 +896,12 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Patient View Modal */}
+      <PatientViewModal
+        isOpen={showPatientModal}
+        onClose={() => setShowPatientModal(false)}
+        patientId={viewPatientId}
+      />
     </div>
   );
 };

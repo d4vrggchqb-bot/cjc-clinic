@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch, apiDownload } from '../utils/api';
-import { FiX, FiUser, FiActivity, FiPhone, FiInfo, FiMail, FiMapPin, FiCalendar, FiUsers, FiAlertCircle, FiPaperclip, FiUpload, FiDownload, FiFile } from 'react-icons/fi';
+import { FiX, FiUser, FiActivity, FiPhone, FiInfo, FiMail, FiMapPin, FiCalendar, FiUsers, FiAlertCircle, FiPaperclip, FiUpload, FiDownload, FiFile, FiBox, FiPackage } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
 
@@ -21,6 +21,7 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
     return Math.abs(age_dt.getUTCFullYear() - 1970);
   };
   const [history, setHistory] = useState<any[]>([]);
+  const [borrowingHistory, setBorrowingHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -94,6 +95,12 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
       apiFetch(`/api/index.php?route=consultations&action=history&profile_id=${patientId}`)
         .then(res => {
           if (res.history) setHistory(res.history);
+        })
+        .catch(console.error);
+
+      apiFetch(`/api/index.php?route=borrowings&action=profile_history&profile_id=${patientId}`)
+        .then(res => {
+          if (res.borrowings) setBorrowingHistory(res.borrowings);
         })
         .catch(console.error);
     }
@@ -421,6 +428,61 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                         })}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Borrowing History */}
+              <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden">
+                <div className="border-b border-slate-100 p-4 bg-slate-50 flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <FiBox className="w-4 h-4" /> Equipment Borrowing History
+                  </h4>
+                  <span className="text-xs font-semibold text-slate-400 bg-white px-2 py-1 rounded shadow-sm border border-slate-200">{borrowingHistory.length} Records</span>
+                </div>
+                
+                {borrowingHistory.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400">
+                    <FiPackage className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-medium">No borrowing records found.</p>
+                  </div>
+                ) : (
+                  <div className="p-4 space-y-4">
+                    {borrowingHistory.map((record: any) => (
+                      <div key={record.id} className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span className={`text-xs font-bold px-2 py-1 rounded uppercase tracking-wider ${
+                              record.status === 'active' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                            }`}>
+                              {record.status}
+                            </span>
+                            <p className="font-semibold text-slate-700 mt-2">Purpose: {record.purpose}</p>
+                            <p className="text-xs text-slate-500">Borrowed: {new Date(record.created_at).toLocaleString()}</p>
+                            {record.returned_at && <p className="text-xs text-slate-500">Returned: {new Date(record.returned_at).toLocaleString()}</p>}
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-slate-100">
+                          <p className="text-xs font-bold text-slate-500 mb-2 uppercase">Items:</p>
+                          <ul className="space-y-1">
+                            {record.items.map((item: any) => (
+                              <li key={item.item_id} className="flex justify-between text-sm">
+                                <span className="text-slate-700 flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#A5192D]"></span>
+                                  {item.name} <span className="text-slate-400">x{item.quantity}</span>
+                                </span>
+                                <span className={`text-xs font-bold ${
+                                  item.status === 'returned' ? 'text-green-600' : 
+                                  item.status === 'dispensed' ? 'text-slate-400' : 'text-amber-600'
+                                }`}>
+                                  {item.status.toUpperCase()}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

@@ -207,12 +207,48 @@ const Reports: React.FC = () => {
             <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-2">Reports & Analytics</h1>
             <p className="text-slate-500 text-sm font-medium">Generate specific date-range reports and visualize clinic data</p>
           </div>
-          <button 
-            onClick={handleExportClick}
-            className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 h-11 rounded-lg text-sm font-bold tracking-wide flex items-center gap-2 transition-colors shadow-md"
-          >
-            <FiDownload className="w-4 h-4" /> Export CSV
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleExportClick}
+              className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 h-11 rounded-lg text-sm font-bold tracking-wide flex items-center gap-2 transition-colors shadow-md"
+            >
+              <FiDownload className="w-4 h-4" /> Export Consultations
+            </button>
+            <button 
+              onClick={() => {
+                if (!data || !data.borrowing_export_data || data.borrowing_export_data.length === 0) {
+                  alert("No borrowing data available for this date range and filters.");
+                  return;
+                }
+                const exportData = data.borrowing_export_data;
+                const headers = Object.keys(exportData[0]).join(',');
+                const rows = exportData.map((row: any) => {
+                  return Object.values(row).map((val: any) => {
+                    let cell = val === null ? '' : String(val);
+                    if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                      cell = `"${cell.replace(/"/g, '""')}"`;
+                    }
+                    return cell;
+                  }).join(',');
+                });
+
+                const csvContent = [headers, ...rows].join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `Clinic_Borrowings_${startDate}_to_${endDate}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-5 py-2.5 h-11 rounded-lg text-sm font-bold tracking-wide flex items-center gap-2 transition-colors shadow-md"
+            >
+              <FiDownload className="w-4 h-4" /> Export Borrowings
+            </button>
+          </div>
         </div>
         
         {/* Filters */}
@@ -401,7 +437,7 @@ const Reports: React.FC = () => {
           </div>
 
           {/* Tables Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             {/* Medicines List */}
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm lg:col-span-1">
               <h3 className="text-base font-bold text-slate-800 mb-6 flex items-center gap-2">
@@ -429,9 +465,32 @@ const Reports: React.FC = () => {
               )}
             </div>
 
-            {/* Logbook Preview */}
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm lg:col-span-2">
-              <div className="flex justify-between items-center mb-6">
+            {/* Equipment List */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+              <h3 className="text-base font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <div className="w-2 h-6 bg-amber-500 rounded-full"></div>
+                Equipment Borrowings Log
+              </h3>
+              {(!data.equipment_borrowings || data.equipment_borrowings.length === 0) ? (
+                <div className="text-slate-400 text-sm py-4 text-center">No equipment borrowed.</div>
+              ) : (
+                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  {data.equipment_borrowings.map((e: any, i: number) => (
+                    <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-white hover:shadow-sm transition-all">
+                      <span className="text-slate-700 font-semibold text-sm">{e.equipment}</span>
+                      <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md text-xs">
+                        {e.count} times
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Logbook Preview */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+            <div className="flex justify-between items-center mb-6">
                 <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
                   <div className="w-2 h-6 bg-blue-500 rounded-full"></div>
                   Logbook Preview
@@ -491,7 +550,6 @@ const Reports: React.FC = () => {
             </div>
           </div>
           
-        </div>
       )}
 
       {/* Export Confirmation Modal */}

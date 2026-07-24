@@ -10,7 +10,13 @@ class InventoryController {
         cjcRequireAuth();
         $pdo = cjcDatabaseConnection();
         
-        $stmt = $pdo->query("SELECT * FROM inventory_items ORDER BY generic_name ASC");
+        $stmt = $pdo->query("
+            SELECT i.*, COALESCE(SUM(b.stock_remaining), 0) as total_stock 
+            FROM inventory_items i
+            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.status = 'active'
+            GROUP BY i.id 
+            ORDER BY i.generic_name ASC
+        ");
         $items = $stmt->fetchAll();
         $this->jsonResponse(['items' => $items]);
     }

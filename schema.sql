@@ -176,4 +176,27 @@ CREATE TABLE IF NOT EXISTS `settings` (
   `setting_value` TEXT NOT NULL
 );
 
+-- 10. Borrowings Table
+CREATE TABLE IF NOT EXISTS `borrowings` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `profile_id` INT NOT NULL,
+  `purpose` VARCHAR(255) NOT NULL,
+  `status` ENUM('pending', 'active', 'returned') DEFAULT 'pending',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `returned_at` TIMESTAMP NULL DEFAULT NULL,
+  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
+);
+
+-- 10.1 Borrowed Items Table
+CREATE TABLE IF NOT EXISTS `borrowed_items` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `borrowing_id` INT NOT NULL,
+  `inventory_item_id` INT NOT NULL,
+  `quantity` INT NOT NULL DEFAULT 1,
+  `item_type` ENUM('equipment', 'supply') NOT NULL,
+  `status` ENUM('borrowed', 'returned', 'dispensed') NOT NULL,
+  FOREIGN KEY (`borrowing_id`) REFERENCES `borrowings`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`inventory_item_id`) REFERENCES `inventory_items`(`id`) ON DELETE CASCADE
+);
+
 #php -S localhost:8000 -t backend/public

@@ -9,6 +9,7 @@ interface ConfirmOptions {
   type?: ConfirmType;
   confirmText?: string;
   cancelText?: string;
+  hideCancel?: boolean;
 }
 
 interface ConfirmContextType {
@@ -83,29 +84,27 @@ export const ConfirmProvider: React.FC<ConfirmProviderProps> = ({ children }) =>
       {children}
       {isOpen && options && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={handleCancel}></div>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden z-10 animate-in zoom-in-95 fade-in duration-200">
-            <div className="p-6">
-              <div className="flex items-start gap-4">
-                <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${currentStyles.iconBg}`}>
-                  {currentStyles.icon}
-                </div>
-                <div className="flex-1 mt-1">
-                  <h3 className="text-lg font-bold text-slate-900 leading-tight mb-2">{options.title}</h3>
-                  <p className="text-sm text-slate-500 font-medium">{options.message}</p>
-                </div>
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-in fade-in duration-300" onClick={handleCancel}></div>
+          <div className="bg-white rounded-[24px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] w-full max-w-sm overflow-hidden z-10 animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 border border-white/20">
+            <div className="p-8 pb-6 flex flex-col items-center text-center">
+              <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center mb-5 shadow-inner ${currentStyles.iconBg}`}>
+                {React.cloneElement(currentStyles.icon as React.ReactElement, { className: 'w-8 h-8 ' + (currentStyles.icon as any).props.className.replace('w-6 h-6', '') })}
               </div>
+              <h3 className="text-xl font-extrabold text-slate-900 leading-tight mb-2 tracking-tight">{options.title}</h3>
+              <p className="text-[15px] text-slate-500 font-medium leading-relaxed">{options.message}</p>
             </div>
-            <div className="bg-slate-50 px-6 py-4 flex gap-3 justify-end border-t border-slate-100">
-              <button
-                onClick={handleCancel}
-                className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200"
-              >
-                {options.cancelText || 'Cancel'}
-              </button>
+            <div className="bg-slate-50/80 px-6 py-5 flex gap-3 justify-center border-t border-slate-100">
+              {!options.hideCancel && (
+                <button
+                  onClick={handleCancel}
+                  className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-[15px] font-bold hover:bg-slate-50 hover:text-slate-900 transition-all focus:outline-none focus:ring-4 focus:ring-slate-100 shadow-sm active:scale-95"
+                >
+                  {options.cancelText || 'Cancel'}
+                </button>
+              )}
               <button
                 onClick={handleConfirm}
-                className={`px-4 py-2 text-white rounded-lg text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 ${currentStyles.btnBg}`}
+                className={`flex-1 px-4 py-3 text-white rounded-xl text-[15px] font-bold transition-all focus:outline-none focus:ring-4 ring-opacity-50 ${currentStyles.btnBg} shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95`}
               >
                 {options.confirmText || 'Confirm'}
               </button>
