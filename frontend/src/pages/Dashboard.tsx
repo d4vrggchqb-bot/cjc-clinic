@@ -54,6 +54,8 @@ const Dashboard: React.FC = () => {
     reason: ''
   });
   const [isDispensing, setIsDispensing] = useState(false);
+  const [dispenseItemSearchText, setDispenseItemSearchText] = useState('');
+  const [showDispenseItemSearchDropdown, setShowDispenseItemSearchDropdown] = useState(false);
 
   // Dispense Search State
   const [dispenseSearch, setDispenseSearch] = useState('');
@@ -783,18 +785,53 @@ const Dashboard: React.FC = () => {
             <form onSubmit={handleQuickDispense} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Item to Dispense <span className="text-red-500">*</span></label>
-                <select 
-                  className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
-                  value={dispenseData.item_id} 
-                  onChange={e => setDispenseData({...dispenseData, item_id: parseInt(e.target.value)})}
-                >
-                  <option value={0}>-- Select Item --</option>
-                  {inventoryItems.map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''} {item.dosage ? `- ${item.dosage}` : ''} {item.formulation ? `(${item.formulation})` : ''}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input 
+                    className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
+                    placeholder="Search Item (Medicine, Supply...)"
+                    value={dispenseItemSearchText}
+                    onChange={e => {
+                      setDispenseItemSearchText(e.target.value);
+                      setShowDispenseItemSearchDropdown(true);
+                      const matchedItem = inventoryItems.find(i => `${i.generic_name} ${i.brand_name ? `(${i.brand_name})` : ''} ${i.dosage ? `- ${i.dosage}` : ''} ${i.formulation ? `(${i.formulation})` : ''}`.trim() === e.target.value);
+                      if (matchedItem) {
+                        setDispenseData({...dispenseData, item_id: matchedItem.id});
+                      } else {
+                        setDispenseData({...dispenseData, item_id: 0});
+                      }
+                    }}
+                    onFocus={() => setShowDispenseItemSearchDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowDispenseItemSearchDropdown(false), 200)}
+                  />
+                  {showDispenseItemSearchDropdown && (
+                    <ul className="absolute z-10 w-full bg-white border border-slate-200 mt-1 max-h-60 overflow-y-auto rounded shadow-lg">
+                      {inventoryItems
+                        .filter(item => 
+                          `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(dispenseItemSearchText.toLowerCase())
+                        )
+                        .map(item => {
+                          const displayName = `${item.generic_name} ${item.brand_name ? `(${item.brand_name})` : ''} ${item.dosage ? `- ${item.dosage}` : ''} ${item.formulation ? `(${item.formulation})` : ''}`.trim();
+                          return (
+                            <li 
+                              key={item.id} 
+                              className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm text-slate-700"
+                              onClick={() => {
+                                setDispenseItemSearchText(displayName);
+                                setDispenseData({...dispenseData, item_id: item.id});
+                                setShowDispenseItemSearchDropdown(false);
+                              }}
+                            >
+                              {displayName}
+                            </li>
+                          );
+                        })
+                      }
+                      {inventoryItems.filter(item => `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(dispenseItemSearchText.toLowerCase())).length === 0 && (
+                        <li className="px-3 py-2 text-sm text-slate-500">No items found.</li>
+                      )}
+                    </ul>
+                  )}
+                </div>
               </div>
 
               <div>

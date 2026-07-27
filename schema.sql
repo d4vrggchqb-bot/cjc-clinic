@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `username` VARCHAR(50) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
-  `role` ENUM('Admin', 'Doctor', 'Nurse', 'Clerk') NOT NULL DEFAULT 'Clerk',
-  `clinic_branch` ENUM('College Clinic', 'BED Clinic', 'Power Campus Clinic') NOT NULL DEFAULT 'College Clinic',
+  `role` ENUM('Admin', 'Superadmin', 'Doctor', 'Nurse', 'Staff', 'Clerk') NOT NULL DEFAULT 'Staff',
+  `clinic_branch` ENUM('College Clinic', 'Basic Education Clinic', 'Power Campus Clinic', 'BED Clinic') NOT NULL DEFAULT 'College Clinic',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

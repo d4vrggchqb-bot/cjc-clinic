@@ -99,6 +99,7 @@ const Consultation: React.FC = () => {
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [dispensedItems, setDispensedItems] = useState<{item_id: number, quantity: number, name: string}[]>([]);
   const [selectedInventoryItem, setSelectedInventoryItem] = useState('');
+  const [showDispenseDropdown, setShowDispenseDropdown] = useState(false);
   const [dispenseQty, setDispenseQty] = useState(1);
 
   // Medcert State
@@ -889,18 +890,46 @@ const Consultation: React.FC = () => {
               <h3 className="text-sm font-bold text-slate-700 mt-6 mb-3 uppercase tracking-wider border-b pb-1">Administer / Dispense Items</h3>
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                 <div className="flex gap-2 mb-4">
-                  <select 
-                    value={selectedInventoryItem} 
-                    onChange={e => setSelectedInventoryItem(e.target.value)}
-                    className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
-                  >
-                    <option value="">Select Item (Medicine, Supply...)</option>
-                    {inventoryItems.map(item => (
-                      <option key={item.id} value={item.id}>
-                        {item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''} - {item.category}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative flex-1">
+                    <input 
+                      value={selectedInventoryItem} 
+                      onChange={e => {
+                        setSelectedInventoryItem(e.target.value);
+                        setShowDispenseDropdown(true);
+                      }}
+                      onFocus={() => setShowDispenseDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowDispenseDropdown(false), 200)}
+                      placeholder="Search Item (Medicine, Supply...)"
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
+                    />
+                    {showDispenseDropdown && (
+                      <ul className="absolute z-10 w-full bg-white border border-slate-200 mt-1 max-h-60 overflow-y-auto rounded shadow-lg">
+                        {inventoryItems
+                          .filter(item => 
+                            `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(selectedInventoryItem.toLowerCase())
+                          )
+                          .map(item => {
+                            const displayName = `${item.generic_name} ${item.brand_name ? `(${item.brand_name})` : ''} - ${item.category}`;
+                            return (
+                              <li 
+                                key={item.id} 
+                                className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm text-slate-700"
+                                onClick={() => {
+                                  setSelectedInventoryItem(displayName);
+                                  setShowDispenseDropdown(false);
+                                }}
+                              >
+                                {displayName}
+                              </li>
+                            );
+                          })
+                        }
+                        {inventoryItems.filter(item => `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(selectedInventoryItem.toLowerCase())).length === 0 && (
+                          <li className="px-3 py-2 text-sm text-slate-500">No items found.</li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
                   <input 
                     type="number" 
                     min="1"
@@ -912,11 +941,13 @@ const Consultation: React.FC = () => {
                     type="button"
                     onClick={() => {
                       if (!selectedInventoryItem) return;
-                      const item = inventoryItems.find(i => i.id === parseInt(selectedInventoryItem));
+                      const item = inventoryItems.find(i => `${i.generic_name} ${i.brand_name ? `(${i.brand_name})` : ''} - ${i.category}` === selectedInventoryItem);
                       if (item) {
                         setDispensedItems(prev => [...prev, { item_id: item.id, quantity: dispenseQty, name: item.generic_name }]);
                         setSelectedInventoryItem('');
                         setDispenseQty(1);
+                      } else {
+                        alert('Please select a valid item from the list.');
                       }
                     }}
                     className="px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded hover:bg-slate-700 transition-colors"

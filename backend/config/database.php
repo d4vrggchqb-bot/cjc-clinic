@@ -24,7 +24,7 @@ function cjcDatabaseConnection(): PDO
         return $pdo;
     }
 
-    $host    = getenv('DB_HOST')    ?: '127.0.0.1';
+    $host    = getenv('DB_HOST')    ?: '192.168.10.96';
     $db      = getenv('DB_NAME')    ?: 'cjc_clinic';
     $user    = getenv('DB_USER')    ?: 'root';
     $pass    = getenv('DB_PASS')    ?: '';
