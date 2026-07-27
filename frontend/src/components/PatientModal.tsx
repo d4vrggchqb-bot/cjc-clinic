@@ -207,27 +207,28 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
       <div className="bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-300">
         
         {/* Sleek Gradient Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-[#8B0E1B] to-[#C01D38] px-6 py-4 flex justify-between items-center text-white">
+        <div className="relative overflow-hidden bg-gradient-to-r from-[#8B0E1B] to-[#C01D38] px-5 py-4 sm:px-6 sm:py-5 flex justify-between items-start sm:items-center gap-4 text-white shrink-0">
           {/* Decorative shapes */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/3"></div>
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-black opacity-10 rounded-full translate-y-1/2 -translate-x-1/2"></div>
           
-          <div className="relative z-10 flex flex-col">
-            <h2 className="text-xl font-bold tracking-tight">
+          <div className="relative z-10 flex flex-col flex-1 pr-2">
+            <h2 className="text-lg sm:text-xl font-bold tracking-tight">
               {patientId ? 'Edit Patient Profile' : 'Register New Patient'}
             </h2>
-            <p className="text-white/80 text-sm mt-0.5 font-normal">Complete the form below to save patient details</p>
+            <p className="text-white/90 text-xs sm:text-sm mt-1 font-normal leading-normal">Complete the form below to save patient details</p>
           </div>
           <button 
             onClick={onClose} 
-            className="relative z-10 text-white/70 hover:text-white bg-black/10 hover:bg-black/20 p-2 rounded-full transition-all hover:rotate-90 duration-300"
+            className="relative z-10 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 sm:p-2.5 rounded-full transition-all hover:rotate-90 duration-300 shrink-0"
+            aria-label="Close modal"
           >
-            <FiX className="w-5 h-5" />
+            <FiX className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Modern Stepper Indicator */}
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/30">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100 bg-slate-50/30 shrink-0">
           <div className="flex items-center justify-center max-w-2xl mx-auto">
             {/* Step 1 */}
             <div className="flex flex-col items-center relative">
@@ -273,9 +274,9 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
             {/* STEP 1: Personal Info */}
             <div className={`transition-all duration-500 ease-in-out absolute inset-0 ${step === 1 ? 'opacity-100 translate-x-0 pointer-events-auto relative' : 'opacity-0 -translate-x-8 pointer-events-none'}`}>
               
-              <div className="bg-slate-50/50 p-1.5 rounded-lg inline-flex gap-1.5 mb-4 border border-slate-100">
-                <button type="button" onClick={() => handleRadioChange('profile_type', 'student')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all shadow-sm ${formData.profile_type === 'student' ? 'bg-white text-[#C01D38] ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'}`}>Student Profile</button>
-                <button type="button" onClick={() => handleRadioChange('profile_type', 'employee')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all shadow-sm ${formData.profile_type === 'employee' ? 'bg-white text-[#C01D38] ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'}`}>Employee Profile</button>
+              <div className="bg-slate-100/80 p-1.5 rounded-xl inline-flex flex-wrap sm:flex-nowrap gap-1 mb-5 border border-slate-200/60">
+                <button type="button" onClick={() => handleRadioChange('profile_type', 'student')} className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 whitespace-nowrap shadow-sm text-center ${formData.profile_type === 'student' ? 'bg-white text-[#C01D38] shadow border border-slate-200/60' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 shadow-none border-transparent'}`}>Student <span className="hidden sm:inline">Profile</span></button>
+                <button type="button" onClick={() => handleRadioChange('profile_type', 'employee')} className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 whitespace-nowrap shadow-sm text-center ${formData.profile_type === 'employee' ? 'bg-white text-[#C01D38] shadow border border-slate-200/60' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 shadow-none border-transparent'}`}>Employee <span className="hidden sm:inline">Profile</span></button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
@@ -514,27 +515,27 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center rounded-b-3xl">
-          <div className="flex space-x-2 ml-2">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center gap-2 rounded-b-3xl shrink-0">
+          <div className="flex space-x-1.5 sm:space-x-2 ml-1 sm:ml-2 shrink-0">
             {[1, 2, 3].map((dot) => (
-              <div key={dot} className={`w-2 h-2 rounded-full transition-all duration-300 ${step === dot ? 'bg-[#C01D38] w-6' : 'bg-slate-300'}`} />
+              <div key={dot} className={`w-2 h-2 rounded-full transition-all duration-300 ${step === dot ? 'bg-[#C01D38] w-5 sm:w-6' : 'bg-slate-300'}`} />
             ))}
           </div>
           
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3 items-center shrink-0">
             {step > 1 ? (
               <button 
                 type="button" 
                 onClick={() => setStep(step - 1)}
-                className="px-5 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm rounded-lg transition-all flex items-center gap-2"
+                className="px-3.5 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
               >
-                <FiChevronLeft className="w-4 h-4" /> Back
+                <FiChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Back
               </button>
             ) : (
               <button 
                 type="button" 
                 onClick={onClose}
-                className="px-5 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all"
+                className="px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all whitespace-nowrap shrink-0"
               >
                 Cancel
               </button>
@@ -544,7 +545,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
               type="submit" 
               form="patient-form"
               disabled={loading || isIdDuplicate}
-              className="px-6 py-2.5 text-sm font-semibold text-white bg-[#C01D38] hover:bg-[#A0182E] shadow-sm hover:shadow-md rounded-lg transition-all duration-200 disabled:opacity-50 disabled:hover:shadow-sm flex items-center gap-2"
+              className="px-4 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-[#C01D38] to-[#9B101E] hover:from-[#A0182E] hover:to-[#7A0D18] shadow-sm hover:shadow-md rounded-xl transition-all duration-200 disabled:opacity-50 disabled:hover:shadow-sm flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap shrink-0"
             >
               {loading ? (
                 <div className="flex items-center gap-1.5">
@@ -552,9 +553,9 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                   Saving...
                 </div>
               ) : step < 3 ? (
-                <>Next Step <FiChevronRight className="w-3.5 h-3.5" /></>
+                <>Next Step <FiChevronRight className="w-3.5 h-3.5 shrink-0" /></>
               ) : (
-                <>Save Patient <FiCheck className="w-3.5 h-3.5" /></>
+                <>Save Patient <FiCheck className="w-3.5 h-3.5 shrink-0" /></>
               )}
             </button>
           </div>

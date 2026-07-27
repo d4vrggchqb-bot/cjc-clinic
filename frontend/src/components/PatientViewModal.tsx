@@ -113,20 +113,20 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="bg-[#9B101E] px-6 py-4 flex justify-between items-center text-white relative overflow-hidden">
+        <div className="bg-[#9B101E] px-5 py-4 sm:px-6 sm:py-5 flex justify-between items-center gap-4 text-white relative overflow-hidden shrink-0">
           {/* Decorative background element */}
           <div className="absolute -right-6 -top-10 opacity-10">
             <FiUser className="w-32 h-32" />
           </div>
           
-          <div className="relative z-10">
-            <h2 className="text-xl font-bold tracking-wide">Patient Profile</h2>
-            <p className="text-xs text-white/80 uppercase tracking-wider mt-0.5">
+          <div className="relative z-10 flex-1 pr-2">
+            <h2 className="text-lg sm:text-xl font-bold tracking-wide">Patient Profile</h2>
+            <p className="text-xs text-white/80 uppercase tracking-wider mt-1">
               {patient?.profile_type === 'student' ? 'Student Record' : patient?.profile_type === 'employee' ? 'Employee Record' : 'Record Details'}
             </p>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors relative z-10">
-            <FiX className="w-6 h-6" />
+          <button onClick={onClose} aria-label="Close modal" className="text-white/80 hover:text-white transition-colors relative z-10 p-1.5 rounded-full hover:bg-white/10 shrink-0">
+            <FiX className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
