@@ -1,31 +1,33 @@
 <?php
 // ─── Global CORS Configuration for Headless API ──────────────────────────────
-$origin = $_SERVER['HTTP_ORIGIN'] ?? 'http://localhost:5173';
-if (in_array($origin, ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174'])) {
-    header("Access-Control-Allow-Origin: $origin");
-} else {
-    header("Access-Control-Allow-Origin: http://localhost:5173");
-}
-header('Access-Control-Allow-Credentials: true');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-Token, Accept, Origin, Cache-Control');
+if (php_sapi_name() !== 'cli') {
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? 'http://localhost:5173';
+    if (in_array($origin, ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174'])) {
+        header("Access-Control-Allow-Origin: $origin");
+    } else {
+        header("Access-Control-Allow-Origin: http://localhost:5173");
+    }
+    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-Token, Accept, Origin, Cache-Control');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit(0);
-}
+    if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        http_response_code(204);
+        exit(0);
+    }
 
-// ─── Secure session cookie parameters (must be set BEFORE session_start) ───────
-session_set_cookie_params([
-    'lifetime' => 0,              // expires when browser closes
-    'path'     => '/',
-    'httponly' => true,           // JS cannot read the cookie (XSS mitigation)
-    'secure'   => false,          // Set to TRUE when served over HTTPS
-    'samesite' => 'Lax',          // allow cross-port requests during local dev
-]);
+    // ─── Secure session cookie parameters (must be set BEFORE session_start) ───────
+    session_set_cookie_params([
+        'lifetime' => 0,              // expires when browser closes
+        'path'     => '/',
+        'httponly' => true,           // JS cannot read the cookie (XSS mitigation)
+        'secure'   => false,          // Set to TRUE when served over HTTPS
+        'samesite' => 'Lax',          // allow cross-port requests during local dev
+    ]);
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
 }
 
 const CJC_SESSION_TIMEOUT = 1800; // 30 minutes

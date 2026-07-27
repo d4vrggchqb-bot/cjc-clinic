@@ -88,7 +88,7 @@ export const ConfirmProvider: React.FC<ConfirmProviderProps> = ({ children }) =>
           <div className="bg-white rounded-[24px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] w-full max-w-sm overflow-hidden z-10 animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 border border-white/20">
             <div className="p-8 pb-6 flex flex-col items-center text-center">
               <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center mb-5 shadow-inner ${currentStyles.iconBg}`}>
-                {React.cloneElement(currentStyles.icon as React.ReactElement, { className: 'w-8 h-8 ' + (currentStyles.icon as any).props.className.replace('w-6 h-6', '') })}
+                {React.cloneElement(currentStyles.icon as React.ReactElement<any>, { className: 'w-8 h-8 ' + (currentStyles.icon as any).props.className.replace('w-6 h-6', '') })}
               </div>
               <h3 className="text-xl font-extrabold text-slate-900 leading-tight mb-2 tracking-tight">{options.title}</h3>
               <p className="text-[15px] text-slate-500 font-medium leading-relaxed">{options.message}</p>

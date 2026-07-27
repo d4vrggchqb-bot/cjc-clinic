@@ -87,6 +87,8 @@ switch ($route) {
             $controller->editBatch();
         } elseif ($action === 'get_next_batch') {
             $controller->getNextBatchNumber();
+        } elseif ($action === 'predictive_alerts') {
+            $controller->predictive_alerts();
         }
         break;
 

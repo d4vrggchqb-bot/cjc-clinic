@@ -427,7 +427,7 @@ const Appointments: React.FC = () => {
               <tbody>
                 {(() => {
                   const renderedGroups = new Set<string>();
-                  const rows: JSX.Element[] = [];
+                  const rows: React.ReactNode[] = [];
                   
                   filteredAppointments.forEach((apt) => {
                     if (apt.group_name) {

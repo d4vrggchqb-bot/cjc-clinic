@@ -252,7 +252,7 @@ export default function Settings() {
                 parentKey="department"
                 childKey="programs"
                 childLabel="Program"
-                onSave={(newHierarchy) => handleHierarchySave('departments_hierarchy', newHierarchy)}
+                onSave={(newHierarchy: any) => handleHierarchySave('departments_hierarchy', newHierarchy)}
               />
 
               {/* College Year Levels - Flat Array */}
@@ -260,9 +260,9 @@ export default function Settings() {
                 title="Year Levels (College)" 
                 description="Year levels shown when enrolling a College patient (e.g. 1st Year, 2nd Year)."
                 items={settings.college_year_levels}
-                onAdd={(v) => handleArrayAdd('college_year_levels', v)}
-                onRemove={(v) => handleArrayRemove('college_year_levels', v)}
-                onEdit={(oldVal, newVal) => handleArrayEdit('college_year_levels', oldVal, newVal)}
+                onAdd={(v: any) => handleArrayAdd('college_year_levels', v)}
+                onRemove={(v: any) => handleArrayRemove('college_year_levels', v)}
+                onEdit={(oldVal: any, newVal: any) => handleArrayEdit('college_year_levels', oldVal, newVal)}
               />
 
               {/* BED Config - Hierarchical */}
@@ -274,7 +274,7 @@ export default function Settings() {
                   parentKey="program"
                   childKey="year_levels"
                   childLabel="Year Level"
-                  onSave={(newHierarchy) => handleHierarchySave('bed_hierarchy', newHierarchy)}
+                  onSave={(newHierarchy: any) => handleHierarchySave('bed_hierarchy', newHierarchy)}
                 />
               </div>
             </>
@@ -285,9 +285,9 @@ export default function Settings() {
               title="Cues Presets" 
               description="Cues nurses can select from when checking in a patient (e.g. Headache, Fever, Stomach Ache)."
               items={settings.cues}
-              onAdd={(v) => handleArrayAdd('cues', v)}
-              onRemove={(v) => handleArrayRemove('cues', v)}
-              onEdit={(oldVal, newVal) => handleArrayEdit('cues', oldVal, newVal)}
+              onAdd={(v: any) => handleArrayAdd('cues', v)}
+              onRemove={(v: any) => handleArrayRemove('cues', v)}
+              onEdit={(oldVal: any, newVal: any) => handleArrayEdit('cues', oldVal, newVal)}
             />
           )}
 
@@ -663,8 +663,8 @@ const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, 
                       parentName={parentName}
                       childrenItems={children}
                       childLabel={childLabel}
-                      onAdd={(childVal) => handleAddChild(idx, parentName, childVal)}
-                      onRemove={(childIdx, childName) => handleDeleteChild(idx, childIdx, parentName, childName)}
+                      onAdd={(childVal: any) => handleAddChild(idx, parentName, childVal)}
+                      onRemove={(childIdx: any, childName: any) => handleDeleteChild(idx, childIdx, parentName, childName)}
                     />
                   </div>
                 )}
