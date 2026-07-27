@@ -38,12 +38,15 @@ const Dashboard: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [purpose, setPurpose] = useState('');
+  const [cues, setCues] = useState<string[]>([]);
+  const [selectedCue, setSelectedCue] = useState('');
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const searchRef = React.useRef<HTMLDivElement>(null);
 
   // Quick Dispense State
   const [showQuickDispense, setShowQuickDispense] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [selectedDispenseCue, setSelectedDispenseCue] = useState('');
   const [dispenseData, setDispenseData] = useState({
     item_id: 0,
     quantity: 1,
@@ -196,19 +199,20 @@ const Dashboard: React.FC = () => {
       toast.error('Please select a patient.');
       return;
     }
-    if (!purpose.trim()) {
-      toast.error('Please enter a purpose.');
+    if (!purpose.trim() && !selectedCue) {
+      toast.error('Please enter a purpose or select a cue.');
       return;
     }
 
     setIsCheckingIn(true);
+    const finalPurpose = [selectedCue, purpose.trim()].filter(Boolean).join(' - ');
     const toastId = toast.loading('Admitting patient...');
     try {
       const res = await apiFetch(`/api/index.php?route=consultations&action=create`, {
         method: 'POST',
         body: JSON.stringify({
           profile_id: selectedPatient.id,
-          purpose: purpose
+          purpose: finalPurpose
         })
       });
 
@@ -218,6 +222,7 @@ const Dashboard: React.FC = () => {
         setSelectedPatient(null);
         setSearch('');
         setPurpose('');
+        setSelectedCue('');
         // We could refresh stats here if needed
       } else {
         toast.error(res.message || 'Failed to check in.', { id: toastId });
@@ -246,6 +251,18 @@ const Dashboard: React.FC = () => {
       fetchInventoryItems();
     }
   }, [showQuickDispense]);
+
+  // Fetch settings cues when quick admit or dispense modal opens
+  useEffect(() => {
+    if ((showQuickAdmit || showQuickDispense) && cues.length === 0) {
+      apiFetch('/api/index.php?route=settings&action=get')
+        .then(res => {
+          if (res.settings && Array.isArray(res.settings.cues)) {
+            setCues(res.settings.cues);
+          }
+        }).catch(err => console.error("Failed to fetch settings for cues", err));
+    }
+  }, [showQuickAdmit, showQuickDispense]);
 
   const handleQuickDispense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -280,7 +297,8 @@ const Dashboard: React.FC = () => {
       // or 'College Clinic' as default if 'All Branches' is selected
       const branchToUse = selectedBranch === 'All Branches' ? 'College Clinic' : selectedBranch;
       
-      const finalDisposedTo = dispenseData.reason.trim() ? `${finalDisposedToName} - ${dispenseData.reason}` : finalDisposedToName;
+      const finalReason = [selectedDispenseCue, dispenseData.reason.trim()].filter(Boolean).join(' - ');
+      const finalDisposedTo = finalReason ? `${finalDisposedToName} - ${finalReason}` : finalDisposedToName;
       
       const res = await apiFetch('/api/index.php?route=inventory&action=dispense', { 
         method: 'POST', 
@@ -298,6 +316,7 @@ const Dashboard: React.FC = () => {
         setSelectedDispensePatient(null);
         setDispenseSearch('');
         setIsGuestDispense(false);
+        setSelectedDispenseCue('');
       } else {
         toast.error(res.message || res.error || 'Error dispensing item', { id: toastId });
       }
@@ -715,19 +734,31 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose <span className="text-red-500">*</span></label>
-                <input 
-                  type="text" 
-                  value={purpose}
-                  onChange={e => setPurpose(e.target.value)}
-                  placeholder="e.g. Headache, Checkup, Request"
-                  className="w-full border border-slate-300 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-[#C01D38]" 
-                />
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose & Cues <span className="text-red-500">*</span></label>
+                <div className="flex gap-2">
+                  <select 
+                    value={selectedCue}
+                    onChange={e => setSelectedCue(e.target.value)}
+                    className="w-1/3 border border-slate-300 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-[#C01D38]"
+                  >
+                    <option value="">-- Select Cue --</option>
+                    {cues.map((c, i) => (
+                      <option key={i} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <input 
+                    type="text" 
+                    value={purpose}
+                    onChange={e => setPurpose(e.target.value)}
+                    placeholder="Additional details (optional if cue selected)"
+                    className="flex-1 border border-slate-300 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-[#C01D38]" 
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setShowQuickAdmit(false)} className="px-4 py-2 border rounded-md font-medium text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
-                <button type="submit" disabled={isCheckingIn || !selectedPatient || !purpose.trim()} className="px-5 py-2 bg-[#C01D38] hover:bg-[#a0182f] text-white rounded-md font-semibold transition-colors disabled:opacity-50">
+                <button type="submit" disabled={isCheckingIn || !selectedPatient || (!purpose.trim() && !selectedCue)} className="px-5 py-2 bg-[#C01D38] hover:bg-[#a0182f] text-white rounded-md font-semibold transition-colors disabled:opacity-50">
                   {isCheckingIn ? 'Admitting...' : 'Admit Patient'}
                 </button>
               </div>
@@ -876,14 +907,26 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Reason (Optional)</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Headache, Fever" 
-                  className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
-                  value={dispenseData.reason} 
-                  onChange={e => setDispenseData({...dispenseData, reason: e.target.value})} 
-                />
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Reason & Cues (Optional)</label>
+                <div className="flex gap-2">
+                  <select 
+                    value={selectedDispenseCue}
+                    onChange={e => setSelectedDispenseCue(e.target.value)}
+                    className="w-1/3 border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500"
+                  >
+                    <option value="">-- Select Cue --</option>
+                    {cues.map((c, i) => (
+                      <option key={i} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <input 
+                    type="text" 
+                    placeholder="Additional details" 
+                    className="flex-1 border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
+                    value={dispenseData.reason} 
+                    onChange={e => setDispenseData({...dispenseData, reason: e.target.value})} 
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

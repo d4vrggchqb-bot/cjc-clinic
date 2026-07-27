@@ -1,5 +1,6 @@
 // Base URL of the PHP API (when running decoupled)
-export const API_BASE = 'http://localhost:8000';
+// Automatically use the current hostname so it works over WiFi (e.g., from a phone)
+export const API_BASE = `http://${window.location.hostname}:8000`;
 
 let cachedCsrfToken: string | null = null;
 

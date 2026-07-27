@@ -29,8 +29,22 @@ try {
       FOREIGN KEY (`inventory_item_id`) REFERENCES `inventory_items`(`id`) ON DELETE CASCADE
     );
     ");
+
+    // Settings Table
+    $pdo->exec("
+    CREATE TABLE IF NOT EXISTS `settings` (
+      `setting_key` VARCHAR(50) PRIMARY KEY,
+      `setting_value` TEXT NOT NULL
+    );
+    ");
+
+    try {
+        $pdo->exec("ALTER TABLE `inventory_items` ADD COLUMN `formulation` VARCHAR(100) DEFAULT NULL AFTER `dosage`");
+    } catch (PDOException $e) {
+        // Ignore if column already exists
+    }
     
-    echo "Tables created successfully.\n";
+    echo "Tables created/updated successfully.\n";
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage() . "\n";
 }
