@@ -441,20 +441,20 @@ const Consultation: React.FC = () => {
     <div className="flex flex-col h-full bg-[#f8f9fa]">
       
       {/* Top Header */}
-      <div className="bg-white px-6 py-4 border-b flex justify-between items-center flex-shrink-0">
+      <div className="bg-white px-4 sm:px-6 py-4 border-b flex flex-col xl:flex-row xl:justify-between xl:items-center gap-4 flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-[#A5192D] tracking-tight mb-1">Services Logbook</h1>
-          <p className="text-slate-500 text-sm">Check-in patients and manage today's visitors</p>
+          <p className="text-slate-500 text-xs sm:text-sm">Check-in patients and manage today's visitors</p>
         </div>
         
         {/* Filters */}
-        <div className="flex items-center gap-3">
-          <div className="flex bg-slate-100 p-1 rounded-full border border-slate-200">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex bg-slate-100 p-1 rounded-full border border-slate-200 overflow-x-auto max-w-full">
             {['today', 'weekly', 'monthly', 'all'].map(p => (
               <button
                 key={p}
                 onClick={() => { setPeriod(p); setFromDate(''); setToDate(''); setCurrentPage(1); }}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold capitalize transition-all ${
+                className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-bold capitalize transition-all whitespace-nowrap ${
                   period === p ? 'bg-[#8c1526] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -463,7 +463,7 @@ const Consultation: React.FC = () => {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 ml-4">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-slate-500">From:</span>
             <input 
               type="date" 
@@ -495,10 +495,10 @@ const Consultation: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden p-6 gap-6">
+      <div className="flex-1 flex flex-col overflow-hidden p-3 sm:p-6 gap-4 sm:gap-6">
         
         {/* Top Horizontal Bar: Check-in */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 flex-shrink-0">
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-5 flex-shrink-0">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
               <FiUserPlus className="text-[#A5192D]" />

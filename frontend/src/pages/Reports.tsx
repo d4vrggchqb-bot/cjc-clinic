@@ -199,20 +199,20 @@ const Reports: React.FC = () => {
   }
 
   return (
-    <div className="p-8 w-full max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-8 flex flex-col justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex justify-between items-start w-full mb-4">
+      <div className="mb-6 sm:mb-8 flex flex-col justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
+        <div className="flex flex-col xl:flex-row xl:justify-between xl:items-start w-full mb-4 gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-2">Reports & Analytics</h1>
-            <p className="text-slate-500 text-sm font-medium">Generate specific date-range reports and visualize clinic data</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#A5192D] tracking-tight mb-2">Reports & Analytics</h1>
+            <p className="text-slate-500 text-xs sm:text-sm font-medium">Generate specific date-range reports and visualize clinic data</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2.5 w-full xl:w-auto">
             <button 
               onClick={handleExportClick}
-              className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 h-11 rounded-lg text-sm font-bold tracking-wide flex items-center gap-2 transition-colors shadow-md"
+              className="bg-slate-800 hover:bg-slate-900 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-md flex-1 sm:flex-none"
             >
-              <FiDownload className="w-4 h-4" /> Export Consultations
+              <FiDownload className="w-4 h-4 flex-shrink-0" /> Export Consultations
             </button>
             <button 
               onClick={() => {
@@ -244,9 +244,9 @@ const Reports: React.FC = () => {
                 link.click();
                 document.body.removeChild(link);
               }}
-              className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-5 py-2.5 h-11 rounded-lg text-sm font-bold tracking-wide flex items-center gap-2 transition-colors shadow-md"
+              className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-md flex-1 sm:flex-none"
             >
-              <FiDownload className="w-4 h-4" /> Export Borrowings
+              <FiDownload className="w-4 h-4 flex-shrink-0" /> Export Borrowings
             </button>
           </div>
         </div>

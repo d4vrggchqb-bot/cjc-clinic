@@ -8,17 +8,17 @@ const Borrowings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'checkedOut' | 'newBooking' | 'history'>('checkedOut');
   
   return (
-    <div className="p-8 w-full max-w-7xl mx-auto h-full flex flex-col">
-      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto h-full flex flex-col">
+      <div className="mb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Equipment Booking</h1>
-          <p className="text-slate-500 font-medium text-sm">Manage borrowing of clinic equipment and supplies</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Equipment Booking</h1>
+          <p className="text-slate-500 font-medium text-xs sm:text-sm">Manage borrowing of clinic equipment and supplies</p>
         </div>
         
-        <div className="flex bg-slate-100 p-1 rounded-lg">
+        <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-full w-full xl:w-auto">
           <button
             onClick={() => setActiveTab('checkedOut')}
-            className={`px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap ${
               activeTab === 'checkedOut' ? 'bg-white text-[#A5192D] shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -26,7 +26,7 @@ const Borrowings: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveTab('newBooking')}
-            className={`px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap ${
               activeTab === 'newBooking' ? 'bg-white text-[#A5192D] shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -34,7 +34,7 @@ const Borrowings: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap ${
               activeTab === 'history' ? 'bg-white text-[#A5192D] shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >

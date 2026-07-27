@@ -337,19 +337,19 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className="p-10 w-full max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-10 w-full max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-8 flex justify-between items-end">
+      <div className="mb-6 sm:mb-8 flex flex-col xl:flex-row xl:justify-between xl:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Dashboard</h1>
-          <p className="text-slate-400 text-sm font-medium">Overview of clinic activity</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Dashboard</h1>
+          <p className="text-slate-400 text-xs sm:text-sm font-medium">Overview of clinic activity</p>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex flex-wrap gap-2.5 sm:gap-3 items-center w-full xl:w-auto">
           {(userRole === 'Superadmin') && (
             <select 
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
-              className="bg-white border border-slate-200 text-slate-700 px-3 py-2.5 rounded-md text-sm font-medium shadow-sm outline-none focus:border-[#C01D38]"
+              className="bg-white border border-slate-200 text-slate-700 px-3 py-2 sm:py-2.5 rounded-md text-xs sm:text-sm font-medium shadow-sm outline-none focus:border-[#C01D38]"
             >
               <option value="All Branches">All Branches</option>
               <option value="College Clinic">College Clinic</option>
@@ -359,17 +359,17 @@ const Dashboard: React.FC = () => {
           )}
           <button 
             onClick={() => navigate('/reports')}
-            className="bg-white/80 backdrop-blur-sm border border-slate-200/50 hover:bg-white text-slate-700 px-4 py-2.5 rounded-xl text-sm font-semibold tracking-wide flex items-center gap-2 transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5">
-            <FiPieChart className="w-4 h-4" /> Go to Reports
+            className="bg-white/80 backdrop-blur-sm border border-slate-200/50 hover:bg-white text-slate-700 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold tracking-wide flex items-center gap-1.5 sm:gap-2 transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5">
+            <FiPieChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Reports
           </button>
           <button 
             onClick={() => setShowQuickAdmit(true)} 
-            className="bg-gradient-to-r from-[#C01D38] to-[#9B101E] hover:from-[#A5192D] hover:to-[#7A0D18] text-white px-5 py-2.5 rounded-xl text-sm font-semibold tracking-wide flex items-center gap-2 transition-all duration-300 shadow-[0_4px_14px_rgba(192,29,56,0.39)] hover:shadow-[0_6px_20px_rgba(192,29,56,0.23)] hover:-translate-y-0.5">
-            <FiPlus className="w-4 h-4" strokeWidth={3} /> Quick Admit
+            className="bg-gradient-to-r from-[#C01D38] to-[#9B101E] hover:from-[#A5192D] hover:to-[#7A0D18] text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold tracking-wide flex items-center gap-1.5 sm:gap-2 transition-all duration-300 shadow-[0_4px_14px_rgba(192,29,56,0.39)] hover:shadow-[0_6px_20px_rgba(192,29,56,0.23)] hover:-translate-y-0.5">
+            <FiPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={3} /> Quick Admit
           </button>
           <button 
             onClick={() => setShowQuickDispense(true)}
-            className="bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold tracking-wide flex items-center gap-2 transition-all duration-300 shadow-[0_4px_14px_rgba(51,65,85,0.39)] hover:shadow-[0_6px_20px_rgba(51,65,85,0.23)] hover:-translate-y-0.5">
+            className="bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold tracking-wide flex items-center gap-1.5 sm:gap-2 transition-all duration-300 shadow-[0_4px_14px_rgba(51,65,85,0.39)] hover:shadow-[0_6px_20px_rgba(51,65,85,0.23)] hover:-translate-y-0.5">
             Quick Dispense
           </button>
         </div>
