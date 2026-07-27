@@ -542,6 +542,8 @@ const ConfigListEditor = ({ title, description, items = [], onAdd, onRemove, onE
 const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, childLabel, onSave }: any) => {
   const [val, setVal] = useState('');
   const [expandedIdx, setExpandedIdx] = useState(-1);
+  const [editingParentIdx, setEditingParentIdx] = useState(-1);
+  const [editParentVal, setEditParentVal] = useState('');
   const { confirm } = useConfirm();
 
   const handleAddParent = async () => {
@@ -558,6 +560,31 @@ const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, 
       const newItems = [...items, { [parentKey]: val.trim(), [childKey]: [] }];
       onSave(newItems);
       setVal('');
+    }
+  };
+
+  const handleEditParentSave = async (idx: number, oldName: string) => {
+    if (!editParentVal.trim() || editParentVal === oldName) {
+      setEditingParentIdx(-1);
+      return;
+    }
+    const exists = items.some((i: any, iIdx: number) => iIdx !== idx && i[parentKey].toLowerCase() === editParentVal.trim().toLowerCase());
+    if (exists) {
+        alert('This category already exists.');
+        return;
+    }
+    
+    const confirmed = await confirm({
+      title: 'Save Changes',
+      message: `Are you sure you want to rename "${oldName}" to "${editParentVal.trim()}"?`,
+      type: 'info'
+    });
+    
+    if (confirmed) {
+      const newItems = [...items];
+      newItems[idx][parentKey] = editParentVal.trim();
+      onSave(newItems);
+      setEditingParentIdx(-1);
     }
   };
 
@@ -641,20 +668,53 @@ const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, 
               <div key={idx} className="border-b border-slate-200 last:border-0 bg-white">
                 <div 
                   className={`flex justify-between items-center p-3 cursor-pointer hover:bg-slate-50 transition-colors ${isExpanded ? 'bg-slate-50' : ''}`}
-                  onClick={() => setExpandedIdx(isExpanded ? -1 : idx)}
+                  onClick={() => { if (editingParentIdx !== idx) setExpandedIdx(isExpanded ? -1 : idx); }}
                 >
-                  <div className="flex items-center gap-2">
-                    {isExpanded ? <FiChevronDown className="text-slate-400" /> : <FiChevronRight className="text-slate-400" />}
-                    <span className="font-bold text-slate-800">{parentName}</span>
-                    <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">{children.length} {childLabel}s</span>
+                  <div className="flex items-center gap-2 flex-1">
+                    {isExpanded ? <FiChevronDown className="text-slate-400 flex-shrink-0" /> : <FiChevronRight className="text-slate-400 flex-shrink-0" />}
+                    
+                    {editingParentIdx === idx ? (
+                      <div className="flex-1 flex gap-2 pr-4" onClick={e => e.stopPropagation()}>
+                        <input 
+                          type="text"
+                          value={editParentVal}
+                          onChange={e => setEditParentVal(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleEditParentSave(idx, parentName);
+                            if (e.key === 'Escape') setEditingParentIdx(-1);
+                          }}
+                          autoFocus
+                          className="border border-slate-300 rounded px-2 py-1 text-sm flex-1 focus:border-[#007bff] focus:outline-none"
+                        />
+                        <button onClick={(e) => { e.stopPropagation(); handleEditParentSave(idx, parentName); }} className="text-green-600 hover:bg-green-100 p-1 rounded transition-colors"><FiCheck /></button>
+                        <button onClick={(e) => { e.stopPropagation(); setEditingParentIdx(-1); }} className="text-red-500 hover:bg-red-100 p-1 rounded transition-colors"><FiX /></button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-bold text-slate-800">{parentName}</span>
+                        <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full whitespace-nowrap">{children.length} {childLabel}s</span>
+                      </>
+                    )}
                   </div>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleDeleteParent(idx, parentName); }}
-                    className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"
-                    title="Delete Category"
-                  >
-                    <FiTrash2 />
-                  </button>
+                  
+                  {editingParentIdx !== idx && (
+                    <div className="flex gap-1 group">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setEditingParentIdx(idx); setEditParentVal(parentName); }}
+                        className="text-blue-500 hover:text-blue-700 p-1 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Edit Category"
+                      >
+                        <FiEdit2 />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDeleteParent(idx, parentName); }}
+                        className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"
+                        title="Delete Category"
+                      >
+                        <FiTrash2 />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 
                 {isExpanded && (
