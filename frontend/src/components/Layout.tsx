@@ -15,8 +15,8 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
   const getPageInfo = () => {
     switch (page) {
       case 'dashboard': return { title: 'Dashboard', subtitle: 'Overview of clinic activity' };
-      case 'patients': return { title: 'Patient Directory', subtitle: 'Manage student and employee profiles' };
-      case 'consultation': return { title: 'Services Logbook', subtitle: 'Active patient queues and medical records' };
+      case 'patients': return { title: 'Patient List', subtitle: 'Manage student and employee profiles' };
+      case 'consultation': return { title: 'Consultations', subtitle: 'Active patient queues and medical records' };
       case 'appointments': return { title: 'Appointments', subtitle: 'Manage scheduled visits and follow-ups' };
       case 'inventory': return { title: 'Inventory Management', subtitle: 'Track medicines, supplies, and equipments' };
       case 'borrowings': return { title: 'Equipment Booking', subtitle: 'Manage borrowed clinic equipments' };
@@ -176,10 +176,10 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
         <header className="h-auto min-h-16 py-2 bg-white/80 backdrop-blur-md border-b border-slate-200 flex justify-between items-center px-4 sm:px-6 gap-4 shrink-0 z-20 shadow-sm relative w-full">
           
           <div className="flex flex-col">
-            <h1 className="text-xl sm:text-[24px] font-light text-[#A5192D] tracking-tight leading-tight">
+            <h1 className="text-2xl sm:text-[28px] font-bold text-[#A5192D] tracking-tight leading-tight">
               {pageInfo.title}
             </h1>
-            <p className="text-[11px] sm:text-[13px] text-slate-500 font-normal leading-tight hidden sm:block mt-0.5">
+            <p className="text-[12px] sm:text-[14px] text-slate-500 font-semibold leading-tight hidden sm:block mt-0.5">
               {pageInfo.subtitle}
             </p>
           </div>
