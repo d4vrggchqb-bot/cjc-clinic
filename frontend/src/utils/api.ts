@@ -4,6 +4,10 @@ export const API_BASE = `http://${window.location.hostname}:8000`;
 
 let cachedCsrfToken: string | null = null;
 
+export function clearCsrfToken(): void {
+  cachedCsrfToken = null;
+}
+
 export async function getCsrfToken(): Promise<string> {
   if (cachedCsrfToken) return cachedCsrfToken;
 

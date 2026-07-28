@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { apiFetch } from '../utils/api';
+import { apiFetch, clearCsrfToken } from '../utils/api';
 import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText, FiChevronLeft, FiChevronRight, FiCalendar, FiMenu, FiX } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
@@ -21,6 +21,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
     if (!confirmed) return;
     try {
       await apiFetch('/api/index.php?action=logout', { method: 'POST' });
+      clearCsrfToken();
       window.location.href = '/login';
     } catch (err) {
       console.error('Logout failed', err);
@@ -72,7 +73,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
         fixed md:relative inset-y-0 left-0 z-50
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
         ${isCollapsed ? 'md:w-24' : 'md:w-72'} w-72
-        transition-all duration-300 ease-in-out bg-[#9B101E] flex flex-col shadow-2xl md:z-20
+        transition-all duration-300 ease-in-out bg-[#9B101E] flex flex-col shadow-2xl md:z-50
       `}>
         {/* Desktop Toggle Button (Hidden on Mobile) */}
         <button 

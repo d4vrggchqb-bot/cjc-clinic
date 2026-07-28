@@ -50,6 +50,8 @@ switch ($route) {
             $controller->list();
         } elseif ($action === 'upload') {
             $controller->upload();
+        } elseif ($action === 'delete_attachment') {
+            $controller->deleteAttachment();
         } elseif ($action === 'create') {
             $controller->create();
         } elseif ($action === 'update') {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch, apiDownload } from '../utils/api';
-import { FiX, FiUser, FiActivity, FiPhone, FiInfo, FiMail, FiMapPin, FiCalendar, FiUsers, FiAlertCircle, FiPaperclip, FiUpload, FiDownload, FiFile, FiBox, FiPackage } from 'react-icons/fi';
+import { FiX, FiUser, FiActivity, FiPhone, FiInfo, FiMail, FiMapPin, FiCalendar, FiUsers, FiAlertCircle, FiPaperclip, FiUpload, FiDownload, FiFile, FiBox, FiPackage, FiTrash2 } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
 
@@ -25,7 +25,9 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState('');
+  const [uploadNotice, setUploadNotice] = useState('');
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -49,11 +51,47 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
     await handleUpload(file);
   };
 
+  const handleDeleteAttachment = async (attachment: any) => {
+    if (!patientId || !attachment?.id) return;
+
+    const confirmed = await confirm({
+      title: 'Delete Attachment',
+      message: `Are you sure you want to delete ${attachment.filename}? This action cannot be undone.`,
+      type: 'danger'
+    });
+
+    if (!confirmed) return;
+
+    setDeletingAttachmentId(attachment.id);
+    setUploadError('');
+    setUploadNotice('');
+
+    try {
+      const res = await apiFetch('/api/index.php?route=patients&action=delete_attachment', {
+        method: 'POST',
+        body: JSON.stringify({ attachment_id: attachment.id, profile_id: patientId })
+      });
+
+      if (res.success) {
+        setUploadNotice('Attachment deleted successfully.');
+        const profileRes = await apiFetch(`/api/index.php?route=patients&action=get&id=${patientId}`);
+        if (profileRes.profile) setPatient(profileRes.profile);
+      } else {
+        setUploadError(res.message || 'Failed to delete attachment');
+      }
+    } catch (err) {
+      setUploadError('Failed to delete attachment');
+    } finally {
+      setDeletingAttachmentId(null);
+    }
+  };
+
   const handleUpload = async (file: File) => {
     if (!patientId) return;
     
     setIsUploading(true);
     setUploadError('');
+    setUploadNotice('');
     
     const formData = new FormData();
     formData.append('attachment', file);
@@ -66,6 +104,9 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
       });
       
       if (res.success) {
+        if (res.ocr_error) {
+          setUploadNotice(`File uploaded, but no AI extract was saved: ${res.ocr_error}`);
+        }
         // Refresh patient to get new attachments
         const profileRes = await apiFetch(`/api/index.php?route=patients&action=get&id=${patientId}`);
         if (profileRes.profile) setPatient(profileRes.profile);
@@ -84,10 +125,13 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
     if (isOpen && patientId) {
       setLoading(true);
       setError('');
+      setPatient(null);
+      setHistory([]);
+      setBorrowingHistory([]);
       apiFetch(`/api/index.php?route=patients&action=get&id=${patientId}`)
         .then(res => {
           if (res.profile) setPatient(res.profile);
-          else setError('Patient data not found');
+          else setError(res.error || res.message || 'Patient data not found');
         })
         .catch(() => setError('Failed to load patient details'))
         .finally(() => setLoading(false));
@@ -318,6 +362,11 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                     {uploadError}
                   </div>
                 )}
+                {uploadNotice && (
+                  <div className="px-4 py-2 bg-amber-50 text-amber-700 text-xs font-medium border-b border-amber-100">
+                    {uploadNotice}
+                  </div>
+                )}
                 
                 {!patient.attachments || patient.attachments.length === 0 ? (
                   <div className="p-8 text-center text-slate-400">
@@ -341,13 +390,27 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                               <span>{file.uploaded_by}</span>
                             </div>
                           </div>
-                          <button 
-                            onClick={() => apiDownload(`/${file.file_url}`, file.filename)} 
-                            className="ml-3 p-2 text-slate-400 hover:text-[#9B101E] hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                            title="Download File"
-                          >
-                            <FiDownload className="w-4 h-4" />
-                          </button>
+                          <div className="ml-3 flex items-center gap-1">
+                            <button 
+                              onClick={() => apiDownload(`/${file.file_url}`, file.filename)} 
+                              className="p-2 text-slate-400 hover:text-[#9B101E] hover:bg-red-50 rounded-full transition-colors"
+                              title="Download File"
+                            >
+                              <FiDownload className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAttachment(file)}
+                              disabled={deletingAttachmentId === file.id}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors disabled:opacity-60"
+                              title="Delete File"
+                            >
+                              {deletingAttachmentId === file.id ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                              ) : (
+                                <FiTrash2 className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                         {file.extracted_text && (
                           <div className="mt-3 p-3 bg-white border border-indigo-100 rounded text-xs text-slate-700 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto relative shadow-inner">

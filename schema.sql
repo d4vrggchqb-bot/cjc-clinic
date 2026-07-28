@@ -49,6 +49,18 @@ CREATE TABLE IF NOT EXISTS `profiles` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Patient documents uploaded from the profile view
+CREATE TABLE IF NOT EXISTS `profile_attachments` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `profile_id` INT NOT NULL,
+  `filename` VARCHAR(255) NOT NULL,
+  `file_url` VARCHAR(500) NOT NULL,
+  `uploaded_by` VARCHAR(100) DEFAULT NULL,
+  `extracted_text` LONGTEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
+);
+
 
 -- 3. Consultations Table
 CREATE TABLE IF NOT EXISTS `consultations` (
