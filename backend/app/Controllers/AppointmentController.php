@@ -40,6 +40,10 @@ class AppointmentController {
         $date = trim($input['appointment_date'] ?? '');
         $time = trim($input['appointment_time'] ?? '');
         $purpose = trim($input['purpose'] ?? '');
+        // Normalize and limit purpose length to avoid DB overflow
+        if (mb_strlen($purpose) > 255) {
+            $purpose = mb_substr($purpose, 0, 255);
+        }
         $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
 
         if (!$profile_id || !$date || !$time || !$purpose) {
@@ -68,6 +72,9 @@ class AppointmentController {
         $date = trim($input['appointment_date'] ?? '');
         $time = trim($input['appointment_time'] ?? '');
         $purpose = trim($input['purpose'] ?? '');
+        if (mb_strlen($purpose) > 255) {
+            $purpose = mb_substr($purpose, 0, 255);
+        }
         $group_name = trim($input['group_name'] ?? '');
         $branch = 'College Clinic'; 
 
@@ -132,6 +139,9 @@ class AppointmentController {
         $date = trim($input['appointment_date'] ?? '');
         $time = trim($input['appointment_time'] ?? '');
         $purpose = trim($input['purpose'] ?? '');
+        if (mb_strlen($purpose) > 255) {
+            $purpose = mb_substr($purpose, 0, 255);
+        }
 
         if (!$id || !$date || !$time || !$purpose) {
             $this->jsonResponse(['success' => false, 'message' => 'ID, Date, Time, and Purpose required.'], 400);

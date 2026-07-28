@@ -30,13 +30,14 @@ interface Patient {
   college_dept: string;
 }
 
-const COMMON_PURPOSES = [
+// Cues will be loaded from settings (managed in Settings -> Clinical Presets)
+// Fallback to a small default list if settings are not available yet
+const DEFAULT_CUES = [
   'General Checkup',
   'Dental Checkup',
   'Medical Clearance',
   'Consultation',
-  'Follow-up',
-  'Other'
+  'Follow-up'
 ];
 
 const SkeletonRow = () => (
@@ -86,7 +87,8 @@ const Appointments: React.FC = () => {
 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [purposeType, setPurposeType] = useState(COMMON_PURPOSES[0]);
+  const [cues, setCues] = useState<string[]>([]);
+  const [purposeType, setPurposeType] = useState('');
   const [customPurpose, setCustomPurpose] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -94,6 +96,23 @@ const Appointments: React.FC = () => {
 
   useEffect(() => {
     fetchAppointments();
+    // Fetch cues from settings so the appointment form reflects configurable options
+    (async () => {
+      try {
+        const res = await apiFetch('/api/index.php?route=settings&action=get');
+        if (res.settings && Array.isArray(res.settings.cues) && res.settings.cues.length > 0) {
+          setCues(res.settings.cues);
+          setPurposeType(res.settings.cues[0]);
+        } else {
+          setCues(DEFAULT_CUES);
+          setPurposeType(DEFAULT_CUES[0]);
+        }
+      } catch (err) {
+        console.error('Failed to load settings cues', err);
+        setCues(DEFAULT_CUES);
+        setPurposeType(DEFAULT_CUES[0]);
+      }
+    })();
   }, []);
 
   // Click outside search dropdown to close
@@ -324,7 +343,7 @@ const Appointments: React.FC = () => {
     setNewPatient({ first_name: '', last_name: '', patient_id_number: '', profile_type: 'student' });
     setDate('');
     setTime('');
-    setPurposeType(COMMON_PURPOSES[0]);
+    setPurposeType((cues && cues.length > 0) ? cues[0] : DEFAULT_CUES[0]);
     setCustomPurpose('');
     setShowSearchDropdown(false);
   };
@@ -388,7 +407,7 @@ const Appointments: React.FC = () => {
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-sm">
                   <th className="p-4 py-3">Patient</th>
                   <th className="p-4 py-3">Date & Time</th>
-                  <th className="p-4 py-3">Purpose</th>
+                  <th className="p-4 py-3">Cues</th>
                   <th className="p-4 py-3">Status</th>
                   <th className="p-4 py-3 text-right">Actions</th>
                 </tr>
@@ -419,7 +438,7 @@ const Appointments: React.FC = () => {
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-sm">
                   <th className="p-4 py-3">Patient / Group</th>
                   <th className="p-4 py-3">Date & Time</th>
-                  <th className="p-4 py-3">Purpose</th>
+                  <th className="p-4 py-3">Cues</th>
                   <th className="p-4 py-3">Status</th>
                   <th className="p-4 py-3 text-right">Actions</th>
                 </tr>
@@ -566,7 +585,7 @@ const Appointments: React.FC = () => {
                                     setSelectedPatient(pat);
                                     setDate(apt.appointment_date);
                                     setTime(apt.appointment_time.substring(0, 5));
-                                    if (COMMON_PURPOSES.includes(apt.purpose)) {
+                                    if ((cues.length > 0 ? cues : DEFAULT_CUES).includes(apt.purpose)) {
                                       setPurposeType(apt.purpose);
                                       setCustomPurpose('');
                                     } else {
@@ -869,15 +888,16 @@ const Appointments: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Cues</label>
                     <select
                       className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A5192D]/20 focus:border-[#A5192D] transition-all mb-3 bg-white"
                       value={purposeType}
                       onChange={(e) => setPurposeType(e.target.value)}
                     >
-                      {COMMON_PURPOSES.map(p => (
-                        <option key={p} value={p}>{p}</option>
+                      {(cues.length > 0 ? cues : DEFAULT_CUES).map(c => (
+                        <option key={c} value={c}>{c}</option>
                       ))}
+                      <option value="Other">Other (specify)</option>
                     </select>
                     
                     {purposeType === 'Other' && (
