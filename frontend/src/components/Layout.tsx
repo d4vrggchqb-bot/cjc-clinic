@@ -12,6 +12,21 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const page = location.pathname.substring(1) || 'dashboard';
 
+  const getPageInfo = () => {
+    switch (page) {
+      case 'dashboard': return { title: 'Dashboard', subtitle: 'Overview of clinic activity' };
+      case 'patients': return { title: 'Patient Directory', subtitle: 'Manage student and employee profiles' };
+      case 'consultation': return { title: 'Services Logbook', subtitle: 'Active patient queues and medical records' };
+      case 'appointments': return { title: 'Appointments', subtitle: 'Manage scheduled visits and follow-ups' };
+      case 'inventory': return { title: 'Inventory Management', subtitle: 'Track medicines, supplies, and equipments' };
+      case 'borrowings': return { title: 'Equipment Booking', subtitle: 'Manage borrowed clinic equipments' };
+      case 'reports': return { title: 'Reports & Analytics', subtitle: 'View clinic statistics and export data' };
+      case 'settings': return { title: 'Settings', subtitle: 'Manage clinic configuration, accounts, and preferences' };
+      default: return { title: '', subtitle: '' };
+    }
+  };
+  const pageInfo = getPageInfo();
+
   const handleLogout = async () => {
     const confirmed = await confirm({
       title: 'Sign Out',
@@ -39,7 +54,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
   ];
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-[#F7F8FA] font-sans overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen bg-[#FDFBF7] font-sans overflow-hidden">
       {/* Mobile Top Header */}
       <header className="md:hidden bg-[#9B101E] text-white flex items-center justify-between px-4 py-3 shadow-lg z-30 flex-shrink-0 border-b border-white/10">
         <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/dashboard')}>
@@ -151,40 +166,54 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           })}
         </nav>
         
-        <div className="p-4 mt-auto border-t border-white/10">
-          <button
-            onClick={() => {
-              navigate('/settings');
-              setIsMobileOpen(false);
-            }}
-            title={isCollapsed ? 'Settings' : ''}
-            className={`flex items-center ${isCollapsed ? 'md:justify-center md:px-2 px-4 gap-2.5' : 'gap-2.5 px-4'} w-full py-2.5 mb-2 text-[0.8rem] rounded-xl transition-all duration-300 uppercase tracking-wider font-semibold ${
-              page === 'settings' 
-                ? 'bg-white/10 border border-white/20 text-white shadow-[0_4px_12px_rgba(0,0,0,0.1)] backdrop-blur-sm' 
-                : 'text-white bg-transparent border border-transparent hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <FiSettings className="w-5 h-5 flex-shrink-0" strokeWidth={2.5} />
-            <span className={isCollapsed ? 'md:hidden block' : 'block'}>Settings</span>
-          </button>
-          <button 
-            onClick={() => {
-              setIsMobileOpen(false);
-              handleLogout();
-            }} 
-            title={isCollapsed ? 'Sign Out' : ''}
-            className={`flex items-center ${isCollapsed ? 'md:justify-center md:px-2 px-4 gap-2.5' : 'gap-2.5 px-4'} w-full py-2.5 text-[0.8rem] text-white hover:text-white hover:bg-black/20 rounded-xl transition-all duration-300 uppercase tracking-wider font-semibold`}
-          >
-            <FiLogOut className="w-5 h-5 flex-shrink-0 opacity-90" strokeWidth={2.5} />
-            <span className={isCollapsed ? 'md:hidden block' : 'block'}>Sign Out</span>
-          </button>
-        </div>
+
       </aside>
       
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden relative bg-[#f8fafc]">
+      <main className="flex-1 flex flex-col overflow-hidden relative bg-[#FDFBF7]">
+        
+        {/* Top Header Actions (Settings & Logout) */}
+        <header className="h-auto min-h-16 py-2 bg-white/80 backdrop-blur-md border-b border-slate-200 flex justify-between items-center px-4 sm:px-6 gap-4 shrink-0 z-20 shadow-sm relative w-full">
+          
+          <div className="flex flex-col">
+            <h1 className="text-xl sm:text-[24px] font-light text-[#A5192D] tracking-tight leading-tight">
+              {pageInfo.title}
+            </h1>
+            <p className="text-[11px] sm:text-[13px] text-slate-500 font-normal leading-tight hidden sm:block mt-0.5">
+              {pageInfo.subtitle}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {user && (
+              <div className="mr-3 text-slate-500 text-[12px] font-medium hidden lg:block">
+                Welcome back, <span className="font-bold text-slate-700">{user.name || user.username}</span>
+              </div>
+            )}
+            <button
+              onClick={() => navigate('/settings')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-colors ${
+                page === 'settings' ? 'text-[#C01D38] bg-red-50' : 'text-slate-600 hover:text-[#C01D38] hover:bg-red-50'
+              }`}
+            >
+              <FiSettings className="w-4 h-4" />
+              <span className="hidden md:inline">Settings</span>
+            </button>
+            
+            <div className="w-px h-5 bg-slate-200 mx-1"></div>
+            
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+            >
+              <FiLogOut className="w-4 h-4" />
+              <span className="hidden md:inline">Sign Out</span>
+            </button>
+          </div>
+        </header>
+
         {/* Subtle decorative background gradient */}
-        <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-slate-100 to-transparent -z-10"></div>
+        <div className="absolute top-14 left-0 right-0 h-64 bg-gradient-to-b from-[#F5F0E6] to-transparent -z-10"></div>
         <div className="flex-1 overflow-auto">
           {children}
         </div>

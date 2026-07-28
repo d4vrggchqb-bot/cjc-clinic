@@ -439,14 +439,10 @@ const Consultation: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f8f9fa]">
+    <div className="flex flex-col h-full bg-[#FDFBF7]">
       
       {/* Top Header */}
-      <div className="bg-white px-4 sm:px-6 py-4 border-b flex flex-col xl:flex-row xl:justify-between xl:items-center gap-4 flex-shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-[#A5192D] tracking-tight mb-1">Services Logbook</h1>
-          <p className="text-slate-500 text-xs sm:text-sm">Check-in patients and manage today's visitors</p>
-        </div>
+      <div className="bg-white px-4 sm:px-6 py-4 border-b flex flex-col xl:flex-row xl:justify-end xl:items-center gap-4 flex-shrink-0">
         
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3">

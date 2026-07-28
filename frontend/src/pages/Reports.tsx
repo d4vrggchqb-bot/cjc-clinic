@@ -199,14 +199,10 @@ const Reports: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
+    <div className="px-5 py-5 w-full">
       {/* Header */}
       <div className="mb-6 sm:mb-8 flex flex-col justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex flex-col xl:flex-row xl:justify-between xl:items-start w-full mb-4 gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#A5192D] tracking-tight mb-2">Reports & Analytics</h1>
-            <p className="text-slate-500 text-xs sm:text-sm font-medium">Generate specific date-range reports and visualize clinic data</p>
-          </div>
+        <div className="flex flex-col xl:flex-row xl:justify-end xl:items-start w-full mb-4 gap-4">
           <div className="flex flex-wrap gap-2.5 w-full xl:w-auto">
             <button 
               onClick={handleExportClick}

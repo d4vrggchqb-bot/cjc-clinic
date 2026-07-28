@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Mulish:wght@300;400&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -31,6 +31,9 @@
   --accent-expired-glow: rgba(168, 85, 247, 0.15);
   --accent-medcerts: #64748b;
   --accent-medcerts-glow: rgba(100, 116, 139, 0.15);
+  /* Typography */
+  --font-heading: 'Fraunces', serif;
+  --font-body:    'Mulish', sans-serif;
 }
 
 /* Base Body Styles */
@@ -39,17 +42,50 @@ html, body, #app {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
   color: var(--text-dark);
   background-color: var(--cjc-bg-canvas);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Scrollbar for a premium feel */
+/* Heading Typography – Fraunces, compact & light */
+h1 { font-family: var(--font-heading); font-weight: 300; font-size: 20px; line-height: 1.15; letter-spacing: 0.01em; }
+h2 { font-family: var(--font-heading); font-weight: 300; font-size: 17px; line-height: 1.2;  letter-spacing: 0.01em; }
+h3 { font-family: var(--font-heading); font-weight: 300; font-size: 14px; line-height: 1.2;  letter-spacing: 0.01em; }
+h4 { font-family: var(--font-heading); font-weight: 300; font-size: 13px; line-height: 1.3;  letter-spacing: 0.01em; }
+h5 { font-family: var(--font-heading); font-weight: 300; font-size: 12px; line-height: 1.3;  letter-spacing: 0.01em; }
+h6 { font-family: var(--font-heading); font-weight: 300; font-size: 11px; line-height: 1.3;  letter-spacing: 0.01em; }
+
+/* Body-level elements – Mulish light */
+p, span, li, label, td, th {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+.text-caption, small {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+
+input, textarea, select, button {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+/* Custom Scrollbar – slim & subtle */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -100,8 +136,8 @@ html, body, #app {
 
 .main-content {
   flex: 1;
-  padding: 2.5rem 3rem;
-  max-width: 1400px;
+  padding: 1rem 1.25rem;
+  max-width: 100%;
   min-height: 100vh;
   overflow-y: auto;
   animation: fadeIn 0.5s ease-out;
@@ -109,13 +145,13 @@ html, body, #app {
 
 /* SIDEBAR LAYOUT OVERHAUL */
 .sidebar {
-  width: 280px;
+  width: 200px;
   background: linear-gradient(135deg, var(--cjc-maroon-dark), var(--cjc-maroon));
-  padding: 2.5rem 1.5rem;
+  padding: 1rem 0.75rem;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.05);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.05);
   position: sticky;
   top: 0;
   height: 100vh;
@@ -126,29 +162,29 @@ html, body, #app {
   display: inline-block;
   position: relative;
   border-radius: 50%;
-  padding: 4px;
+  padding: 3px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
-  margin-bottom: 1rem;
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
+  margin-bottom: 0.5rem;
   align-self: center;
 }
 
 .sidebar .brand-logo {
-  width: 4.5rem;
-  height: 4.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   object-fit: contain;
   background: #ffffff;
   border-radius: 50%;
-  padding: 0.4rem;
+  padding: 0.25rem;
   display: block;
 }
 
 .sidebar .brand-title {
   color: #ffffff;
-  font-weight: 800;
-  font-size: 1.4rem;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: -0.01em;
 }
 
 .sidebar .brand-title sup {
@@ -159,15 +195,15 @@ html, body, #app {
 
 .sidebar .brand-subtitle {
   color: rgba(255, 255, 255, 0.7);
-  font-size: 0.68rem;
-  font-weight: 500;
-  line-height: 1.4;
-  margin-top: 0.25rem;
+  font-size: 0.6rem;
+  font-weight: 400;
+  line-height: 1.3;
+  margin-top: 0.15rem;
 }
 
 .sidebar-divider {
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  margin: 1.5rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 0.6rem 0;
 }
 
 /* NAVIGATION PILLS */
@@ -180,16 +216,16 @@ html, body, #app {
 .nav-pill {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0.85rem 1.25rem;
-  border-radius: 0.75rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
   text-decoration: none;
   color: rgba(255, 255, 255, 0.8);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s ease;
   border: 1px solid transparent;
   position: relative;
 }
@@ -201,11 +237,11 @@ html, body, #app {
 }
 
 .nav-pill .nav-icon {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 0.85rem;
+  height: 0.85rem;
   fill: currentColor;
   opacity: 0.8;
-  transition: transform 0.3s ease;
+  transition: transform 0.2s ease;
 }
 
 .nav-pill:hover .nav-icon {
@@ -247,9 +283,9 @@ html, body, #app {
 /* Typography Hierarchy */
 .page-title {
   color: var(--text-dark);
-  font-weight: 800;
-  letter-spacing: -0.025em;
-  font-size: 1.75rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  font-size: 1.2rem;
 }
 
 .page-subtitle {
@@ -258,14 +294,14 @@ html, body, #app {
 }
 
 .panel-header {
-  font-size: 0.75rem;
-  font-weight: 800;
+  font-size: 0.65rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   color: var(--text-secondary);
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -274,13 +310,11 @@ html, body, #app {
 /* PREMIUM METRIC CARDS */
 .metric-card {
   background: var(--surface);
-  border-radius: 1.25rem;
-  padding: 1.5rem;
+  border-radius: 0.6rem;
+  padding: 0.75rem;
   border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow: var(--card-shadow);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), 
-              box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.3s ease;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   position: relative;
   overflow: hidden;
   height: 100%;
@@ -318,26 +352,26 @@ html, body, #app {
 .metric-card.card-medcerts:hover { box-shadow: 0 16px 36px -8px var(--accent-medcerts-glow), var(--card-shadow); }
 
 .metric-label {
-  font-size: 0.72rem;
+  font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-secondary);
-  font-weight: 700;
-  margin-bottom: 0.35rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
 }
 
 .metric-value {
-  font-size: 2.25rem;
-  font-weight: 800;
-  margin: 0.25rem 0;
-  letter-spacing: -0.03em;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0.1rem 0;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 
 .metric-sub {
-  font-size: 0.75rem;
+  font-size: 0.62rem;
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* Card Accent colors */
@@ -350,29 +384,29 @@ html, body, #app {
 /* DASHBOARD PANELS & LISTS */
 .card-panel {
   background-color: var(--surface);
-  border-radius: 1.25rem;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow: var(--card-shadow);
+  border-radius: 0.6rem;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
   overflow: hidden;
 }
 
 .dashboard-panel {
   background-color: var(--surface);
-  border-radius: 1.25rem;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow: var(--card-shadow);
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 .dashboard-list-card {
   background-color: #ffffff;
-  border-radius: 0.75rem;
+  border-radius: 0.4rem;
   border: 1px solid rgba(15, 23, 42, 0.06);
-  padding: 1.15rem;
-  margin-bottom: 0.85rem;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.01);
+  padding: 0.5rem 0.65rem;
+  margin-bottom: 0.35rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  box-shadow: none;
 }
 
 .dashboard-list-card:hover {
@@ -384,16 +418,16 @@ html, body, #app {
 
 /* Typography elements in cards */
 .consult-title {
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 500;
   color: var(--text-dark);
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.1rem;
 }
 
 .consult-provider {
-  font-size: 0.8rem;
+  font-size: 0.68rem;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* Pulsating Active Status Indicator */
@@ -418,14 +452,14 @@ html, body, #app {
 
 /* BADGES & PILLS */
 .status-pill {
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 0.35rem 0.85rem;
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 0.15rem 0.5rem;
   border-radius: 999px;
   letter-spacing: 0.02em;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
   white-space: nowrap;
 }
 
@@ -464,16 +498,16 @@ html, body, #app {
 }
 
 .stock-pill {
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 0.35rem 0.85rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
   border-radius: 999px;
   background-color: #f1f5f9;
   color: #334155;
   border: 1px solid #cbd5e1;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 
 .stock-pill.low {
@@ -501,18 +535,18 @@ html, body, #app {
 }
 
 .table thead th {
-  padding: 1rem 1.25rem;
-  font-size: 0.7rem;
-  font-weight: 700;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.6rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   color: var(--text-secondary);
   border: none;
 }
 
 .table tbody tr {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.04);
-  transition: background-color 0.2s ease;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  transition: background-color 0.15s ease;
 }
 
 .table tbody tr:hover {
@@ -520,8 +554,8 @@ html, body, #app {
 }
 
 .table tbody td {
-  padding: 1.15rem 1.25rem;
-  font-size: 0.85rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.75rem;
   border: none;
 }
 
@@ -529,41 +563,41 @@ html, body, #app {
 .form-control,
 .form-select {
   border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  padding: 0.65rem 1rem;
-  font-size: 0.85rem;
+  border-radius: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
   color: var(--text-dark);
   background-color: #ffffff;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .form-control:focus,
 .form-select:focus {
   border-color: var(--cjc-maroon-light);
   outline: none;
-  box-shadow: 0 0 0 4px rgba(128, 0, 22, 0.12);
+  box-shadow: 0 0 0 2px rgba(128, 0, 22, 0.1);
 }
 
 .form-label {
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.65rem;
+  font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.25rem;
 }
 
 .brand-btn {
   background-color: var(--cjc-maroon);
   border-color: var(--cjc-maroon);
   color: #ffffff;
-  font-weight: 600;
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
-  padding: 0.65rem 1.5rem;
-  border-radius: 0.75rem;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 12px rgba(128, 0, 22, 0.15);
+  font-weight: 500;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.4rem;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 4px rgba(128, 0, 22, 0.12);
   text-transform: uppercase;
 }
 
@@ -572,7 +606,7 @@ html, body, #app {
   border-color: var(--cjc-maroon-dark);
   color: #ffffff;
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(128, 0, 22, 0.25);
+  box-shadow: 0 3px 8px rgba(128, 0, 22, 0.2);
 }
 
 .brand-btn:active {
@@ -583,11 +617,11 @@ html, body, #app {
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
   color: var(--text-dark);
-  font-weight: 600;
-  font-size: 0.85rem;
-  padding: 0.65rem 1.5rem;
-  border-radius: 0.75rem;
-  transition: all 0.2s ease;
+  font-weight: 500;
+  font-size: 0.7rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.4rem;
+  transition: all 0.15s ease;
 }
 
 .brand-btn-secondary:hover {
@@ -674,13 +708,13 @@ html, body, #app {
 .dashboard-filter-bar {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  background: linear-gradient(135deg, rgba(128, 0, 22, 0.04), rgba(15, 118, 110, 0.04));
+  gap: 0.5rem;
+  background: linear-gradient(135deg, rgba(128, 0, 22, 0.03), rgba(15, 118, 110, 0.03));
   border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 1rem;
-  padding: 1rem;
-  margin: 1rem 0 0.75rem;
-  box-shadow: var(--card-shadow);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  margin: 0.5rem 0 0.5rem;
+  box-shadow: none;
 }
 
 .filter-group {
@@ -701,13 +735,13 @@ html, body, #app {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.6rem;
-  border-radius: 0.75rem;
-  padding: 0.7rem 1rem;
+  min-height: 1.8rem;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.5rem;
   background: #ffffff;
   color: var(--text-dark);
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.72rem;
+  font-weight: 400;
   border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
@@ -730,11 +764,11 @@ html, body, #app {
   border: 1px solid #e2e8f0;
   background: #ffffff;
   color: var(--text-secondary);
-  padding: 0.45rem 0.8rem;
+  padding: 0.2rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  transition: all 0.2s ease;
+  font-size: 0.65rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
 }
 
 .department-chip {
@@ -936,11 +970,11 @@ html, body, #app {
 }
 
 .modal-card {
-  width: min(100%, 540px);
+  width: min(100%, 520px);
   background: #ffffff;
-  border-radius: 1.25rem;
-  padding: 1.25rem;
-  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.2);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15);
 }
 
 .detail-card {
@@ -951,17 +985,17 @@ html, body, #app {
 }
 
 .detail-label {
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.6rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--text-secondary);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.2rem;
 }
 
 .detail-value {
   color: var(--text-dark);
-  font-size: 0.95rem;
+  font-size: 0.78rem;
   margin-bottom: 0;
 }
 

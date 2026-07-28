@@ -8,13 +8,8 @@ const Inventory: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'catalog' | 'orders' | 'logs'>('catalog');
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto h-full flex flex-col">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Inventory Management</h1>
-          <p className="text-slate-500 text-xs sm:text-sm font-medium">Track medicines, supplies, and equipment per clinic branch.</p>
-        </div>
-      </div>
+    <div className="px-5 py-5 w-full h-full flex flex-col">
+
 
       <div className="flex border-b border-slate-200 mb-6 overflow-x-auto max-w-full">
         <button

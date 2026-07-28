@@ -190,11 +190,8 @@ export default function Settings() {
   if (loading) return <div className="p-8">Loading settings...</div>;
 
   return (
-    <div className="flex flex-col h-full bg-[#f8f9fa]">
-      <div className="bg-white px-4 sm:px-6 py-4 border-b flex-shrink-0">
-        <h1 className="text-2xl font-bold text-[#A5192D] tracking-tight mb-1">Settings</h1>
-        <p className="text-slate-500 text-xs sm:text-sm">Manage clinic configuration, accounts, and preferences</p>
-      </div>
+    <div className="flex flex-col h-full bg-[#FDFBF7]">
+
 
       <div className="bg-white border-b border-slate-200 px-4 sm:px-6 flex gap-1 pt-2 shadow-sm z-10 relative overflow-x-auto max-w-full">
         {[
@@ -220,7 +217,7 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="w-full space-y-6">
 
           {activeTab === 'academic' && (
             <>

@@ -366,12 +366,8 @@ const Appointments: React.FC = () => {
   const tabs = ['All', 'Scheduled', 'Completed', 'Cancelled', 'No-Show'];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Appointments</h1>
-          <p className="text-slate-500 font-medium text-xs sm:text-sm">Schedule and manage clinic visits.</p>
-        </div>
+    <div className="px-5 py-5 w-full">
+      <div className="flex flex-col sm:flex-row justify-end sm:items-center gap-4 mb-6">
         <button
           onClick={() => { resetForm(); setIsModalOpen(true); }}
           className="bg-[#A5192D] hover:bg-[#8A1525] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-[#A5192D]/20 w-full sm:w-auto text-xs sm:text-sm"

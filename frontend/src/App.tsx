@@ -39,7 +39,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className="p-10 w-full max-w-7xl mx-auto h-full flex flex-col">
+  <div className="px-5 py-5 w-full h-full flex flex-col">
     <div className="mb-8">
       <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-1">{title}</h1>
       <p className="text-slate-400 text-sm font-medium">Under construction</p>

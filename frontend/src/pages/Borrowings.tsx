@@ -8,12 +8,8 @@ const Borrowings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'checkedOut' | 'newBooking' | 'history'>('checkedOut');
   
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto h-full flex flex-col">
-      <div className="mb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Equipment Booking</h1>
-          <p className="text-slate-500 font-medium text-xs sm:text-sm">Manage borrowing of clinic equipment and supplies</p>
-        </div>
+    <div className="px-5 py-5 w-full h-full flex flex-col">
+      <div className="mb-6 flex flex-col xl:flex-row xl:items-center justify-end gap-4">
         
         <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-full w-full xl:w-auto">
           <button
