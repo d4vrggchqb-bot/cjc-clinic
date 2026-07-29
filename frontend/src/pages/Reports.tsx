@@ -200,80 +200,36 @@ const Reports: React.FC = () => {
 
   return (
     <div className="px-5 py-5 w-full">
-      {/* Header */}
-      <div className="mb-6 sm:mb-8 flex flex-col justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex flex-col xl:flex-row xl:justify-end xl:items-start w-full mb-4 gap-4">
-          <div className="flex flex-wrap gap-2.5 w-full xl:w-auto">
-            <button 
-              onClick={handleExportClick}
-              className="bg-slate-800 hover:bg-slate-900 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-md flex-1 sm:flex-none"
-            >
-              <FiDownload className="w-4 h-4 flex-shrink-0" /> Export Consultations
-            </button>
-            <button 
-              onClick={() => {
-                if (!data || !data.borrowing_export_data || data.borrowing_export_data.length === 0) {
-                  alert("No borrowing data available for this date range and filters.");
-                  return;
-                }
-                const exportData = data.borrowing_export_data;
-                const headers = Object.keys(exportData[0]).join(',');
-                const rows = exportData.map((row: any) => {
-                  return Object.values(row).map((val: any) => {
-                    let cell = val === null ? '' : String(val);
-                    if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
-                      cell = `"${cell.replace(/"/g, '""')}"`;
-                    }
-                    return cell;
-                  }).join(',');
-                });
-
-                const csvContent = [headers, ...rows].join('\n');
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", `Clinic_Borrowings_${startDate}_to_${endDate}.csv`);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-              }}
-              className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-md flex-1 sm:flex-none"
-            >
-              <FiDownload className="w-4 h-4 flex-shrink-0" /> Export Borrowings
-            </button>
-          </div>
-        </div>
+      {/* Toolbar (Filters & Actions) */}
+      <div className="mb-6 sm:mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
         
         {/* Filters */}
-        <div className="flex gap-4 items-center flex-wrap">
-          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-            <span className="px-3 text-slate-400 flex items-center">
-              <FiCalendar />
+        <div className="flex gap-2 flex-wrap xl:flex-nowrap items-center flex-1">
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <span className="px-2 text-slate-400 flex items-center">
+              <FiCalendar className="w-3.5 h-3.5" />
             </span>
             <input 
               type="date" 
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="px-2 py-2 text-sm outline-none text-slate-700 bg-transparent"
+              className="px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent w-[105px]"
             />
-            <span className="px-2 text-slate-400 font-medium text-sm">to</span>
+            <span className="px-1 text-slate-400 font-medium text-[11px]">to</span>
             <input 
               type="date" 
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="px-2 py-2 text-sm outline-none text-slate-700 pr-3 bg-transparent"
+              className="px-1 py-1.5 text-xs outline-none text-slate-700 pr-2 bg-transparent w-[105px]"
             />
           </div>
 
           {(userRole === 'Superadmin') && (
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
               <select 
                 value={selectedBranch}
                 onChange={(e) => setSelectedBranch(e.target.value)}
-                className="px-3 py-2 text-sm outline-none text-slate-700 bg-transparent pr-4"
+                className="px-2 py-1.5 text-xs outline-none text-slate-700 bg-transparent pr-3"
               >
                 <option value="All Branches">All Branches</option>
                 <option value="College Clinic">College Clinic</option>
@@ -284,14 +240,14 @@ const Reports: React.FC = () => {
           )}
 
           {/* New Filters */}
-          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-            <span className="px-3 text-slate-400 flex items-center">
-              <FiFilter />
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <span className="px-2 text-slate-400 flex items-center">
+              <FiFilter className="w-3.5 h-3.5" />
             </span>
             <select 
               value={department}
               onChange={(e) => { setDepartment(e.target.value); setProgram('All Programs'); setYearLevel('All Year Levels'); }}
-              className="px-3 py-2 text-sm outline-none text-slate-700 bg-transparent"
+              className="px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent w-[140px] truncate"
             >
               <option value="All Departments">All Departments</option>
               {allDepartments.map((dept: string, idx: number) => (
@@ -300,11 +256,11 @@ const Reports: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
             <select 
               value={program}
               onChange={(e) => { setProgram(e.target.value); setYearLevel('All Year Levels'); }}
-              className="px-3 py-2 text-sm outline-none text-slate-700 bg-transparent"
+              className="px-2 py-1.5 text-xs outline-none text-slate-700 bg-transparent w-[110px] truncate"
             >
               <option value="All Programs">All Programs</option>
               {dynamicPrograms.map((prog: string, idx: number) => (
@@ -313,11 +269,11 @@ const Reports: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-11 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
             <select 
               value={yearLevel}
               onChange={(e) => setYearLevel(e.target.value)}
-              className="px-3 py-2 text-sm outline-none text-slate-700 bg-transparent pr-4"
+              className="px-2 py-1.5 text-xs outline-none text-slate-700 bg-transparent pr-3 w-[120px] truncate"
             >
               <option value="All Year Levels">All Year Levels</option>
               {dynamicYearLevels.map((yr: string, idx: number) => (
@@ -325,6 +281,49 @@ const Reports: React.FC = () => {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2.5 w-full xl:w-auto flex-shrink-0">
+          <button 
+            onClick={handleExportClick}
+            className="bg-slate-800 hover:bg-slate-900 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-md flex-1 sm:flex-none"
+          >
+            <FiDownload className="w-4 h-4 flex-shrink-0" /> Export Consultations
+          </button>
+          <button 
+            onClick={() => {
+              if (!data || !data.borrowing_export_data || data.borrowing_export_data.length === 0) {
+                alert("No borrowing data available for this date range and filters.");
+                return;
+              }
+              const exportData = data.borrowing_export_data;
+              const headers = Object.keys(exportData[0]).join(',');
+              const rows = exportData.map((row: any) => {
+                return Object.values(row).map((val: any) => {
+                  let cell = val === null ? '' : String(val);
+                  if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                    cell = `"${cell.replace(/"/g, '""')}"`;
+                  }
+                  return cell;
+                }).join(',');
+              });
+
+              const csvContent = [headers, ...rows].join('\n');
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              
+              const link = document.createElement("a");
+              link.setAttribute("href", url);
+              link.setAttribute("download", `Clinic_Borrowings_${startDate}_to_${endDate}.csv`);
+              link.style.visibility = 'hidden';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-md flex-1 sm:flex-none"
+          >
+            <FiDownload className="w-4 h-4 flex-shrink-0" /> Export Borrowings
+          </button>
         </div>
       </div>
 

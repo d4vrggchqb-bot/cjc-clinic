@@ -173,7 +173,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
       <main className="flex-1 flex flex-col overflow-hidden relative bg-[#FDFBF7]">
         
         {/* Top Header Actions (Settings & Logout) */}
-        <header className="h-auto min-h-16 py-2 bg-white/80 backdrop-blur-md border-b border-slate-200 flex justify-between items-center px-4 sm:px-6 gap-4 shrink-0 z-20 shadow-sm relative w-full">
+        <header className="h-auto min-h-[5rem] py-3 sm:py-4 bg-white/80 backdrop-blur-md border-b border-slate-200 flex justify-between items-center px-4 sm:px-8 gap-4 shrink-0 z-20 shadow-sm relative w-full">
           
           <div className="flex flex-col">
             <h1 className="text-2xl sm:text-[28px] font-bold text-[#A5192D] tracking-tight leading-tight">
@@ -197,7 +197,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
               }`}
             >
               <FiSettings className="w-4 h-4" />
-              <span className="hidden md:inline">Settings</span>
+              <span>Settings</span>
             </button>
             
             <div className="w-px h-5 bg-slate-200 mx-1"></div>
@@ -207,7 +207,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
               className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
             >
               <FiLogOut className="w-4 h-4" />
-              <span className="hidden md:inline">Sign Out</span>
+              <span>Sign Out</span>
             </button>
           </div>
         </header>
