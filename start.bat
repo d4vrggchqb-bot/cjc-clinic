@@ -4,4 +4,4 @@ start cmd /k "c:\xampp\php\php.exe -S 0.0.0.0:8000 -t backend\public"
 
 echo Starting CJC Clinic Frontend Server...
 cd frontend
-start cmd /k "npm run dev"
+start cmd /k "npm run dev -- --host"

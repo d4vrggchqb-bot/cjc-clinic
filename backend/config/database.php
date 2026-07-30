@@ -30,12 +30,12 @@ function cjcDatabaseConnection(): PDO
         $host = $envHost;
     } else {
         // Force local XAMPP MySQL database
-        $host = '127.0.0.1';
+        $host = 'localhost';
     }
 
     $db      = getenv('DB_NAME')    ?: 'cjc_clinic';
-    $user    = getenv('DB_USER')    ?: 'root';
-    $pass    = getenv('DB_PASS')    ?: '';
+    $user    = getenv('DB_USER')    ?: 'cjc_app';
+    $pass    = getenv('DB_PASS')    ?: 'CHANGE_ME';
     $charset = getenv('DB_CHARSET') ?: 'utf8mb4';
 
     // Warn loudly if credentials are not configured
