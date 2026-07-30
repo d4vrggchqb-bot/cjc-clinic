@@ -29,20 +29,12 @@ function cjcDatabaseConnection(): PDO
     if ($envHost !== false && $envHost !== '') {
         $host = $envHost;
     } else {
-        // Ping the School ICT Central Server (192.168.10.96) on MySQL port 3306 with a 0.35s timeout.
-        // If connected (in school Wi-Fi/LAN), use ICT server. Otherwise, default to local computer XAMPP (127.0.0.1) for home testing.
-        $socket = @fsockopen('192.168.10.96', 3306, $errno, $errstr, 0.35);
-        if ($socket) {
-            fclose($socket);
-            $host = '192.168.10.96';
-        } else {
-            $host = '127.0.0.1';
-        }
+         $host = '192.168.10.96';
     }
 
     $db      = getenv('DB_NAME')    ?: 'cjc_clinic';
-    $user    = getenv('DB_USER')    ?: 'root';
-    $pass    = getenv('DB_PASS')    ?: '';
+    $user    = getenv('DB_USER')    ?: 'cjc_app';
+    $pass    = getenv('DB_PASS')    ?: 'CHANGE_ME';
     $charset = getenv('DB_CHARSET') ?: 'utf8mb4';
 
     // Warn loudly if credentials are not configured

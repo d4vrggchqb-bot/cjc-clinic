@@ -1,12 +1,36 @@
 <?php
+// --- Simple .env Parser ---
+$envFile = __DIR__ . '/../../.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (str_starts_with(trim($line), '#')) continue; // Skip comments
+        
+        $parts = explode('=', $line, 2);
+        if (count($parts) === 2) {
+            $key = trim($parts[0]);
+            
+            // Strip inline comments (anything after #)
+            $valPart = explode('#', $parts[1], 2)[0];
+            
+            // Remove optional quotes and whitespace from the value
+            $val = trim(trim($valPart), '"\''); 
+            
+            // Set for getenv()
+            putenv(sprintf('%s=%s', $key, $val));
+            // Set for $_ENV and $_SERVER as fallback
+            $_ENV[$key] = $val;
+            $_SERVER[$key] = $val;
+        }
+    }
+}
+// -------------------------
+
 // ─── Global CORS Configuration for Headless API ──────────────────────────────
 if (php_sapi_name() !== 'cli') {
     $origin = $_SERVER['HTTP_ORIGIN'] ?? 'http://localhost:5173';
-    if (in_array($origin, ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174'])) {
-        header("Access-Control-Allow-Origin: $origin");
-    } else {
-        header("Access-Control-Allow-Origin: http://localhost:5173");
-    }
+    // Reflect the requested origin to allow access from any IP on the local network
+    header("Access-Control-Allow-Origin: $origin");
     header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
     header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-Token, Accept, Origin, Cache-Control');
