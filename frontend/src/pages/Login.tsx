@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
+import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
+
+const GOOGLE_CLIENT_ID = '814203352511-rp2uq7eajh56v8k9gnspbmureb2hpk3a.apps.googleusercontent.com';
 
 const Login: React.FC = () => {
   const [view, setView] = useState<'login' | 'request_reset' | 'perform_reset'>('login');
@@ -37,6 +40,31 @@ const Login: React.FC = () => {
     } catch (err) {
       setError('Network error. Could not connect to the server.');
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    setError('');
+    setMessage('');
+    
+    try {
+      const response = await apiFetch('/api/index.php?action=google_login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: credentialResponse.credential }),
+      });
+
+      if (response.success) {
+        navigate('/dashboard');
+      } else {
+        setError(response.error || 'Google Login failed. Ensure you are using a @g.cjc.edu.ph account.');
+      }
+    } catch (err) {
+      setError('Network error. Could not connect to the server.');
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError('Google Sign-In was unsuccessful. Try again later.');
   };
 
   const handleRequestReset = async (e: React.FormEvent) => {
@@ -93,22 +121,22 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen font-sans flex w-full">
-      {/* Left Side */}
-      <section className="flex flex-col items-center justify-center bg-[#F9F9F9] w-full lg:w-1/2 p-6 md:p-12 relative shadow-xl z-20">
-        <div className="w-full max-w-sm">
+    <div className="min-h-screen font-sans flex flex-col-reverse md:flex-row w-full bg-[#F9F9F9]">
+      {/* Left Side: Login Form */}
+      <section className="flex flex-col items-center justify-center bg-[#F9F9F9] w-full md:w-1/2 p-6 md:p-12 relative shadow-xl z-20 min-h-[60vh] md:min-h-screen">
+        <div className="w-full max-w-sm my-auto">
           {/* Header */}
-          <div className="mb-10 text-center lg:text-left">
-            <h2 className="text-[2rem] font-medium text-[#C01D38] mb-1 tracking-tight">
+          <div className="mb-8 md:mb-10 text-center md:text-left">
+            <h2 className="text-2xl sm:text-[2rem] font-medium text-[#C01D38] mb-1 tracking-tight">
               {view === 'login' ? 'Sign In' : view === 'request_reset' ? 'Forgot Password' : 'Reset Password'}
             </h2>
-            <p className="text-slate-600 text-sm font-medium">
+            <p className="text-slate-600 text-xs sm:text-sm font-medium">
               {view === 'login' ? 'Access your patient information' : 'Enter your details to reset your password'}
             </p>
           </div>
           
           {/* Card */}
-          <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 rounded-sm p-8 md:px-10 md:py-12 w-full relative z-10">
+          <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 rounded-md p-6 sm:p-8 md:px-10 md:py-12 w-full relative z-10">
             {error && (
               <div className="bg-red-50 text-red-600 border border-red-100 rounded py-3 px-4 mb-6 text-sm text-center">
                 {error}
@@ -133,7 +161,7 @@ const Login: React.FC = () => {
                     required 
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-sm px-4 py-2.5 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
+                    className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-md px-4 py-2.5 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
                   />
                 </div>
                 
@@ -149,7 +177,7 @@ const Login: React.FC = () => {
                       required 
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-sm px-4 py-2.5 pr-10 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
+                      className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-md px-4 py-2.5 pr-10 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
                     />
                     <button
                       type="button"
@@ -184,10 +212,30 @@ const Login: React.FC = () => {
                 {/* Submit Button */}
                 <button 
                   type="submit" 
-                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-sm hover:bg-[#a0182f] transition-colors shadow-sm"
+                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-md hover:bg-[#a0182f] transition-colors shadow-sm mb-6"
                 >
                   SIGN IN
                 </button>
+                
+                <div className="relative flex items-center justify-center w-full mb-6">
+                  <div className="border-t border-slate-200 w-full"></div>
+                  <span className="absolute bg-white px-3 text-xs text-slate-400 font-medium tracking-wide">OR</span>
+                </div>
+                
+                <div className="flex justify-center w-full">
+                  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={handleGoogleError}
+                      useOneTap
+                      theme="outline"
+                      size="large"
+                      width="100%"
+                      text="continue_with"
+                      shape="rectangular"
+                    />
+                  </GoogleOAuthProvider>
+                </div>
               </form>
             )}
 
@@ -203,14 +251,14 @@ const Login: React.FC = () => {
                     required 
                     value={resetUsername}
                     onChange={(e) => setResetUsername(e.target.value)}
-                    className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-sm px-4 py-2.5 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
+                    className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-md px-4 py-2.5 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
                   />
                 </div>
                 <button 
                   type="submit" 
-                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-sm hover:bg-[#a0182f] transition-colors shadow-sm mb-3"
+                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-md hover:bg-[#a0182f] transition-colors shadow-sm mb-3"
                 >
-                  REQUEST RESET
+                  REQUEST RESET LINK
                 </button>
                 <div className="text-center">
                   <button
@@ -236,7 +284,7 @@ const Login: React.FC = () => {
                     required 
                     value={resetToken}
                     readOnly
-                    className="w-full border border-slate-200/70 bg-slate-100 rounded-sm px-4 py-2.5 text-sm text-slate-500 outline-none"
+                    className="w-full border border-slate-200/70 bg-slate-100 rounded-md px-4 py-2.5 text-sm text-slate-500 outline-none"
                   />
                 </div>
                 <div className="mb-5">
@@ -249,12 +297,12 @@ const Login: React.FC = () => {
                     required 
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-sm px-4 py-2.5 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
+                    className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-md px-4 py-2.5 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
                   />
                 </div>
                 <button 
                   type="submit" 
-                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-sm hover:bg-[#a0182f] transition-colors shadow-sm mb-3"
+                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-md hover:bg-[#a0182f] transition-colors shadow-sm mb-3"
                 >
                   RESET PASSWORD
                 </button>
@@ -272,24 +320,28 @@ const Login: React.FC = () => {
           </div>
         </div>
 
-        {/* Copyright */}
-        <div className="absolute bottom-6 left-8 lg:left-12">
+        {/* Copyright & Credits */}
+        <div className="mt-8 md:absolute md:bottom-6 md:left-12 text-center md:text-left">
           <p className="text-[0.65rem] text-slate-400 font-medium">
             &copy; 2026 CJC-Clinic. All Rights Reserved.
           </p>
+          <div className="md:hidden text-[0.6rem] text-slate-400 mt-1">
+            <span>Powered by Rhea Balatero &amp; John Mark Limsan</span>
+          </div>
         </div>
       </section>
 
       {/* Right Side: Branding */}
       <section 
-        className="w-full lg:w-1/2 flex-col items-center justify-center border-l border-slate-100 p-12" 
+        className="w-full md:w-1/2 flex flex-col items-center justify-center border-l border-slate-100 p-8 md:p-12 bg-white min-h-[40vh] md:min-h-screen" 
         style={{ display: 'flex', backgroundColor: '#ffffff' }}
       >
-        <div className="text-center max-w-md w-full">
+        <div className="text-center max-w-md w-full my-auto">
           <img 
             src="/assets/logo.png" 
             alt="CJC Logo" 
-            style={{ width: '14rem', height: '14rem', margin: '0 auto 1.5rem', objectFit: 'contain' }}
+            className="w-24 h-24 md:w-56 md:h-56 mx-auto mb-4 md:mb-6 object-contain"
+            style={{ margin: '0 auto 1.5rem', objectFit: 'contain' }}
           />
           <h1 style={{ fontSize: '2.25rem', color: '#C01D38', fontWeight: 'bold', margin: '0', position: 'relative', display: 'inline-block' }}>
             CJC-Clinic<sup style={{ position: 'absolute', top: '-1rem', fontSize: '1.25rem', fontWeight: 'bold' }}>+</sup>
@@ -298,7 +350,7 @@ const Login: React.FC = () => {
             Clinic Patient Records System and Inventory
           </p>
           
-          <div style={{ margin: '2rem auto', borderTop: '1px solid rgba(226, 232, 240, 0.6)', width: '75%' }}></div>
+          <div style={{ margin: '1.5rem auto', borderTop: '1px solid rgba(226, 232, 240, 0.6)', width: '75%' }}></div>
           
           <div style={{ color: '#64748b' }}>
             <div style={{ fontSize: '0.65rem', opacity: 0.75 }}>Powered by</div>

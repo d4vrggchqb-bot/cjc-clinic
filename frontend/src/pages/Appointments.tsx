@@ -30,13 +30,14 @@ interface Patient {
   college_dept: string;
 }
 
-const COMMON_PURPOSES = [
+// Cues will be loaded from settings (managed in Settings -> Clinical Presets)
+// Fallback to a small default list if settings are not available yet
+const DEFAULT_CUES = [
   'General Checkup',
   'Dental Checkup',
   'Medical Clearance',
   'Consultation',
-  'Follow-up',
-  'Other'
+  'Follow-up'
 ];
 
 const SkeletonRow = () => (
@@ -86,7 +87,8 @@ const Appointments: React.FC = () => {
 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [purposeType, setPurposeType] = useState(COMMON_PURPOSES[0]);
+  const [cues, setCues] = useState<string[]>([]);
+  const [purposeType, setPurposeType] = useState('');
   const [customPurpose, setCustomPurpose] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -94,6 +96,23 @@ const Appointments: React.FC = () => {
 
   useEffect(() => {
     fetchAppointments();
+    // Fetch cues from settings so the appointment form reflects configurable options
+    (async () => {
+      try {
+        const res = await apiFetch('/api/index.php?route=settings&action=get');
+        if (res.settings && Array.isArray(res.settings.cues) && res.settings.cues.length > 0) {
+          setCues(res.settings.cues);
+          setPurposeType(res.settings.cues[0]);
+        } else {
+          setCues(DEFAULT_CUES);
+          setPurposeType(DEFAULT_CUES[0]);
+        }
+      } catch (err) {
+        console.error('Failed to load settings cues', err);
+        setCues(DEFAULT_CUES);
+        setPurposeType(DEFAULT_CUES[0]);
+      }
+    })();
   }, []);
 
   // Click outside search dropdown to close
@@ -324,7 +343,7 @@ const Appointments: React.FC = () => {
     setNewPatient({ first_name: '', last_name: '', patient_id_number: '', profile_type: 'student' });
     setDate('');
     setTime('');
-    setPurposeType(COMMON_PURPOSES[0]);
+    setPurposeType((cues && cues.length > 0) ? cues[0] : DEFAULT_CUES[0]);
     setCustomPurpose('');
     setShowSearchDropdown(false);
   };
@@ -347,28 +366,24 @@ const Appointments: React.FC = () => {
   const tabs = ['All', 'Scheduled', 'Completed', 'Cancelled', 'No-Show'];
 
   return (
-    <div className="p-8 w-full max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Appointments</h1>
-          <p className="text-slate-500 font-medium text-sm">Schedule and manage clinic visits.</p>
-        </div>
+    <div className="px-5 py-5 w-full">
+      <div className="flex flex-col sm:flex-row justify-end sm:items-center gap-4 mb-6">
         <button
           onClick={() => { resetForm(); setIsModalOpen(true); }}
-          className="bg-[#A5192D] hover:bg-[#8A1525] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-md shadow-[#A5192D]/20"
+          className="bg-[#A5192D] hover:bg-[#8A1525] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-[#A5192D]/20 w-full sm:w-auto text-xs sm:text-sm"
         >
-          <FiPlus /> New Appointment
+          <FiPlus className="w-4 h-4" /> New Appointment
         </button>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
         {/* Tabs */}
-        <div className="border-b border-slate-200 px-6 flex gap-6">
+        <div className="border-b border-slate-200 px-4 sm:px-6 flex gap-4 sm:gap-6 overflow-x-auto max-w-full">
           {tabs.map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`py-4 text-sm font-semibold transition-colors relative ${
+              className={`py-3.5 sm:py-4 text-xs sm:text-sm font-semibold transition-colors relative whitespace-nowrap ${
                 activeTab === tab ? 'text-[#A5192D]' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
@@ -388,7 +403,7 @@ const Appointments: React.FC = () => {
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-sm">
                   <th className="p-4 py-3">Patient</th>
                   <th className="p-4 py-3">Date & Time</th>
-                  <th className="p-4 py-3">Purpose</th>
+                  <th className="p-4 py-3">Cues</th>
                   <th className="p-4 py-3">Status</th>
                   <th className="p-4 py-3 text-right">Actions</th>
                 </tr>
@@ -419,7 +434,7 @@ const Appointments: React.FC = () => {
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-sm">
                   <th className="p-4 py-3">Patient / Group</th>
                   <th className="p-4 py-3">Date & Time</th>
-                  <th className="p-4 py-3">Purpose</th>
+                  <th className="p-4 py-3">Cues</th>
                   <th className="p-4 py-3">Status</th>
                   <th className="p-4 py-3 text-right">Actions</th>
                 </tr>
@@ -427,7 +442,7 @@ const Appointments: React.FC = () => {
               <tbody>
                 {(() => {
                   const renderedGroups = new Set<string>();
-                  const rows: JSX.Element[] = [];
+                  const rows: React.ReactNode[] = [];
                   
                   filteredAppointments.forEach((apt) => {
                     if (apt.group_name) {
@@ -566,7 +581,7 @@ const Appointments: React.FC = () => {
                                     setSelectedPatient(pat);
                                     setDate(apt.appointment_date);
                                     setTime(apt.appointment_time.substring(0, 5));
-                                    if (COMMON_PURPOSES.includes(apt.purpose)) {
+                                    if ((cues.length > 0 ? cues : DEFAULT_CUES).includes(apt.purpose)) {
                                       setPurposeType(apt.purpose);
                                       setCustomPurpose('');
                                     } else {
@@ -869,15 +884,16 @@ const Appointments: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Cues</label>
                     <select
                       className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A5192D]/20 focus:border-[#A5192D] transition-all mb-3 bg-white"
                       value={purposeType}
                       onChange={(e) => setPurposeType(e.target.value)}
                     >
-                      {COMMON_PURPOSES.map(p => (
-                        <option key={p} value={p}>{p}</option>
+                      {(cues.length > 0 ? cues : DEFAULT_CUES).map(c => (
+                        <option key={c} value={c}>{c}</option>
                       ))}
+                      <option value="Other">Other (specify)</option>
                     </select>
                     
                     {purposeType === 'Other' && (

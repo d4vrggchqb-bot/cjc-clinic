@@ -82,9 +82,14 @@ const InventoryCatalog: React.FC = () => {
       type: 'info'
     });
     if (!confirmed) return;
-    await apiFetch('/api/index.php?route=inventory&action=add_item', { method: 'POST', body: JSON.stringify(payload) });
-    setShowAddItem(false);
-    fetchData();
+    try {
+      await apiFetch('/api/index.php?route=inventory&action=add_item', { method: 'POST', body: JSON.stringify(payload) });
+      setShowAddItem(false);
+      fetchData();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to save item. An error occurred.');
+    }
   };
 
   const handleAddBatch = async (e: React.FormEvent) => {

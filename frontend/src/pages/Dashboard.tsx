@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiPlus, FiPrinter, FiSearch, FiX } from 'react-icons/fi';
+import { FiPlus, FiPrinter, FiSearch, FiX, FiPieChart } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { apiFetch } from '../utils/api';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend, LineChart, Line
 } from 'recharts';
+import PatientViewModal from '../components/PatientViewModal';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -24,7 +25,9 @@ const Dashboard: React.FC = () => {
     visitTrends: [] as {date: string, visits: number}[],
     topDispensed: [] as {name: string, count: number}[],
     expiringItems: [] as any[],
-    lowStockItems: [] as any[]
+    lowStockItems: [] as any[],
+    currentlyCheckedOut: 0,
+    recentBorrowings: [] as any[]
   });
 
   // Quick Admit State
@@ -35,12 +38,15 @@ const Dashboard: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [purpose, setPurpose] = useState('');
+  const [cues, setCues] = useState<string[]>([]);
+  const [selectedCue, setSelectedCue] = useState('');
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const searchRef = React.useRef<HTMLDivElement>(null);
 
   // Quick Dispense State
   const [showQuickDispense, setShowQuickDispense] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [selectedDispenseCue, setSelectedDispenseCue] = useState('');
   const [dispenseData, setDispenseData] = useState({
     item_id: 0,
     quantity: 1,
@@ -48,6 +54,8 @@ const Dashboard: React.FC = () => {
     reason: ''
   });
   const [isDispensing, setIsDispensing] = useState(false);
+  const [dispenseItemSearchText, setDispenseItemSearchText] = useState('');
+  const [showDispenseItemSearchDropdown, setShowDispenseItemSearchDropdown] = useState(false);
 
   // Dispense Search State
   const [dispenseSearch, setDispenseSearch] = useState('');
@@ -57,6 +65,10 @@ const Dashboard: React.FC = () => {
   const [selectedDispensePatient, setSelectedDispensePatient] = useState<any | null>(null);
   const [isGuestDispense, setIsGuestDispense] = useState(false);
   const dispenseSearchRef = React.useRef<HTMLDivElement>(null);
+
+  // Patient Modal State
+  const [showPatientModal, setShowPatientModal] = useState(false);
+  const [viewPatientId, setViewPatientId] = useState<number | null>(null);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#C01D38', '#455A64'];
 
@@ -102,7 +114,9 @@ const Dashboard: React.FC = () => {
             visitTrends: res.visit_trends || [],
             topDispensed: (res.top_dispensed || []).map((i: any) => ({ name: i.generic_name, count: i.cnt })),
             expiringItems: res.expiring_items || [],
-            lowStockItems: res.low_stock_items || []
+            lowStockItems: res.low_stock_items || [],
+            currentlyCheckedOut: res.currently_checked_out || 0,
+            recentBorrowings: res.recent_borrowings || []
           });
         }
       })
@@ -187,19 +201,20 @@ const Dashboard: React.FC = () => {
       toast.error('Please select a patient.');
       return;
     }
-    if (!purpose.trim()) {
-      toast.error('Please enter a purpose.');
+    if (!purpose.trim() && !selectedCue) {
+      toast.error('Please enter a purpose or select a cue.');
       return;
     }
 
     setIsCheckingIn(true);
+    const finalPurpose = [selectedCue, purpose.trim()].filter(Boolean).join(' - ');
     const toastId = toast.loading('Admitting patient...');
     try {
       const res = await apiFetch(`/api/index.php?route=consultations&action=create`, {
         method: 'POST',
         body: JSON.stringify({
           profile_id: selectedPatient.id,
-          purpose: purpose
+          purpose: finalPurpose
         })
       });
 
@@ -209,6 +224,7 @@ const Dashboard: React.FC = () => {
         setSelectedPatient(null);
         setSearch('');
         setPurpose('');
+        setSelectedCue('');
         // We could refresh stats here if needed
       } else {
         toast.error(res.message || 'Failed to check in.', { id: toastId });
@@ -237,6 +253,18 @@ const Dashboard: React.FC = () => {
       fetchInventoryItems();
     }
   }, [showQuickDispense]);
+
+  // Fetch settings cues when quick admit or dispense modal opens
+  useEffect(() => {
+    if ((showQuickAdmit || showQuickDispense) && cues.length === 0) {
+      apiFetch('/api/index.php?route=settings&action=get')
+        .then(res => {
+          if (res.settings && Array.isArray(res.settings.cues)) {
+            setCues(res.settings.cues);
+          }
+        }).catch(err => console.error("Failed to fetch settings for cues", err));
+    }
+  }, [showQuickAdmit, showQuickDispense]);
 
   const handleQuickDispense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -271,7 +299,8 @@ const Dashboard: React.FC = () => {
       // or 'College Clinic' as default if 'All Branches' is selected
       const branchToUse = selectedBranch === 'All Branches' ? 'College Clinic' : selectedBranch;
       
-      const finalDisposedTo = dispenseData.reason.trim() ? `${finalDisposedToName} - ${dispenseData.reason}` : finalDisposedToName;
+      const finalReason = [selectedDispenseCue, dispenseData.reason.trim()].filter(Boolean).join(' - ');
+      const finalDisposedTo = finalReason ? `${finalDisposedToName} - ${finalReason}` : finalDisposedToName;
       
       const res = await apiFetch('/api/index.php?route=inventory&action=dispense', { 
         method: 'POST', 
@@ -289,6 +318,7 @@ const Dashboard: React.FC = () => {
         setSelectedDispensePatient(null);
         setDispenseSearch('');
         setIsGuestDispense(false);
+        setSelectedDispenseCue('');
       } else {
         toast.error(res.message || res.error || 'Error dispensing item', { id: toastId });
       }
@@ -300,27 +330,24 @@ const Dashboard: React.FC = () => {
   };
 
   const MetricCard = ({ title, value, subtext, valueColor }: { title: string, value: number, subtext: string, valueColor: string }) => (
-    <div className="bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-5 flex flex-col items-center justify-center border border-slate-100 flex-1 min-w-[150px]">
-      <h3 className="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">{title}</h3>
-      <div className={`text-3xl font-bold mb-1 ${valueColor}`}>{value}</div>
-      <p className="text-[0.6rem] text-slate-300 text-center">{subtext}</p>
+    <div className="group relative overflow-hidden bg-white/80 backdrop-blur-xl rounded-xl shadow-md shadow-slate-200/60 px-5 py-5 flex flex-col items-center justify-center border border-white/80 flex-1 min-w-[140px] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:bg-white cursor-default">
+      <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+      <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.15em] mb-2 text-center z-10">{title}</h3>
+      <div className={`text-[32px] font-light tracking-tight leading-none mb-2 z-10 ${valueColor}`}>{value}</div>
+      <p className="text-[12px] text-slate-400 font-normal text-center z-10 leading-snug">{subtext}</p>
     </div>
   );
 
   return (
-    <div className="p-10 w-full max-w-7xl mx-auto">
+    <div className="px-5 py-5 w-full">
       {/* Header */}
-      <div className="mb-8 flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Dashboard</h1>
-          <p className="text-slate-400 text-sm font-medium">Overview of clinic activity</p>
-        </div>
-        <div className="flex gap-3 items-center">
+      <div className="mb-5 flex flex-col xl:flex-row xl:justify-end xl:items-end gap-3">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 items-center w-full xl:w-auto ml-auto">
           {(userRole === 'Superadmin') && (
-            <select 
+            <select
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
-              className="bg-white border border-slate-200 text-slate-700 px-3 py-2.5 rounded-md text-sm font-medium shadow-sm outline-none focus:border-[#C01D38]"
+              className="col-span-2 sm:col-span-1 order-1 w-full sm:w-auto bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-md text-[13px] font-normal shadow-sm outline-none focus:border-[#C01D38]"
             >
               <option value="All Branches">All Branches</option>
               <option value="College Clinic">College Clinic</option>
@@ -328,19 +355,22 @@ const Dashboard: React.FC = () => {
               <option value="Power Campus Clinic">Power Campus Clinic</option>
             </select>
           )}
-          <button 
-            onClick={() => window.print()}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
-            <FiPrinter className="w-4 h-4" /> Export Report
+          <button
+            onClick={() => navigate('/reports')}
+            className="col-span-2 sm:col-span-1 order-4 sm:order-2 w-full sm:w-auto flex justify-center items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-[13px] font-normal tracking-wide transition-all duration-200 shadow-sm hover:shadow"
+          >
+            <FiPieChart className="w-4 h-4" /> Go to Reports
           </button>
-          <button 
-            onClick={() => setShowQuickAdmit(true)} 
-            className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
-            <FiPlus className="w-4 h-4" strokeWidth={3} /> Quick Admit
+          <button
+            onClick={() => setShowQuickAdmit(true)}
+            className="col-span-1 sm:col-span-1 order-2 sm:order-3 w-full sm:w-auto flex justify-center items-center gap-2 bg-[#C01D38] hover:bg-[#A5192D] text-white px-4 py-2 rounded-lg text-[13px] font-normal tracking-wide transition-all duration-200 shadow-sm hover:shadow-md"
+          >
+            <FiPlus className="w-4 h-4" strokeWidth={2.5} /> Quick Admit
           </button>
-          <button 
+          <button
             onClick={() => setShowQuickDispense(true)}
-            className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
+            className="col-span-1 sm:col-span-1 order-3 sm:order-4 w-full sm:w-auto flex justify-center items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-[13px] font-normal tracking-wide transition-all duration-200 shadow-sm hover:shadow-md"
+          >
             Quick Dispense
           </button>
         </div>
@@ -348,16 +378,16 @@ const Dashboard: React.FC = () => {
 
       {/* Alerts Section */}
       {(stats.expiringItems.length > 0 || stats.lowStockItems.length > 0) && (
-        <div className="mb-8 space-y-3">
+        <div className="mb-8 space-y-4">
+          
+          {/* Expiring Items Alert */}
           {stats.expiringItems.length > 0 && (
-            <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 shadow-sm flex items-start gap-3">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-red-500 shrink-0 mt-0.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-orange-500 text-orange-800 px-5 py-4 rounded-xl flex items-start gap-3 w-full animate-fade-in">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
               <div>
-                <h3 className="font-bold text-sm">Expiring Items Alert</h3>
-                <ul className="text-sm mt-1 list-disc list-inside">
-                  {stats.expiringItems.map((item, idx) => (
+                <h3 className="font-semibold text-[13px] mb-1">Expiring Items Alert</h3>
+                <ul className="text-[13px] list-disc list-inside space-y-0.5">
+                  {stats.expiringItems.map((item: any, idx: number) => (
                     <li key={idx}>
                       <span className="font-semibold">{item.generic_name}</span> (Batch: {item.batch_number}) expires on <span className="font-semibold">{item.expired_on}</span> at {item.clinic_branch}
                     </li>
@@ -366,14 +396,14 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Low Stock Alert */}
           {stats.lowStockItems.length > 0 && (
-            <div className="bg-orange-50 border border-orange-200 text-orange-800 rounded-lg p-4 shadow-sm flex items-start gap-3">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-orange-500 shrink-0 mt-0.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+            <div className="bg-gradient-to-r from-red-50 to-rose-50 border-l-4 border-[#C01D38] text-rose-800 px-5 py-4 rounded-xl flex items-start gap-3 w-full animate-fade-in">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
               <div>
-                <h3 className="font-bold text-sm">Low Stock Alert</h3>
-                <ul className="text-sm mt-1 list-disc list-inside">
+                <h3 className="font-semibold text-[13px] mb-1">Low Stock Alert</h3>
+                <ul className="text-[13px] list-disc list-inside">
                   {stats.lowStockItems.map((item, idx) => (
                     <li key={idx}>
                       <span className="font-semibold">{item.generic_name}</span> ({item.category}) is low on stock! Only <span className="font-semibold text-red-600">{item.total_stock}</span> remaining (Threshold: {item.alert_threshold}).
@@ -386,11 +416,11 @@ const Dashboard: React.FC = () => {
 
           {/* AI Predictive Alerts */}
           {predictiveAlerts.length > 0 && (
-            <div className="bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700 p-4 rounded shadow-sm flex items-start gap-3 w-full animate-fade-in relative overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-l-4 border-indigo-500 text-indigo-800 p-5 rounded-2xl shadow-lg shadow-indigo-100/50 flex items-start gap-3 w-full animate-fade-in relative overflow-hidden backdrop-blur-sm">
               <div className="absolute -right-6 -top-6 text-indigo-100 opacity-50 transform rotate-12">
                 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 shrink-0 mt-0.5 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 shrink-0 mt-0.5 relative z-10 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="12" y1="16" x2="12" y2="12"></line>
                 <line x1="12" y1="8" x2="12.01" y2="8"></line>
@@ -403,7 +433,7 @@ const Dashboard: React.FC = () => {
                 <ul className="text-sm mt-1 list-disc list-inside space-y-1">
                   {predictiveAlerts.map((alert, idx) => (
                     <li key={idx}>
-                      <span className="font-semibold">{alert.name}</span> will run out in approx. <span className="font-semibold">{alert.days_remaining} days</span> based on recent dispensing trends.
+                      <span className="font-semibold">{alert.name}</span> will run out in approx. <span className="font-bold text-indigo-600">{alert.days_remaining} days</span> based on recent dispensing trends.
                     </li>
                   ))}
                 </ul>
@@ -413,45 +443,20 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Metrics Row */}
-      <div className="flex flex-wrap gap-4 mb-6">
-        <MetricCard 
-          title="VISITS THIS WEEK" 
-          value={stats.visitsThisWeek} 
-          subtext="This week" 
-          valueColor="text-[#D32F2F]" 
-        />
-        <MetricCard 
-          title="TOTAL REGISTERED" 
-          value={stats.totalRegistered} 
-          subtext="Students & Employees" 
-          valueColor="text-[#1976D2]" 
-        />
-        <MetricCard 
-          title="UNATTENDED" 
-          value={stats.unattended} 
-          subtext="Today: Waiting to turn" 
-          valueColor="text-[#ED6C02]" 
-        />
-        <MetricCard 
-          title="PENDING RE-CHECKS" 
-          value={stats.pendingRechecks} 
-          subtext="Today: Followups due" 
-          valueColor="text-[#9C27B0]" 
-        />
-        <MetricCard 
-          title="INVENTORY" 
-          value={stats.inventory} 
-          subtext="Overview of medicine supplies & equipments" 
-          valueColor="text-[#455A64]" 
-        />
+      {/* Metrics Row – 6-col responsive grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-5">
+        <MetricCard title="VISITS THIS WEEK"  value={stats.visitsThisWeek}       subtext="This week"                              valueColor="text-[#D32F2F]" />
+        <MetricCard title="TOTAL REGISTERED" value={stats.totalRegistered}       subtext="Students & Employees"                  valueColor="text-[#1976D2]" />
+        <MetricCard title="UNATTENDED"       value={stats.unattended}            subtext="Today: Waiting to turn"                valueColor="text-[#ED6C02]" />
+        <MetricCard title="PENDING RE-CHECKS" value={stats.pendingRechecks}      subtext="Today: Followups due"                  valueColor="text-[#9C27B0]" />
+        <MetricCard title="INVENTORY"        value={stats.inventory}             subtext="Overview of medicine supplies & equipments" valueColor="text-[#455A64]" />
+        <MetricCard title="CHECKED OUT"      value={stats.currentlyCheckedOut}   subtext="Equipments currently borrowed"          valueColor="text-[#2E7D32]" />
       </div>
 
-      {/* Visit Trends Line Chart */}
-      <div className="mb-6 bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-6 border border-slate-100 flex flex-col h-80">
-        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Weekly Visit Trends</h3>
-        <p className="text-xs text-slate-400 mb-6">Patient visits over the last 7 days</p>
-        
+      {/* Visit Trends Line Chart – full width */}
+      <div className="mb-5 bg-white/80 backdrop-blur-xl rounded-xl shadow-md shadow-slate-200/50 px-6 py-5 border border-white/80 flex flex-col h-72 w-full">
+        <h3 className="text-[13px] font-semibold text-slate-600 uppercase tracking-wider mb-0.5">Weekly Visit Trends</h3>
+        <p className="text-[12px] text-slate-400 font-normal mb-4">Patient visits over the last 7 days</p>
         <div className="flex-1 w-full">
           {stats.visitTrends.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -474,14 +479,12 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Charts Blocks */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+      {/* Charts Blocks – full width 2-col */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Left Block: Bar Chart */}
-        <div className="bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-6 border border-slate-100 h-96 flex flex-col">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Patient Visits by Department</h3>
-          <p className="text-xs text-slate-400 mb-6">Total visits distributed across colleges</p>
-          
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-md shadow-slate-200/50 px-6 py-5 border border-white/80 h-96 flex flex-col w-full">
+          <h3 className="text-[13px] font-semibold text-slate-600 uppercase tracking-wider mb-0.5">Patient Visits by Department</h3>
+          <p className="text-[12px] text-slate-400 font-normal mb-4">Total visits distributed across colleges</p>
           <div className="flex-1 w-full">
             {stats.visitsByCollege.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -512,10 +515,9 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Right Block: Pie Chart */}
-        <div className="bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-6 border border-slate-100 h-96 flex flex-col">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Top Diagnoses</h3>
-          <p className="text-xs text-slate-400 mb-6">Most common health issues diagnosed</p>
-          
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-md shadow-slate-200/50 px-6 py-5 border border-white/80 h-96 flex flex-col w-full">
+          <h3 className="text-[13px] font-semibold text-slate-600 uppercase tracking-wider mb-0.5">Top Diagnoses</h3>
+          <p className="text-[12px] text-slate-400 font-normal mb-4">Most common health issues diagnosed</p>
           <div className="flex-1 w-full">
             {stats.topDiagnoses.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -553,34 +555,73 @@ const Dashboard: React.FC = () => {
 
       </div>
 
-      {/* Bottom Block: Top Dispensed */}
-      <div className="mt-6 bg-white rounded-md shadow-[0_2px_10px_rgb(0,0,0,0.04)] p-6 border border-slate-100 flex flex-col">
-        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Top Dispensed Medicines & Supplies</h3>
-        <p className="text-xs text-slate-400 mb-6">Most frequently used items</p>
-        
-        <div className="w-full h-64">
-          {stats.topDispensed.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.topDispensed} margin={{ top: 5, right: 30, left: -20, bottom: 5 }} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                <XAxis type="number" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
-                <YAxis dataKey="name" type="category" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} width={120} />
-                <Tooltip 
-                  cursor={{fill: '#f8fafc'}}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {stats.topDispensed.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
-              <p className="text-sm font-medium">No dispensing data available</p>
-            </div>
-          )}
+      {/* Bottom Blocks – full width 2-col */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        {/* Top Dispensed */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-md shadow-slate-200/50 px-6 py-5 border border-white/80 flex flex-col h-80 w-full">
+          <h3 className="text-[13px] font-semibold text-slate-600 uppercase tracking-wider mb-0.5">Top Dispensed Medicines & Supplies</h3>
+          <p className="text-[12px] text-slate-400 font-normal mb-4">Most frequently used items</p>
+          <div className="flex-1 w-full">
+            {stats.topDispensed.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.topDispensed} margin={{ top: 5, right: 30, left: -20, bottom: 5 }} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                  <XAxis type="number" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="name" type="category" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} width={120} />
+                  <Tooltip 
+                    cursor={{fill: '#f8fafc'}}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                    {stats.topDispensed.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                <p className="text-sm font-medium">No dispensing data available</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Borrowings */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-md shadow-slate-200/50 px-6 py-5 border border-white/80 flex flex-col h-80 overflow-hidden w-full">
+          <h3 className="text-[13px] font-semibold text-slate-600 uppercase tracking-wider mb-0.5">Recent Equipment Borrowings</h3>
+          <p className="text-[12px] text-slate-400 font-normal mb-3">Latest bookings (Click to view profile)</p>
+          <div className="flex-1 w-full overflow-y-auto pr-2">
+            {stats.recentBorrowings.length > 0 ? (
+              <div className="space-y-3">
+                {stats.recentBorrowings.map((borrowing, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => {
+                      setViewPatientId(borrowing.profile_id);
+                      setShowPatientModal(true);
+                    }}
+                    className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm hover:shadow-md hover:border-indigo-100 cursor-pointer transition-all flex items-center justify-between"
+                  >
+                    <div>
+                      <h4 className="font-bold text-slate-700 text-sm">{borrowing.first_name} {borrowing.last_name}</h4>
+                      <p className="text-xs text-slate-500 truncate max-w-[200px]">{borrowing.items}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider bg-slate-50 px-2 py-1 rounded">
+                        {borrowing.profile_type}
+                      </span>
+                      <p className="text-xs text-slate-400 mt-1">{new Date(borrowing.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                <p className="text-sm font-medium">No recent borrowings</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -657,19 +698,31 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose <span className="text-red-500">*</span></label>
-                <input 
-                  type="text" 
-                  value={purpose}
-                  onChange={e => setPurpose(e.target.value)}
-                  placeholder="e.g. Headache, Checkup, Request"
-                  className="w-full border border-slate-300 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-[#C01D38]" 
-                />
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose & Cues <span className="text-red-500">*</span></label>
+                <div className="flex gap-2">
+                  <select 
+                    value={selectedCue}
+                    onChange={e => setSelectedCue(e.target.value)}
+                    className="w-1/3 border border-slate-300 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-[#C01D38]"
+                  >
+                    <option value="">-- Select Cue --</option>
+                    {cues.map((c, i) => (
+                      <option key={i} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <input 
+                    type="text" 
+                    value={purpose}
+                    onChange={e => setPurpose(e.target.value)}
+                    placeholder="Additional details (optional if cue selected)"
+                    className="flex-1 border border-slate-300 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-[#C01D38]" 
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setShowQuickAdmit(false)} className="px-4 py-2 border rounded-md font-medium text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
-                <button type="submit" disabled={isCheckingIn || !selectedPatient || !purpose.trim()} className="px-5 py-2 bg-[#C01D38] hover:bg-[#a0182f] text-white rounded-md font-semibold transition-colors disabled:opacity-50">
+                <button type="submit" disabled={isCheckingIn || !selectedPatient || (!purpose.trim() && !selectedCue)} className="px-5 py-2 bg-[#C01D38] hover:bg-[#a0182f] text-white rounded-md font-semibold transition-colors disabled:opacity-50">
                   {isCheckingIn ? 'Admitting...' : 'Admit Patient'}
                 </button>
               </div>
@@ -694,18 +747,53 @@ const Dashboard: React.FC = () => {
             <form onSubmit={handleQuickDispense} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Item to Dispense <span className="text-red-500">*</span></label>
-                <select 
-                  className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
-                  value={dispenseData.item_id} 
-                  onChange={e => setDispenseData({...dispenseData, item_id: parseInt(e.target.value)})}
-                >
-                  <option value={0}>-- Select Item --</option>
-                  {inventoryItems.map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''} {item.dosage ? `- ${item.dosage}` : ''} {item.formulation ? `(${item.formulation})` : ''}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input 
+                    className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
+                    placeholder="Search Item (Medicine, Supply...)"
+                    value={dispenseItemSearchText}
+                    onChange={e => {
+                      setDispenseItemSearchText(e.target.value);
+                      setShowDispenseItemSearchDropdown(true);
+                      const matchedItem = inventoryItems.find(i => `${i.generic_name} ${i.brand_name ? `(${i.brand_name})` : ''} ${i.dosage ? `- ${i.dosage}` : ''} ${i.formulation ? `(${i.formulation})` : ''}`.trim() === e.target.value);
+                      if (matchedItem) {
+                        setDispenseData({...dispenseData, item_id: matchedItem.id});
+                      } else {
+                        setDispenseData({...dispenseData, item_id: 0});
+                      }
+                    }}
+                    onFocus={() => setShowDispenseItemSearchDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowDispenseItemSearchDropdown(false), 200)}
+                  />
+                  {showDispenseItemSearchDropdown && (
+                    <ul className="absolute z-10 w-full bg-white border border-slate-200 mt-1 max-h-60 overflow-y-auto rounded shadow-lg">
+                      {inventoryItems
+                        .filter(item => 
+                          `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(dispenseItemSearchText.toLowerCase())
+                        )
+                        .map(item => {
+                          const displayName = `${item.generic_name} ${item.brand_name ? `(${item.brand_name})` : ''} ${item.dosage ? `- ${item.dosage}` : ''} ${item.formulation ? `(${item.formulation})` : ''}`.trim();
+                          return (
+                            <li 
+                              key={item.id} 
+                              className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm text-slate-700"
+                              onClick={() => {
+                                setDispenseItemSearchText(displayName);
+                                setDispenseData({...dispenseData, item_id: item.id});
+                                setShowDispenseItemSearchDropdown(false);
+                              }}
+                            >
+                              {displayName}
+                            </li>
+                          );
+                        })
+                      }
+                      {inventoryItems.filter(item => `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(dispenseItemSearchText.toLowerCase())).length === 0 && (
+                        <li className="px-3 py-2 text-sm text-slate-500">No items found.</li>
+                      )}
+                    </ul>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -818,14 +906,26 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Reason (Optional)</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Headache, Fever" 
-                  className="w-full border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
-                  value={dispenseData.reason} 
-                  onChange={e => setDispenseData({...dispenseData, reason: e.target.value})} 
-                />
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Reason & Cues (Optional)</label>
+                <div className="flex gap-2">
+                  <select 
+                    value={selectedDispenseCue}
+                    onChange={e => setSelectedDispenseCue(e.target.value)}
+                    className="w-1/3 border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500"
+                  >
+                    <option value="">-- Select Cue --</option>
+                    {cues.map((c, i) => (
+                      <option key={i} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <input 
+                    type="text" 
+                    placeholder="Additional details" 
+                    className="flex-1 border border-slate-300 p-2.5 rounded-md text-sm focus:outline-none focus:border-slate-500" 
+                    value={dispenseData.reason} 
+                    onChange={e => setDispenseData({...dispenseData, reason: e.target.value})} 
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -838,6 +938,12 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Patient View Modal */}
+      <PatientViewModal
+        isOpen={showPatientModal}
+        onClose={() => setShowPatientModal(false)}
+        patientId={viewPatientId}
+      />
     </div>
   );
 };

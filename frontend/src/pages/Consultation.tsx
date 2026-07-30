@@ -99,6 +99,7 @@ const Consultation: React.FC = () => {
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [dispensedItems, setDispensedItems] = useState<{item_id: number, quantity: number, name: string}[]>([]);
   const [selectedInventoryItem, setSelectedInventoryItem] = useState('');
+  const [showDispenseDropdown, setShowDispenseDropdown] = useState(false);
   const [dispenseQty, setDispenseQty] = useState(1);
 
   // Medcert State
@@ -438,23 +439,19 @@ const Consultation: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f8f9fa]">
+    <div className="flex flex-col h-full bg-[#FDFBF7]">
       
       {/* Top Header */}
-      <div className="bg-white px-6 py-4 border-b flex justify-between items-center flex-shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-[#A5192D] tracking-tight mb-1">Services Logbook</h1>
-          <p className="text-slate-500 text-sm">Check-in patients and manage today's visitors</p>
-        </div>
+      <div className="bg-white px-4 sm:px-6 py-4 border-b flex flex-col xl:flex-row xl:justify-end xl:items-center gap-4 flex-shrink-0">
         
         {/* Filters */}
-        <div className="flex items-center gap-3">
-          <div className="flex bg-slate-100 p-1 rounded-full border border-slate-200">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex bg-slate-100 p-1 rounded-full border border-slate-200 overflow-x-auto max-w-full">
             {['today', 'weekly', 'monthly', 'all'].map(p => (
               <button
                 key={p}
                 onClick={() => { setPeriod(p); setFromDate(''); setToDate(''); setCurrentPage(1); }}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold capitalize transition-all ${
+                className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-bold capitalize transition-all whitespace-nowrap ${
                   period === p ? 'bg-[#8c1526] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -463,7 +460,7 @@ const Consultation: React.FC = () => {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 ml-4">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-slate-500">From:</span>
             <input 
               type="date" 
@@ -495,10 +492,10 @@ const Consultation: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden p-6 gap-6">
+      <div className="flex-1 flex flex-col overflow-hidden p-3 sm:p-6 gap-4 sm:gap-6">
         
         {/* Top Horizontal Bar: Check-in */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 flex-shrink-0">
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-5 flex-shrink-0">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
               <FiUserPlus className="text-[#A5192D]" />
@@ -889,18 +886,46 @@ const Consultation: React.FC = () => {
               <h3 className="text-sm font-bold text-slate-700 mt-6 mb-3 uppercase tracking-wider border-b pb-1">Administer / Dispense Items</h3>
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                 <div className="flex gap-2 mb-4">
-                  <select 
-                    value={selectedInventoryItem} 
-                    onChange={e => setSelectedInventoryItem(e.target.value)}
-                    className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
-                  >
-                    <option value="">Select Item (Medicine, Supply...)</option>
-                    {inventoryItems.map(item => (
-                      <option key={item.id} value={item.id}>
-                        {item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''} - {item.category}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative flex-1">
+                    <input 
+                      value={selectedInventoryItem} 
+                      onChange={e => {
+                        setSelectedInventoryItem(e.target.value);
+                        setShowDispenseDropdown(true);
+                      }}
+                      onFocus={() => setShowDispenseDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowDispenseDropdown(false), 200)}
+                      placeholder="Search Item (Medicine, Supply...)"
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
+                    />
+                    {showDispenseDropdown && (
+                      <ul className="absolute z-10 w-full bg-white border border-slate-200 mt-1 max-h-60 overflow-y-auto rounded shadow-lg">
+                        {inventoryItems
+                          .filter(item => 
+                            `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(selectedInventoryItem.toLowerCase())
+                          )
+                          .map(item => {
+                            const displayName = `${item.generic_name} ${item.brand_name ? `(${item.brand_name})` : ''} - ${item.category}`;
+                            return (
+                              <li 
+                                key={item.id} 
+                                className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm text-slate-700"
+                                onClick={() => {
+                                  setSelectedInventoryItem(displayName);
+                                  setShowDispenseDropdown(false);
+                                }}
+                              >
+                                {displayName}
+                              </li>
+                            );
+                          })
+                        }
+                        {inventoryItems.filter(item => `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(selectedInventoryItem.toLowerCase())).length === 0 && (
+                          <li className="px-3 py-2 text-sm text-slate-500">No items found.</li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
                   <input 
                     type="number" 
                     min="1"
@@ -912,11 +937,13 @@ const Consultation: React.FC = () => {
                     type="button"
                     onClick={() => {
                       if (!selectedInventoryItem) return;
-                      const item = inventoryItems.find(i => i.id === parseInt(selectedInventoryItem));
+                      const item = inventoryItems.find(i => `${i.generic_name} ${i.brand_name ? `(${i.brand_name})` : ''} - ${i.category}` === selectedInventoryItem);
                       if (item) {
                         setDispensedItems(prev => [...prev, { item_id: item.id, quantity: dispenseQty, name: item.generic_name }]);
                         setSelectedInventoryItem('');
                         setDispenseQty(1);
+                      } else {
+                        alert('Please select a valid item from the list.');
                       }
                     }}
                     className="px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded hover:bg-slate-700 transition-colors"

@@ -1,53 +1,97 @@
-import sys
+"""Extract text from a clinical attachment using the local Tesseract engine.
+
+This script deliberately never supplies a sample report.  Returning made-up
+findings for an unreadable image is unsafe in a clinical record.
+"""
+
 import json
-import time
 import os
+import sys
+
+
+def result(success, **payload):
+    print(json.dumps({"success": success, **payload}, ensure_ascii=False))
+
+
+def configure_tesseract(pytesseract):
+    configured_path = os.getenv("TESSERACT_CMD")
+    candidates = [
+        configured_path,
+        r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+        r"C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe",
+    ]
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate):
+            pytesseract.pytesseract.tesseract_cmd = candidate
+            return True
+    return False
+
 
 def process_image(filepath):
-    # Simulate processing delay to make it feel real
-    time.sleep(1.5)
-    
-    # Mock extracted text for clinic demo purposes
-    filename = os.path.basename(filepath).lower()
-    
-    if 'xray' in filename or 'x-ray' in filename:
-        mock_text = """RADIOLOGY REPORT - CHEST X-RAY (PA VIEW)
-----------------------------------------
-FINDINGS:
-- The lungs are clear. No active infiltrates, mass, or consolidation.
-- Heart size is within normal limits.
-- Diaphragm and sinuses are intact.
-- Bony thorax is unremarkable.
+    try:
+        import pytesseract
+        from PIL import Image, ImageEnhance, ImageOps
+    except ImportError:
+        result(False, error="OCR dependencies are not installed. Install the packages in backend/scripts/requirements.txt.")
+        return
 
-IMPRESSION:
-NORMAL CHEST FINDINGS."""
-    else:
-        mock_text = """HEMATOLOGY REPORT (COMPLETE BLOOD COUNT)
-----------------------------------------
-WBC Count: 7.5 x 10^9/L      [Range: 4.5 - 11.0]
-RBC Count: 4.8 x 10^12/L     [Range: 4.0 - 5.5]
-Hemoglobin: 14.2 g/dL        [Range: 12.0 - 16.0]
-Hematocrit: 42%              [Range: 37 - 47]
-Platelet Count: 250 x 10^9/L [Range: 150 - 400]
+    if not configure_tesseract(pytesseract):
+        result(False, error="Tesseract OCR is not installed or configured on this server.")
+        return
 
-CLINICAL IMPRESSION:
-Normal CBC. No signs of infection or anemia."""
+    try:
+        with Image.open(filepath) as source:
+            # Upscaling and contrast normalisation make photographed lab reports
+            # substantially more legible without changing the document's content.
+            image = ImageOps.grayscale(source)
+            image = ImageEnhance.Contrast(image).enhance(1.6)
+            if image.width < 1800:
+                scale = 1800 / image.width
+                image = image.resize((1800, int(image.height * scale)))
 
-    result = {
-        "success": True,
-        "text": mock_text,
-        "file": filepath
-    }
-    
-    # Print exactly one line of JSON for PHP to decode
-    print(json.dumps(result))
+            data = pytesseract.image_to_data(
+                image,
+                config="--oem 3 --psm 6",
+                output_type=pytesseract.Output.DICT,
+            )
+    except Exception as error:
+        result(False, error=f"OCR could not read this file: {error}")
+        return
+
+    words = []
+    confidences = []
+    for word, confidence in zip(data["text"], data["conf"]):
+        word = word.strip()
+        if not word:
+            continue
+        try:
+            confidence = float(confidence)
+        except (TypeError, ValueError):
+            continue
+        if confidence >= 35:
+            words.append(word)
+            confidences.append(confidence)
+
+    text = " ".join(words).strip()
+    average_confidence = round(sum(confidences) / len(confidences), 1) if confidences else 0
+    meaningful_words = [word for word in words if sum(char.isalnum() for char in word) >= 4]
+    alphanumeric_characters = sum(char.isalnum() for char in text)
+    if (
+        len(text) < 12
+        or alphanumeric_characters < 15
+        or len(meaningful_words) < 2
+        or average_confidence < 60
+    ):
+        result(False, error="The image is too unclear for a reliable extraction. Upload a sharper, well-lit scan.", confidence=average_confidence)
+        return
+
+    result(True, text=text, confidence=average_confidence, file=filepath)
+
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        filepath = sys.argv[1]
-        if os.path.exists(filepath):
-            process_image(filepath)
-        else:
-            print(json.dumps({"success": False, "error": "File does not exist"}))
+    if len(sys.argv) != 2:
+        result(False, error="No file provided")
+    elif not os.path.isfile(sys.argv[1]):
+        result(False, error="File does not exist")
     else:
-        print(json.dumps({"success": False, "error": "No file provided"}))
+        process_image(sys.argv[1])

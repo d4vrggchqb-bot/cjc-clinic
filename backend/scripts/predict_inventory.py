@@ -1,9 +1,23 @@
 import sys
 import json
-import pandas as pd
-import numpy as np
-from sklearn.linear_model import LinearRegression
 from datetime import datetime, timedelta
+
+def simple_linear_regression(x_vals, y_vals):
+    n = len(x_vals)
+    if n == 0:
+        return 0, 0
+    sum_x = sum(x_vals)
+    sum_y = sum(y_vals)
+    sum_xy = sum(x * y for x, y in zip(x_vals, y_vals))
+    sum_xx = sum(x * x for x in x_vals)
+    
+    denominator = (n * sum_xx) - (sum_x * sum_x)
+    if denominator == 0:
+        m = 0.0
+    else:
+        m = ((n * sum_xy) - (sum_x * sum_y)) / denominator
+    c = (sum_y - (m * sum_x)) / n
+    return m, c
 
 def process_predictions(data):
     items = data.get('items', [])
@@ -36,30 +50,30 @@ def process_predictions(data):
             else:
                 days_rem = int(current_stock / avg_daily)
         else:
-            # Use Linear Regression to find the trend of dispensing
-            df = pd.DataFrame(history)
-            df['date'] = pd.to_datetime(df['date'])
-            df = df.sort_values('date')
-            
-            # Map dates to integers (days since start)
-            start_date = df['date'].min()
-            df['day_index'] = (df['date'] - start_date).dt.days
-            
-            X = df[['day_index']].values
-            y = df['dispensed'].values
-            
-            model = LinearRegression()
-            model.fit(X, y)
-            
-            # Predict the next 7 days average to get a forward-looking trend
-            last_day_idx = df['day_index'].max()
-            future_X = np.array([[last_day_idx + i] for i in range(1, 8)])
-            future_y = model.predict(future_X)
-            
-            # Prevent negative dispensing predictions
-            avg_future_daily = max(0.1, np.mean(future_y))
-            
-            days_rem = int(current_stock / avg_future_daily)
+            # Use simple linear regression to find the trend of dispensing
+            try:
+                sorted_history = sorted(history, key=lambda d: datetime.strptime(d['date'], '%Y-%m-%d'))
+                start_date = datetime.strptime(sorted_history[0]['date'], '%Y-%m-%d')
+                
+                x_vals = []
+                y_vals = []
+                for entry in sorted_history:
+                    dt = datetime.strptime(entry['date'], '%Y-%m-%d')
+                    day_index = (dt - start_date).days
+                    x_vals.append(day_index)
+                    y_vals.append(float(entry['dispensed']))
+                
+                m, c = simple_linear_regression(x_vals, y_vals)
+                
+                last_day_idx = max(x_vals) if x_vals else 0
+                future_y = [m * (last_day_idx + i) + c for i in range(1, 8)]
+                avg_future_daily = max(0.1, sum(future_y) / len(future_y))
+                
+                days_rem = int(current_stock / avg_future_daily)
+            except Exception:
+                total_dispensed = sum([day['dispensed'] for day in history])
+                avg_daily = max(0.1, total_dispensed / 30.0)
+                days_rem = int(current_stock / avg_daily)
             
         depletion_date = today + timedelta(days=days_rem)
         

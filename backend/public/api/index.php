@@ -39,6 +39,8 @@ switch ($route) {
             $controller->requestPasswordReset();
         } elseif ($action === 'perform_password_reset') {
             $controller->performPasswordReset();
+        } elseif ($action === 'google_login') {
+            $controller->googleLogin();
         }
         break;
 
@@ -48,6 +50,8 @@ switch ($route) {
             $controller->list();
         } elseif ($action === 'upload') {
             $controller->upload();
+        } elseif ($action === 'delete_attachment') {
+            $controller->deleteAttachment();
         } elseif ($action === 'create') {
             $controller->create();
         } elseif ($action === 'update') {
@@ -85,6 +89,8 @@ switch ($route) {
             $controller->editBatch();
         } elseif ($action === 'get_next_batch') {
             $controller->getNextBatchNumber();
+        } elseif ($action === 'predictive_alerts') {
+            $controller->predictive_alerts();
         }
         break;
 
@@ -156,6 +162,22 @@ switch ($route) {
         $controller = new ReportController();
         if ($action === 'generate') {
             $controller->generateReport();
+        }
+        break;
+
+    case 'borrowings':
+        require_once __DIR__ . '/../../app/Controllers/BorrowingController.php';
+        $controller = new BorrowingController();
+        if ($action === 'submit') {
+            $controller->submitForm();
+        } elseif ($action === 'profile_history') {
+            $controller->getProfileBorrowings();
+        } elseif ($action === 'checked_out') {
+            $controller->getCheckedOutEquipment();
+        } elseif ($action === 'recent_history') {
+            $controller->getRecentHistory();
+        } elseif ($action === 'return_item') {
+            $controller->returnEquipment();
         }
         break;
 }

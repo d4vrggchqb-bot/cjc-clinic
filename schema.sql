@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `username` VARCHAR(50) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
-  `role` ENUM('Admin', 'Doctor', 'Nurse', 'Clerk') NOT NULL DEFAULT 'Clerk',
-  `clinic_branch` ENUM('College Clinic', 'BED Clinic', 'Power Campus Clinic') NOT NULL DEFAULT 'College Clinic',
+  `role` ENUM('Admin', 'Superadmin', 'Doctor', 'Nurse', 'Staff', 'Clerk') NOT NULL DEFAULT 'Staff',
+  `clinic_branch` ENUM('College Clinic', 'Basic Education Clinic', 'Power Campus Clinic', 'BED Clinic') NOT NULL DEFAULT 'College Clinic',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -47,6 +47,18 @@ CREATE TABLE IF NOT EXISTS `profiles` (
   `health_history` TEXT DEFAULT NULL,
   `vital_stats` TEXT DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Patient documents uploaded from the profile view
+CREATE TABLE IF NOT EXISTS `profile_attachments` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `profile_id` INT NOT NULL,
+  `filename` VARCHAR(255) NOT NULL,
+  `file_url` VARCHAR(500) NOT NULL,
+  `uploaded_by` VARCHAR(100) DEFAULT NULL,
+  `extracted_text` LONGTEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
 );
 
 
@@ -106,9 +118,11 @@ CREATE TABLE IF NOT EXISTS `inventory_logs` (
   `action_type` ENUM('restock', 'dispense', 'dispose', 'adjust') NOT NULL,
   `quantity_changed` INT NOT NULL,
   `disposed_to` VARCHAR(255) DEFAULT NULL,
+  `profile_id` INT DEFAULT NULL,
   `processed_by` INT DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`batch_id`) REFERENCES `inventory_batches`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE SET NULL,
   FOREIGN KEY (`processed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
 );
 
@@ -166,6 +180,35 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `status` ENUM('Scheduled', 'Completed', 'Cancelled', 'No-Show') DEFAULT 'Scheduled',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
+);
+
+-- 9. Settings Table
+CREATE TABLE IF NOT EXISTS `settings` (
+  `setting_key` VARCHAR(50) PRIMARY KEY,
+  `setting_value` TEXT NOT NULL
+);
+
+-- 10. Borrowings Table
+CREATE TABLE IF NOT EXISTS `borrowings` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `profile_id` INT NOT NULL,
+  `purpose` VARCHAR(255) NOT NULL,
+  `status` ENUM('pending', 'active', 'returned') DEFAULT 'pending',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `returned_at` TIMESTAMP NULL DEFAULT NULL,
+  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
+);
+
+-- 10.1 Borrowed Items Table
+CREATE TABLE IF NOT EXISTS `borrowed_items` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `borrowing_id` INT NOT NULL,
+  `inventory_item_id` INT NOT NULL,
+  `quantity` INT NOT NULL DEFAULT 1,
+  `item_type` ENUM('equipment', 'supply') NOT NULL,
+  `status` ENUM('borrowed', 'returned', 'dispensed') NOT NULL,
+  FOREIGN KEY (`borrowing_id`) REFERENCES `borrowings`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`inventory_item_id`) REFERENCES `inventory_items`(`id`) ON DELETE CASCADE
 );
 
 #php -S localhost:8000 -t backend/public

@@ -24,10 +24,21 @@ function cjcDatabaseConnection(): PDO
         return $pdo;
     }
 
+<<<<<<< HEAD
     $host    = getenv('DB_HOST')    ?: '192.168.10.96';
+=======
+    // Smart Auto-Fallback Host Detection
+    $envHost = getenv('DB_HOST');
+    if ($envHost !== false && $envHost !== '') {
+        $host = $envHost;
+    } else {
+         $host = '192.168.10.96';
+    }
+
+>>>>>>> 8286742460a9af8ecf7acaa5f399f9871ce233b4
     $db      = getenv('DB_NAME')    ?: 'cjc_clinic';
-    $user    = getenv('DB_USER')    ?: 'root';
-    $pass    = getenv('DB_PASS')    ?: '';
+    $user    = getenv('DB_USER')    ?: 'cjc_app';
+    $pass    = getenv('DB_PASS')    ?: 'CHANGE_ME';
     $charset = getenv('DB_CHARSET') ?: 'utf8mb4';
 
     // Warn loudly if credentials are not configured

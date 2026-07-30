@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch, apiDownload } from '../utils/api';
-import { FiX, FiUser, FiActivity, FiPhone, FiInfo, FiMail, FiMapPin, FiCalendar, FiUsers, FiAlertCircle, FiPaperclip, FiUpload, FiDownload, FiFile } from 'react-icons/fi';
+import { FiX, FiUser, FiActivity, FiPhone, FiInfo, FiMail, FiMapPin, FiCalendar, FiUsers, FiAlertCircle, FiPaperclip, FiUpload, FiDownload, FiFile, FiBox, FiPackage, FiTrash2 } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
 
@@ -21,10 +21,13 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
     return Math.abs(age_dt.getUTCFullYear() - 1970);
   };
   const [history, setHistory] = useState<any[]>([]);
+  const [borrowingHistory, setBorrowingHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState('');
+  const [uploadNotice, setUploadNotice] = useState('');
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -48,11 +51,47 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
     await handleUpload(file);
   };
 
+  const handleDeleteAttachment = async (attachment: any) => {
+    if (!patientId || !attachment?.id) return;
+
+    const confirmed = await confirm({
+      title: 'Delete Attachment',
+      message: `Are you sure you want to delete ${attachment.filename}? This action cannot be undone.`,
+      type: 'danger'
+    });
+
+    if (!confirmed) return;
+
+    setDeletingAttachmentId(attachment.id);
+    setUploadError('');
+    setUploadNotice('');
+
+    try {
+      const res = await apiFetch('/api/index.php?route=patients&action=delete_attachment', {
+        method: 'POST',
+        body: JSON.stringify({ attachment_id: attachment.id, profile_id: patientId })
+      });
+
+      if (res.success) {
+        setUploadNotice('Attachment deleted successfully.');
+        const profileRes = await apiFetch(`/api/index.php?route=patients&action=get&id=${patientId}`);
+        if (profileRes.profile) setPatient(profileRes.profile);
+      } else {
+        setUploadError(res.message || 'Failed to delete attachment');
+      }
+    } catch (err) {
+      setUploadError('Failed to delete attachment');
+    } finally {
+      setDeletingAttachmentId(null);
+    }
+  };
+
   const handleUpload = async (file: File) => {
     if (!patientId) return;
     
     setIsUploading(true);
     setUploadError('');
+    setUploadNotice('');
     
     const formData = new FormData();
     formData.append('attachment', file);
@@ -65,6 +104,9 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
       });
       
       if (res.success) {
+        if (res.ocr_error) {
+          setUploadNotice(`File uploaded, but no AI extract was saved: ${res.ocr_error}`);
+        }
         // Refresh patient to get new attachments
         const profileRes = await apiFetch(`/api/index.php?route=patients&action=get&id=${patientId}`);
         if (profileRes.profile) setPatient(profileRes.profile);
@@ -83,10 +125,13 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
     if (isOpen && patientId) {
       setLoading(true);
       setError('');
+      setPatient(null);
+      setHistory([]);
+      setBorrowingHistory([]);
       apiFetch(`/api/index.php?route=patients&action=get&id=${patientId}`)
         .then(res => {
           if (res.profile) setPatient(res.profile);
-          else setError('Patient data not found');
+          else setError(res.error || res.message || 'Patient data not found');
         })
         .catch(() => setError('Failed to load patient details'))
         .finally(() => setLoading(false));
@@ -94,6 +139,12 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
       apiFetch(`/api/index.php?route=consultations&action=history&profile_id=${patientId}`)
         .then(res => {
           if (res.history) setHistory(res.history);
+        })
+        .catch(console.error);
+
+      apiFetch(`/api/index.php?route=borrowings&action=profile_history&profile_id=${patientId}`)
+        .then(res => {
+          if (res.borrowings) setBorrowingHistory(res.borrowings);
         })
         .catch(console.error);
     }
@@ -106,20 +157,20 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="bg-[#9B101E] px-6 py-4 flex justify-between items-center text-white relative overflow-hidden">
+        <div className="bg-[#9B101E] px-5 py-4 sm:px-6 sm:py-5 flex justify-between items-center gap-4 text-white relative overflow-hidden shrink-0">
           {/* Decorative background element */}
           <div className="absolute -right-6 -top-10 opacity-10">
             <FiUser className="w-32 h-32" />
           </div>
           
-          <div className="relative z-10">
-            <h2 className="text-xl font-bold tracking-wide">Patient Profile</h2>
-            <p className="text-xs text-white/80 uppercase tracking-wider mt-0.5">
+          <div className="relative z-10 flex-1 pr-2">
+            <h2 className="text-lg sm:text-xl font-bold tracking-wide">Patient Profile</h2>
+            <p className="text-xs text-white/80 uppercase tracking-wider mt-1">
               {patient?.profile_type === 'student' ? 'Student Record' : patient?.profile_type === 'employee' ? 'Employee Record' : 'Record Details'}
             </p>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors relative z-10">
-            <FiX className="w-6 h-6" />
+          <button onClick={onClose} aria-label="Close modal" className="text-white/80 hover:text-white transition-colors relative z-10 p-1.5 rounded-full hover:bg-white/10 shrink-0">
+            <FiX className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
@@ -311,6 +362,11 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                     {uploadError}
                   </div>
                 )}
+                {uploadNotice && (
+                  <div className="px-4 py-2 bg-amber-50 text-amber-700 text-xs font-medium border-b border-amber-100">
+                    {uploadNotice}
+                  </div>
+                )}
                 
                 {!patient.attachments || patient.attachments.length === 0 ? (
                   <div className="p-8 text-center text-slate-400">
@@ -334,13 +390,27 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                               <span>{file.uploaded_by}</span>
                             </div>
                           </div>
-                          <button 
-                            onClick={() => apiDownload(`/${file.file_url}`, file.filename)} 
-                            className="ml-3 p-2 text-slate-400 hover:text-[#9B101E] hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                            title="Download File"
-                          >
-                            <FiDownload className="w-4 h-4" />
-                          </button>
+                          <div className="ml-3 flex items-center gap-1">
+                            <button 
+                              onClick={() => apiDownload(`/${file.file_url}`, file.filename)} 
+                              className="p-2 text-slate-400 hover:text-[#9B101E] hover:bg-red-50 rounded-full transition-colors"
+                              title="Download File"
+                            >
+                              <FiDownload className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAttachment(file)}
+                              disabled={deletingAttachmentId === file.id}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors disabled:opacity-60"
+                              title="Delete File"
+                            >
+                              {deletingAttachmentId === file.id ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                              ) : (
+                                <FiTrash2 className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                         {file.extracted_text && (
                           <div className="mt-3 p-3 bg-white border border-indigo-100 rounded text-xs text-slate-700 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto relative shadow-inner">
@@ -421,6 +491,61 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                         })}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Borrowing History */}
+              <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden">
+                <div className="border-b border-slate-100 p-4 bg-slate-50 flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <FiBox className="w-4 h-4" /> Equipment Borrowing History
+                  </h4>
+                  <span className="text-xs font-semibold text-slate-400 bg-white px-2 py-1 rounded shadow-sm border border-slate-200">{borrowingHistory.length} Records</span>
+                </div>
+                
+                {borrowingHistory.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400">
+                    <FiPackage className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-medium">No borrowing records found.</p>
+                  </div>
+                ) : (
+                  <div className="p-4 space-y-4">
+                    {borrowingHistory.map((record: any) => (
+                      <div key={record.id} className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span className={`text-xs font-bold px-2 py-1 rounded uppercase tracking-wider ${
+                              record.status === 'active' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                            }`}>
+                              {record.status}
+                            </span>
+                            <p className="font-semibold text-slate-700 mt-2">Purpose: {record.purpose}</p>
+                            <p className="text-xs text-slate-500">Borrowed: {new Date(record.created_at).toLocaleString()}</p>
+                            {record.returned_at && <p className="text-xs text-slate-500">Returned: {new Date(record.returned_at).toLocaleString()}</p>}
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-slate-100">
+                          <p className="text-xs font-bold text-slate-500 mb-2 uppercase">Items:</p>
+                          <ul className="space-y-1">
+                            {record.items.map((item: any) => (
+                              <li key={item.item_id} className="flex justify-between text-sm">
+                                <span className="text-slate-700 flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#A5192D]"></span>
+                                  {item.name} <span className="text-slate-400">x{item.quantity}</span>
+                                </span>
+                                <span className={`text-xs font-bold ${
+                                  item.status === 'returned' ? 'text-green-600' : 
+                                  item.status === 'dispensed' ? 'text-slate-400' : 'text-amber-600'
+                                }`}>
+                                  {item.status.toUpperCase()}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

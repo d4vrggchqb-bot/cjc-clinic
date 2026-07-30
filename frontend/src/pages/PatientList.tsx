@@ -115,16 +115,12 @@ const PatientList: React.FC = () => {
   };
 
   return (
-    <div className="p-10 w-full max-w-7xl mx-auto h-full flex flex-col">
+    <div className="px-5 py-5 w-full h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-end mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-[#A5192D] tracking-tight mb-1">Patient Directory</h1>
-          <p className="text-slate-400 text-sm font-medium">Manage and view all registered students and employees</p>
-        </div>
+      <div className="flex flex-col sm:flex-row justify-end sm:items-end gap-4 mb-6 sm:mb-8">
         <button 
           onClick={handleOpenAdd}
-          className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-5 py-2.5 rounded-md text-sm font-semibold tracking-wide flex items-center gap-2 transition-colors shadow-sm">
+          className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-md text-xs sm:text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm w-full sm:w-auto">
           <FiPlus className="w-4 h-4" strokeWidth={3} />
           Add New Patient
         </button>

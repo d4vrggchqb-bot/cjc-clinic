@@ -1,7 +1,12 @@
 // Base URL of the PHP API (when running decoupled)
-export const API_BASE = 'http://localhost:8000';
+// Automatically use the current hostname so it works over WiFi (e.g., from a phone)
+export const API_BASE = `http://${window.location.hostname}:8000`;
 
 let cachedCsrfToken: string | null = null;
+
+export function clearCsrfToken(): void {
+  cachedCsrfToken = null;
+}
 
 export async function getCsrfToken(): Promise<string> {
   if (cachedCsrfToken) return cachedCsrfToken;
@@ -42,6 +47,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     ...options,
     headers,
     credentials: 'include', // Extremely important for PHP sessions to persist!
+    cache: 'no-store', // Prevent stale data on navigation
   });
 
   return res.json();

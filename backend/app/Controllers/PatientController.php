@@ -141,8 +141,28 @@ class PatientController {
 
         $ocrScript = realpath(__DIR__ . '/../../scripts/ocr_parser.py');
         $extractedText = null;
+        $ocrError = null;
         if ($ocrScript) {
-            $cmd = escapeshellcmd("python") . " " . escapeshellarg($ocrScript) . " " . escapeshellarg($targetPath);
+            // XAMPP's web-server process may not inherit the interactive PATH.
+            // Resolve a local Python installation explicitly, while allowing a
+            // deployment to override it through CJC_PYTHON_EXECUTABLE.
+            $pythonExecutable = getenv('CJC_PYTHON_EXECUTABLE') ?: 'python';
+            if (DIRECTORY_SEPARATOR === '\\' && $pythonExecutable === 'python') {
+                $localAppData = getenv('LOCALAPPDATA');
+                if ($localAppData) {
+                    // Prefer the project's supported interpreter. Fall back to
+                    // another installed Python only when it is unavailable.
+                    $pythonCandidates = glob($localAppData . '\\Programs\\Python\\Python313\\python.exe') ?: [];
+                    if (empty($pythonCandidates)) {
+                        $pythonCandidates = glob($localAppData . '\\Programs\\Python\\Python*\\python.exe') ?: [];
+                    }
+                    if (!empty($pythonCandidates)) {
+                        $pythonExecutable = $pythonCandidates[0];
+                    }
+                }
+            }
+
+            $cmd = escapeshellarg($pythonExecutable) . " " . escapeshellarg($ocrScript) . " " . escapeshellarg($targetPath) . " 2>&1";
             $output = [];
             $return_var = 0;
             exec($cmd, $output, $return_var);
@@ -161,7 +181,11 @@ class PatientController {
                             // Silently ignore
                         }
                     }
+                } else {
+                    $ocrError = $ocrResult['error'] ?? 'Text extraction could not be completed.';
                 }
+            } else {
+                $ocrError = 'Text extraction could not be completed' . (!empty($output) ? ': ' . implode(" ", $output) : '.') ;
             }
         }
 
@@ -170,8 +194,64 @@ class PatientController {
             'url' => $fileUrl,
             'id' => $attachmentId,
             'ocr_extracted' => $extractedText !== null,
-            'extracted_text' => $extractedText
+            'extracted_text' => $extractedText,
+            'ocr_error' => $ocrError
         ]);
+    }
+
+    public function deleteAttachment() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth();
+        cjcCsrfValidate();
+        cjcRequireRole(['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff']);
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $attachmentId = (int)($input['attachment_id'] ?? 0);
+        $profileId = (int)($input['profile_id'] ?? 0);
+
+        if ($attachmentId <= 0 || $profileId <= 0) {
+            $this->jsonResponse(['success' => false, 'message' => 'Invalid attachment selection.'], 400);
+        }
+
+        $pdo = cjcDatabaseConnection();
+
+        try {
+            $stmt = $pdo->prepare("SELECT id, profile_id, filename, file_url FROM profile_attachments WHERE id = :id AND profile_id = :profile_id LIMIT 1");
+            $stmt->execute(['id' => $attachmentId, 'profile_id' => $profileId]);
+            $attachment = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$attachment) {
+                $this->jsonResponse(['success' => false, 'message' => 'Attachment not found.'], 404);
+            }
+
+            $parsedUrl = parse_url($attachment['file_url'] ?? '');
+            $query = [];
+            if (!empty($parsedUrl['query'])) {
+                parse_str($parsedUrl['query'], $query);
+            }
+            $storedFilename = $query['file'] ?? null;
+
+            if ($storedFilename) {
+                $uploadDir = realpath(CJC_UPLOAD_DIR);
+                if ($uploadDir !== false && is_dir($uploadDir)) {
+                    $targetPath = $uploadDir . DIRECTORY_SEPARATOR . $storedFilename;
+                    if (is_file($targetPath)) {
+                        @unlink($targetPath);
+                    }
+                }
+            }
+
+            $deleteStmt = $pdo->prepare("DELETE FROM profile_attachments WHERE id = :id AND profile_id = :profile_id");
+            $deleteStmt->execute(['id' => $attachmentId, 'profile_id' => $profileId]);
+
+            $this->jsonResponse(['success' => true, 'message' => 'Attachment deleted successfully.']);
+        } catch (PDOException $e) {
+            error_log('[CJC-CLINIC] delete attachment error: ' . $e->getMessage());
+            $this->jsonResponse(['success' => false, 'message' => 'Unable to delete attachment.'], 500);
+        }
     }
 
     public function get() {
