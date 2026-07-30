@@ -29,7 +29,7 @@ if (file_exists($envFile)) {
 // ─── Global CORS Configuration for Headless API ──────────────────────────────
 if (php_sapi_name() !== 'cli') {
     $origin = $_SERVER['HTTP_ORIGIN'] ?? 'http://localhost:5173';
-    if (in_array($origin, ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174'])) {
+    if (in_array($origin, ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174' , 'https://workstation-contests-experiencing-wonder.trycloudflare.com/'])) {
         header("Access-Control-Allow-Origin: $origin");
     } else {
         header("Access-Control-Allow-Origin: http://localhost:5173");
