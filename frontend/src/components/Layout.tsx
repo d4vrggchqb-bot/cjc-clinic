@@ -48,10 +48,10 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
     { id: 'patients', label: 'PATIENT LIST', icon: FiUsers },
     { id: 'consultation', label: 'CONSULTATION', icon: FiActivity },
     { id: 'appointments', label: 'APPOINTMENTS', icon: FiClock },
-    { id: 'inventory', label: 'INVENTORY', icon: FiBox },
+    { id: 'inventory', label: 'INVENTORY', icon: FiBox, roles: ['Superadmin', 'Admin', 'Doctor', 'Nurse'] },
     { id: 'borrowings', label: 'EQUIPMENT BOOKING', icon: FiCalendar },
-    { id: 'reports', label: 'REPORTS', icon: FiFileText }
-  ];
+    { id: 'reports', label: 'REPORTS', icon: FiFileText, roles: ['Superadmin', 'Admin'] }
+  ].filter(item => !item.roles || (user && item.roles.includes(user.role)));
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-[#FDFBF7] font-sans overflow-hidden">
@@ -190,15 +190,17 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                 Welcome back, <span className="font-bold text-slate-700">{user.name || user.username}</span>
               </div>
             )}
-            <button
-              onClick={() => navigate('/settings')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-colors ${
-                page === 'settings' ? 'text-[#C01D38] bg-red-50' : 'text-slate-600 hover:text-[#C01D38] hover:bg-red-50'
-              }`}
-            >
-              <FiSettings className="w-4 h-4" />
-              <span>Settings</span>
-            </button>
+            {user && ['Superadmin', 'Admin'].includes(user.role) && (
+              <button
+                onClick={() => navigate('/settings')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-colors ${
+                  page === 'settings' ? 'text-[#C01D38] bg-red-50' : 'text-slate-600 hover:text-[#C01D38] hover:bg-red-50'
+                }`}
+              >
+                <FiSettings className="w-4 h-4" />
+                <span>Settings</span>
+              </button>
+            )}
             
             <div className="w-px h-5 bg-slate-200 mx-1"></div>
             

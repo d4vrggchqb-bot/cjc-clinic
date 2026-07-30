@@ -43,7 +43,8 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     school_year: '2026-2027', 
     departments_hierarchy: [],
     bed_hierarchy: [],
-    college_year_levels: []
+    college_year_levels: [],
+    post_graduate_hierarchy: []
   });
 
   // Fetch settings once when the component mounts
@@ -56,7 +57,8 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
             school_year: sy,
             departments_hierarchy: Array.isArray(res.settings.departments_hierarchy) ? res.settings.departments_hierarchy : [],
             bed_hierarchy: Array.isArray(res.settings.bed_hierarchy) ? res.settings.bed_hierarchy : [],
-            college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : []
+            college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
+            post_graduate_hierarchy: Array.isArray(res.settings.post_graduate_hierarchy) ? res.settings.post_graduate_hierarchy : []
           });
           // Update default form data if it's currently at the old hardcoded default
           setFormData(prev => ({
@@ -195,6 +197,10 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
   const bedPrograms = globalSettings.bed_hierarchy.map((b: any) => b.program) || [];
   const selectedBedProgram = globalSettings.bed_hierarchy.find((b: any) => b.program === formData.course);
   const bedYearLevels = selectedBedProgram ? selectedBedProgram.year_levels : [];
+
+  const postGradSchools = globalSettings.post_graduate_hierarchy.map((s: any) => s.school) || [];
+  const selectedPostGradSchool = globalSettings.post_graduate_hierarchy.find((s: any) => s.school === formData.college_dept);
+  const postGradPrograms = selectedPostGradSchool ? selectedPostGradSchool.programs : [];
 
   if (!isOpen) return null;
 
@@ -357,6 +363,10 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                         <input type="radio" name="sub_type" value="BED" checked={formData.sub_type === 'BED'} onChange={() => handleRadioChange('sub_type', 'BED')} className="w-4 h-4 text-[#C01D38] bg-white border-slate-300 focus:ring-[#C01D38]" />
                         <span className="text-sm font-normal text-slate-600">BED (Basic Ed)</span>
                       </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="sub_type" value="Post Graduate" checked={formData.sub_type === 'Post Graduate'} onChange={() => handleRadioChange('sub_type', 'Post Graduate')} className="w-4 h-4 text-[#C01D38] bg-white border-slate-300 focus:ring-[#C01D38]" />
+                        <span className="text-sm font-normal text-slate-600">Post Graduate</span>
+                      </label>
                     </div>
                     {formData.sub_type === 'College' ? (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -388,7 +398,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           </select>
                         </div>
                       </div>
-                    ) : (
+                    ) : formData.sub_type === 'BED' ? (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className={labelClass}>Department <span className="text-red-500">*</span></label>
@@ -408,6 +418,36 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass} disabled={!formData.course}>
                             <option value="">Select Year Level</option>
                             {bedYearLevels.map((yr: string, idx: number) => (
+                              <option key={idx} value={yr}>{yr}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className={labelClass}>School <span className="text-red-500">*</span></label>
+                          <select name="college_dept" value={formData.college_dept} onChange={(e) => setFormData({...formData, college_dept: e.target.value, course: ''})} className={inputClass}>
+                            <option value="">Select School</option>
+                            {postGradSchools.map((school: string, idx: number) => (
+                              <option key={idx} value={school}>{school}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Program <span className="text-red-500">*</span></label>
+                          <select name="course" value={formData.course} onChange={handleChange} className={inputClass} disabled={!formData.college_dept}>
+                            <option value="">Select Program</option>
+                            {postGradPrograms.map((prog: string, idx: number) => (
+                              <option key={idx} value={prog}>{prog}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
+                          <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass}>
+                            <option value="">Select Year</option>
+                            {globalSettings.college_year_levels.map((yr: string, idx: number) => (
                               <option key={idx} value={yr}>{yr}</option>
                             ))}
                           </select>

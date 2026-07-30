@@ -10,6 +10,7 @@ class PatientController {
         }
 
         cjcRequireAuth();
+        $currentUser = cjcCurrentUser();
         
         $pdo = cjcDatabaseConnection();
         $profileType = $_GET['type'] ?? 'all';
@@ -35,6 +36,19 @@ class PatientController {
             $params['search2']   = '%' . $search . '%';
             $params['search3']   = '%' . $search . '%';
         }
+
+        // Apply role and branch filters
+        $userRole = $currentUser['role'] ?? '';
+        $userBranch = $currentUser['clinic_branch'] ?? '';
+
+        if ($userRole !== 'Superadmin') {
+            if ($userBranch === 'Basic Education Clinic') {
+                $conditions[] = "((profile_type = 'student' AND sub_type = 'BED') OR (profile_type = 'employee' AND college_dept = 'Basic Education'))";
+            } else if (in_array($userBranch, ['College Clinic', 'Power Campus Clinic'])) {
+                $conditions[] = "((profile_type = 'student' AND sub_type IN ('College', 'Post Graduate')) OR (profile_type = 'employee' AND (college_dept != 'Basic Education' OR college_dept IS NULL)))";
+            }
+        }
+
         $where = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
 
         try {

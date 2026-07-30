@@ -30,6 +30,7 @@ export default function Settings() {
             school_year: res.settings.school_year || '',
             departments_hierarchy: Array.isArray(res.settings.departments_hierarchy) ? res.settings.departments_hierarchy : [],
             bed_hierarchy: Array.isArray(res.settings.bed_hierarchy) ? res.settings.bed_hierarchy : [],
+            post_graduate_hierarchy: Array.isArray(res.settings.post_graduate_hierarchy) ? res.settings.post_graduate_hierarchy : [],
             college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
             cues: Array.isArray(res.settings.cues) ? res.settings.cues : [],
           });
@@ -272,6 +273,19 @@ export default function Settings() {
                   childKey="year_levels"
                   childLabel="Year Level"
                   onSave={(newHierarchy: any) => handleHierarchySave('bed_hierarchy', newHierarchy)}
+                />
+              </div>
+
+              {/* Post Graduate Config - Hierarchical */}
+              <div className="mt-8 border-t border-slate-200 pt-6">
+                <HierarchyEditor
+                  title="Post Graduate Setup"
+                  description="Manage Post Graduate schools (e.g., Law School) and their programs (e.g., Juris Doctor)."
+                  items={settings.post_graduate_hierarchy || []}
+                  parentKey="school"
+                  childKey="programs"
+                  childLabel="Program"
+                  onSave={(newHierarchy: any) => handleHierarchySave('post_graduate_hierarchy', newHierarchy)}
                 />
               </div>
             </>
