@@ -176,9 +176,16 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
         <header className="h-auto min-h-[5rem] py-3 sm:py-4 bg-white/80 backdrop-blur-md border-b border-slate-200 flex justify-between items-center px-4 sm:px-8 gap-4 shrink-0 z-20 shadow-sm relative w-full">
           
           <div className="flex flex-col">
-            <h1 className="text-2xl sm:text-[28px] font-bold text-[#A5192D] tracking-tight leading-tight">
-              {pageInfo.title}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-[28px] font-bold text-[#A5192D] tracking-tight leading-tight">
+                {pageInfo.title}
+              </h1>
+              {user && user.role !== 'Superadmin' && user.clinic_branch && (
+                <span className="bg-[#C01D38]/10 text-[#C01D38] border border-[#C01D38]/20 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold tracking-wide uppercase whitespace-nowrap">
+                  {user.clinic_branch}
+                </span>
+              )}
+            </div>
             <p className="text-[12px] sm:text-[14px] text-slate-500 font-semibold leading-tight hidden sm:block mt-0.5">
               {pageInfo.subtitle}
             </p>
