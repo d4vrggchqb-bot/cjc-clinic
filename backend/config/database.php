@@ -10,7 +10,7 @@ require_once __DIR__ . '/config.php';
  * env[] section.
  *
  * Required env vars:
- *   DB_HOST     (default: 127.0.0.1)
+ *   DB_HOST     (default: 192.168.10.96)
  *   DB_NAME     (default: cjc_clinic)
  *   DB_USER     (NO default — must be set)
  *   DB_PASS     (NO default — must be set)
@@ -24,7 +24,7 @@ function cjcDatabaseConnection(): PDO
         return $pdo;
     }
 
-    $host    = getenv('DB_HOST')    ?: '127.0.0.1';
+    $host    = getenv('DB_HOST')    ?: '192.168.10.96';
     $db      = getenv('DB_NAME')    ?: 'cjc_clinic';
     $user    = getenv('DB_USER')    ?: 'root';
     $pass    = getenv('DB_PASS')    ?: '';
