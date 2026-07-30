@@ -10,7 +10,7 @@ require_once __DIR__ . '/config.php';
  * env[] section.
  *
  * Required env vars:
- *   DB_HOST     (default: 127.0.0.1)
+ *   DB_HOST     (default: 192.168.10.96)
  *   DB_NAME     (default: cjc_clinic)
  *   DB_USER     (NO default — must be set)
  *   DB_PASS     (NO default — must be set)
@@ -24,15 +24,26 @@ function cjcDatabaseConnection(): PDO
         return $pdo;
     }
 
+<<<<<<< HEAD
+    $host    = getenv('DB_HOST')    ?: '192.168.10.96';
+=======
     // Smart Auto-Fallback Host Detection
     $envHost = getenv('DB_HOST');
     if ($envHost !== false && $envHost !== '') {
         $host = $envHost;
     } else {
-        // Force local XAMPP MySQL database
-        $host = 'localhost';
+        // Ping the School ICT Central Server (192.168.10.96) on MySQL port 3306 with a 0.35s timeout.
+        // If connected (in school Wi-Fi/LAN), use ICT server. Otherwise, default to local computer XAMPP (127.0.0.1) for home testing.
+        $socket = @fsockopen('192.168.10.96', 3306, $errno, $errstr, 0.35);
+        if ($socket) {
+            fclose($socket);
+            $host = '192.168.10.96';
+        } else {
+            $host = '127.0.0.1';
+        }
     }
 
+>>>>>>> 8286742460a9af8ecf7acaa5f399f9871ce233b4
     $db      = getenv('DB_NAME')    ?: 'cjc_clinic';
     $user    = getenv('DB_USER')    ?: 'cjc_app';
     $pass    = getenv('DB_PASS')    ?: 'CHANGE_ME';

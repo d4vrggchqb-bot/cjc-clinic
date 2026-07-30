@@ -291,7 +291,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                 </div>
                 <div>
                   <label className={labelClass}>School Year</label>
-                  <input type="text" name="school_year" value={formData.school_year} onChange={handleChange} className={inputClass} />
+                  <input type="text" name="school_year" value={formData.school_year} disabled className={`${inputClass} bg-slate-100 text-slate-500 cursor-not-allowed`} />
                 </div>
               </div>
 
