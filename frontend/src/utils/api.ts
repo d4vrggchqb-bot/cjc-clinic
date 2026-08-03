@@ -1,7 +1,6 @@
 // Base URL of the PHP API (when running decoupled)
 // Automatically use the current hostname so it works over WiFi (e.g., from a phone)
-export const API_BASE = `http://${window.location.hostname}:8000`;
-
+const API_BASE_URL = ''
 let cachedCsrfToken: string | null = null;
 
 export function clearCsrfToken(): void {
@@ -12,7 +11,7 @@ export async function getCsrfToken(): Promise<string> {
   if (cachedCsrfToken) return cachedCsrfToken;
 
   try {
-    const res = await fetch(`${API_BASE}/api/csrf.php`, {
+    const res = await fetch(`${API_BASE_URL}/api/csrf.php`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -43,7 +42,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     headers['X-CSRF-Token'] = token;
   }
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+  const res = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers,
     credentials: 'include', // Extremely important for PHP sessions to persist!
@@ -56,7 +55,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 export async function apiDownload(endpoint: string, filename: string) {
   const headers: Record<string, string> = {};
   
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+  const res = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'GET',
     headers,
     credentials: 'include',
