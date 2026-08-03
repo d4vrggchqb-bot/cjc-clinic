@@ -32,7 +32,26 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     emergency_contact_number: '',
     emergency_relation: '',
     health_history: '',
-    vital_stats: ''
+    vital_stats: '',
+    height: '',
+    weight: '',
+    mother_name: '',
+    father_name: ''
+  });
+  
+  // Health History specific state
+  const [healthHistoryObj, setHealthHistoryObj] = useState<any>({
+    Asthma: false,
+    ThyroidDisease: false,
+    HeartDisease: false,
+    HighBloodPressure: false,
+    EpilepsySeizures: false,
+    Tuberculosis: false,
+    HistoryOfFainting: false,
+    Allergies: false,
+    RheumaticHeartDisease: false,
+    LungDisease: false,
+    OthersText: ''
   });
   
   const [loading, setLoading] = useState(false);
@@ -80,6 +99,18 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
           .then(res => {
             if (res.profile) {
               setFormData({ ...formData, ...res.profile });
+              // Parse health_history if it is JSON
+              if (res.profile.health_history) {
+                try {
+                  const parsed = JSON.parse(res.profile.health_history);
+                  if (typeof parsed === 'object' && parsed !== null) {
+                    setHealthHistoryObj({ ...healthHistoryObj, ...parsed });
+                  }
+                } catch (e) {
+                  // If it fails, maybe it's old plain text data, we can put it in Others
+                  setHealthHistoryObj({ ...healthHistoryObj, OthersText: res.profile.health_history });
+                }
+              }
             }
           })
           .catch(() => setError('Failed to load patient data'))
@@ -107,7 +138,24 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
           emergency_contact_number: '',
           emergency_relation: '',
           health_history: '',
-          vital_stats: ''
+          vital_stats: '',
+          height: '',
+          weight: '',
+          mother_name: '',
+          father_name: ''
+        });
+        setHealthHistoryObj({
+          Asthma: false,
+          ThyroidDisease: false,
+          HeartDisease: false,
+          HighBloodPressure: false,
+          EpilepsySeizures: false,
+          Tuberculosis: false,
+          HistoryOfFainting: false,
+          Allergies: false,
+          RheumaticHeartDisease: false,
+          LungDisease: false,
+          OthersText: ''
         });
       }
     }
@@ -150,6 +198,14 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleHealthCheck = (key: string) => {
+    setHealthHistoryObj((prev: any) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleHealthText = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setHealthHistoryObj((prev: any) => ({ ...prev, OthersText: e.target.value }));
+  };
+
   const calculateAge = (dob: string) => {
     if (!dob) return '--';
     const diff_ms = Date.now() - new Date(dob).getTime();
@@ -168,7 +224,15 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     setError('');
 
     const action = patientId ? 'update' : 'create';
-    const payload = patientId ? { ...formData, id: patientId } : formData;
+    
+    // Convert health history obj to string
+    const payload = { 
+      ...formData, 
+      health_history: JSON.stringify(healthHistoryObj)
+    };
+    if (patientId) {
+      payload.id = patientId;
+    }
 
     try {
       const res = await apiFetch(`/api/index.php?route=patients&action=${action}`, {
@@ -347,6 +411,17 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className={labelClass}>Height (cm)</label>
+                  <input type="text" name="height" value={formData.height} onChange={handleChange} className={inputClass} placeholder="e.g. 165" />
+                </div>
+                <div>
+                  <label className={labelClass}>Weight (kg)</label>
+                  <input type="text" name="weight" value={formData.weight} onChange={handleChange} className={inputClass} placeholder="e.g. 60" />
+                </div>
+              </div>
+
               {/* Dynamic Type Section */}
               <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-5 relative overflow-hidden group hover:border-[#C01D38]/30 transition-colors">
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#C01D38]/20 group-hover:bg-[#C01D38] transition-colors"></div>
@@ -496,6 +571,17 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                 <input type="text" name="address" value={formData.address} onChange={handleChange} className={inputClass} placeholder="House #, Street, Barangay, City, Province" />
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className={labelClass}>Mother's Name</label>
+                  <input type="text" name="mother_name" value={formData.mother_name} onChange={handleChange} className={inputClass} placeholder="Full Name" />
+                </div>
+                <div>
+                  <label className={labelClass}>Father's Name</label>
+                  <input type="text" name="father_name" value={formData.father_name} onChange={handleChange} className={inputClass} placeholder="Full Name" />
+                </div>
+              </div>
+
               <div className="bg-red-50/50 border border-red-100 rounded-xl p-5 mt-5">
                 <h3 className="text-sm font-semibold text-red-800 mb-4 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-red-500"></span>
@@ -525,15 +611,42 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
               <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-5 h-full flex flex-col gap-5">
                 <div>
                   <label className="block text-sm font-semibold text-blue-900 mb-1">Health History & Allergies</label>
-                  <p className="text-xs text-blue-700/70 mb-3 font-medium">Please list any known allergies, past surgeries, chronic conditions, or long-term medications.</p>
-                  <textarea 
-                    name="health_history" 
-                    value={formData.health_history} 
-                    onChange={handleChange}
-                    rows={4}
-                    className={`${inputClass} bg-white shadow-sm resize-none`}
-                    placeholder="e.g. Allergic to penicillin. Diagnosed with asthma."
-                  ></textarea>
+                  <p className="text-xs text-blue-700/70 mb-3 font-medium">Please list any health problems that might affect your child's performance in school: Kindly Check (☑)</p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                    {[
+                      { key: 'Asthma', label: 'Asthma' },
+                      { key: 'ThyroidDisease', label: 'Thyroid Disease' },
+                      { key: 'HeartDisease', label: 'Heart Disease' },
+                      { key: 'HighBloodPressure', label: 'High Blood Pressure' },
+                      { key: 'EpilepsySeizures', label: 'Epilepsy/Seizures' },
+                      { key: 'Tuberculosis', label: 'Tuberculosis' },
+                      { key: 'HistoryOfFainting', label: 'History of Fainting' },
+                      { key: 'Allergies', label: 'Allergies (Food/Drug)' },
+                      { key: 'RheumaticHeartDisease', label: 'Rheumatic Heart Disease' },
+                      { key: 'LungDisease', label: 'Lung Disease' },
+                    ].map(item => (
+                      <label key={item.key} className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={healthHistoryObj[item.key]} 
+                          onChange={() => handleHealthCheck(item.key)} 
+                          className="w-4 h-4 text-[#C01D38] bg-white border-blue-300 rounded focus:ring-[#C01D38]" 
+                        />
+                        <span className="text-sm font-medium text-slate-700">{item.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div>
+                    <label className={labelClass}>Others</label>
+                    <input 
+                      type="text" 
+                      value={healthHistoryObj.OthersText} 
+                      onChange={handleHealthText} 
+                      className={inputClass} 
+                      placeholder="Specify other health problems here..." 
+                    />
+                  </div>
                 </div>
 
                 <div>

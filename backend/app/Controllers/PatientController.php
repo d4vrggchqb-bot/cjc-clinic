@@ -341,12 +341,12 @@ class PatientController {
         try {
             $sql = "INSERT INTO profiles (
                         profile_type, patient_id_number, school_year, first_name, last_name, middle_initial,
-                        birthdate, gender, sub_type, college_dept, year_level, course, 
+                        birthdate, gender, height, mother_name, father_name, weight, sub_type, college_dept, year_level, course, 
                         contact, email, address, emergency_contact_name, emergency_contact_number, 
                         emergency_relation, blood_type, health_history, vital_stats
                     ) VALUES (
                         :type, :id_num, :school_year, :fname, :lname, :mi,
-                        :bdate, :gender, :sub_type, :dept, :ylevel, :course,
+                        :bdate, :gender, :height, :mname, :fname_parent, :weight, :sub_type, :dept, :ylevel, :course,
                         :contact, :email, :address, :e_name, :e_num, 
                         :e_rel, :blood, :history, :vitals
                     )";
@@ -360,6 +360,10 @@ class PatientController {
                 'mi' => $input['middle_initial'] ?? null,
                 'bdate' => !empty($input['birthdate']) ? $input['birthdate'] : null,
                 'gender' => $input['gender'] ?? null,
+                'height' => $input['height'] ?? null,
+                'mname' => $input['mother_name'] ?? null,
+                'fname_parent' => $input['father_name'] ?? null,
+                'weight' => $input['weight'] ?? null,
                 'sub_type' => $input['sub_type'] ?? null,
                 'dept' => $input['college_dept'] ?? null,
                 'ylevel' => $input['year_level'] ?? null,
@@ -422,7 +426,8 @@ class PatientController {
             $sql = "UPDATE profiles 
                     SET profile_type = :type, patient_id_number = :id_num, school_year = :school_year, 
                         first_name = :fname, last_name = :lname, middle_initial = :mi,
-                        birthdate = :bdate, gender = :gender, sub_type = :sub_type, 
+                        birthdate = :bdate, gender = :gender, height = :height, mother_name = :mname, 
+                        father_name = :fname_parent, weight = :weight, sub_type = :sub_type, 
                         college_dept = :dept, year_level = :ylevel, course = :course,
                         contact = :contact, email = :email, address = :address, 
                         emergency_contact_name = :e_name, emergency_contact_number = :e_num, 
@@ -440,6 +445,10 @@ class PatientController {
                 'mi' => $input['middle_initial'] ?? null,
                 'bdate' => !empty($input['birthdate']) ? $input['birthdate'] : null,
                 'gender' => $input['gender'] ?? null,
+                'height' => $input['height'] ?? null,
+                'mname' => $input['mother_name'] ?? null,
+                'fname_parent' => $input['father_name'] ?? null,
+                'weight' => $input['weight'] ?? null,
                 'sub_type' => $input['sub_type'] ?? null,
                 'dept' => $input['college_dept'] ?? null,
                 'ylevel' => $input['year_level'] ?? null,

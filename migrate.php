@@ -104,6 +104,17 @@ try {
         // Ignore if column already exists
     }
     
+    try {
+        $pdo->exec("ALTER TABLE `profiles` 
+            ADD COLUMN `mother_name` VARCHAR(100) DEFAULT NULL AFTER `last_name`,
+            ADD COLUMN `father_name` VARCHAR(100) DEFAULT NULL AFTER `mother_name`,
+            ADD COLUMN `height` VARCHAR(50) DEFAULT NULL AFTER `gender`,
+            ADD COLUMN `weight` VARCHAR(50) DEFAULT NULL AFTER `height`
+        ");
+    } catch (PDOException $e) {
+        // Ignore if columns already exist
+    }
+    
     echo "Tables created/updated successfully. Recovered {$recoveredExtracts} OCR extract(s).\n";
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage() . "\n";

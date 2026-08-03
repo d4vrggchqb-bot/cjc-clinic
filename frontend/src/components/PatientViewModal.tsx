@@ -246,6 +246,18 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                   </div>
                 </div>
 
+                <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-sm flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
+                    <FiUser className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-[0.65rem] font-bold text-slate-400 uppercase tracking-wider">Height / Weight</p>
+                    <p className="text-sm font-semibold text-slate-700">
+                      {patient.height ? `${patient.height} cm` : '--'} / {patient.weight ? `${patient.weight} kg` : '--'}
+                    </p>
+                  </div>
+                </div>
+
                 {patient.profile_type === 'student' && (
                   <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-sm flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
@@ -293,6 +305,31 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                   </div>
                 </div>
 
+                {/* Family Information */}
+                <div className="col-span-full mt-4 mb-1">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-2">Family Information</h4>
+                </div>
+
+                <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-sm flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
+                    <FiUsers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-[0.65rem] font-bold text-slate-400 uppercase tracking-wider">Mother's Name</p>
+                    <p className="text-sm font-semibold text-slate-700">{patient.mother_name || 'Not provided'}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-sm flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
+                    <FiUsers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-[0.65rem] font-bold text-slate-400 uppercase tracking-wider">Father's Name</p>
+                    <p className="text-sm font-semibold text-slate-700">{patient.father_name || 'Not provided'}</p>
+                  </div>
+                </div>
+
                 {/* Emergency Contact Section */}
                 <div className="col-span-full mt-4 mb-1">
                   <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-2">Emergency Contact</h4>
@@ -329,9 +366,58 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                   <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                     <FiInfo className="w-4 h-4" /> Health History & Allergies
                   </h4>
-                  <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-                    {patient.health_history || <span className="text-slate-400 italic">No health history recorded.</span>}
-                  </p>
+                  <div className="mt-3 text-sm text-slate-700">
+                    {(() => {
+                      if (!patient.health_history) {
+                        return <span className="text-slate-400 italic">No health history recorded.</span>;
+                      }
+                      try {
+                        const parsed = JSON.parse(patient.health_history);
+                        if (typeof parsed === 'object' && parsed !== null) {
+                          const labels: Record<string, string> = {
+                            Asthma: 'Asthma',
+                            ThyroidDisease: 'Thyroid Disease',
+                            HeartDisease: 'Heart Disease',
+                            HighBloodPressure: 'High Blood Pressure',
+                            EpilepsySeizures: 'Epilepsy/Seizures',
+                            Tuberculosis: 'Tuberculosis',
+                            HistoryOfFainting: 'History of Fainting',
+                            Allergies: 'Allergies (Food/Drug)',
+                            RheumaticHeartDisease: 'Rheumatic Heart Disease',
+                            LungDisease: 'Lung Disease'
+                          };
+                          const activeConditions = Object.entries(parsed)
+                            .filter(([k, v]) => v === true && labels[k])
+                            .map(([k]) => labels[k]);
+                          
+                          return (
+                            <div>
+                              {activeConditions.length > 0 ? (
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                  {activeConditions.map((cond, idx) => (
+                                    <span key={idx} className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-100 rounded-md text-xs font-semibold">
+                                      {cond}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {parsed.OthersText && (
+                                <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded border border-slate-100">
+                                  <span className="font-semibold text-slate-700">Others:</span> {parsed.OthersText}
+                                </div>
+                              )}
+                              {activeConditions.length === 0 && !parsed.OthersText && (
+                                <span className="text-slate-400 italic">No health conditions marked.</span>
+                              )}
+                            </div>
+                          );
+                        }
+                      } catch (e) {
+                        // fallback to simple text
+                      }
+                      return <p className="whitespace-pre-wrap leading-relaxed">{patient.health_history}</p>;
+                    })()}
+                  </div>
                 </div>
                 <div className="p-4 bg-slate-50/50">
                   <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
