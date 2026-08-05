@@ -252,6 +252,27 @@ class ConsultationController {
         $weight = $input['weight'] ?? null;
         $diagnosis = $input['diagnosis'] ?? null;
         $treatment = $input['treatment'] ?? null;
+        $dispensedItems = $input['dispensed_items'] ?? [];
+
+        // Format dispensed items summary into treatment notes if not already present
+        if (!empty($dispensedItems) && is_array($dispensedItems)) {
+            $summaryList = [];
+            foreach ($dispensedItems as $di) {
+                if (!empty($di['name']) && !empty($di['quantity'])) {
+                    $summaryList[] = $di['name'] . ' (Qty: ' . $di['quantity'] . ')';
+                }
+            }
+            if (!empty($summaryList)) {
+                $summaryStr = '[Administered/Dispensed: ' . implode(', ', $summaryList) . ']';
+                if (empty($treatment)) {
+                    $treatment = $summaryStr;
+                } elseif (strpos($treatment, $summaryStr) === false) {
+                    $treatment .= "\n" . $summaryStr;
+                }
+            }
+        }
+
+        $prescriptionsJson = !empty($dispensedItems) ? json_encode($dispensedItems) : null;
 
         try {
             $stmt = $pdo->prepare("UPDATE consultations 
@@ -259,7 +280,8 @@ class ConsultationController {
                                        temperature = :temp, 
                                        weight = :weight, 
                                        diagnosis = :diag, 
-                                       treatment = :treatment 
+                                       treatment = :treatment,
+                                       prescriptions = :prescriptions 
                                    WHERE id = :id");
             $stmt->execute([
                 'bp' => $bp,
@@ -267,11 +289,11 @@ class ConsultationController {
                 'weight' => $weight,
                 'diag' => $diagnosis,
                 'treatment' => $treatment,
+                'prescriptions' => $prescriptionsJson,
                 'id' => $id
             ]);
 
             // Handle Inventory Dispensing
-            $dispensedItems = $input['dispensed_items'] ?? [];
             $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
             if (!empty($dispensedItems)) {
                 // Get patient name for disposed_to
@@ -340,6 +362,91 @@ class ConsultationController {
             error_log('[CJC-CLINIC] Checkout All error: ' . $e->getMessage());
             $this->jsonResponse(['success' => false, 'message' => 'Unable to checkout all.'], 500);
         }
+    }
+
+    public function analyzeVitals() {
+        cjcRequireAuth();
+
+        $rawBp = trim($_GET['bp'] ?? $_POST['bp'] ?? '');
+        $rawTemp = (float)($_GET['temp'] ?? $_POST['temp'] ?? 0);
+        $rawPulse = (int)($_GET['pulse'] ?? $_POST['pulse'] ?? 0);
+
+        $alerts = [];
+        $suggestedDiagnosis = [];
+        $suggestedTreatment = [];
+        $statusSeverity = 'normal';
+
+        // 1. Blood Pressure Analysis
+        if (!empty($rawBp)) {
+            $parts = explode('/', $rawBp);
+            if (count($parts) === 2) {
+                $sys = (int)trim($parts[0]);
+                $dia = (int)trim($parts[1]);
+
+                if ($sys > 0 && $dia > 0) {
+                    if ($sys >= 180 || $dia >= 120) {
+                        $statusSeverity = 'critical';
+                        $alerts[] = ['type' => 'critical', 'message' => "CRITICAL: Hypertensive Crisis ($sys/$dia mmHg)"];
+                        $suggestedDiagnosis[] = 'Hypertensive Crisis / Severe Elevated BP';
+                        $suggestedTreatment[] = 'Immediate medical evaluation required. Administered prescribed antihypertensive if available, advised strict rest & urgent transfer.';
+                    } elseif ($sys >= 140 || $dia >= 90) {
+                        if ($statusSeverity !== 'critical') $statusSeverity = 'warning';
+                        $alerts[] = ['type' => 'warning', 'message' => "Stage 2 Hypertension ($sys/$dia mmHg)"];
+                        $suggestedDiagnosis[] = 'Hypertension (Stage 2)';
+                        $suggestedTreatment[] = 'Advised 15-minute rest, re-check BP. Avoid caffeine/stress. Prescribed/recommended medical consultation & BP monitoring log.';
+                    } elseif (($sys >= 130 && $sys <= 139) || ($dia >= 80 && $dia <= 89)) {
+                        if ($statusSeverity === 'normal') $statusSeverity = 'warning';
+                        $alerts[] = ['type' => 'warning', 'message' => "Stage 1 Hypertension ($sys/$dia mmHg)"];
+                        $suggestedDiagnosis[] = 'Hypertension (Stage 1) / Elevated BP';
+                        $suggestedTreatment[] = 'Advised rest, deep breathing exercises, hydration, and daily BP log monitoring.';
+                    } elseif ($sys < 90 || $dia < 60) {
+                        if ($statusSeverity === 'normal') $statusSeverity = 'warning';
+                        $alerts[] = ['type' => 'warning', 'message' => "Hypotension / Low Blood Pressure ($sys/$dia mmHg)"];
+                        $suggestedDiagnosis[] = 'Hypotension (Low BP)';
+                        $suggestedTreatment[] = 'Advised oral rehydration solution / water, elevated legs position, & rest until stable.';
+                    }
+                }
+            }
+        }
+
+        // 2. Temperature Analysis (°C)
+        if ($rawTemp > 0) {
+            if ($rawTemp >= 38.5) {
+                if ($statusSeverity !== 'critical') $statusSeverity = 'warning';
+                $alerts[] = ['type' => 'warning', 'message' => "High Fever / Febrile ($rawTemp °C)"];
+                $suggestedDiagnosis[] = 'Febrile Illness / High Fever';
+                $suggestedTreatment[] = 'Administered Paracetamol 500mg (1 tab PO). Encouraged tepid sponge bath (TSB) & oral fluid intake.';
+            } elseif ($rawTemp >= 37.6 && $rawTemp <= 38.4) {
+                if ($statusSeverity === 'normal') $statusSeverity = 'info';
+                $alerts[] = ['type' => 'info', 'message' => "Low-Grade Fever ($rawTemp °C)"];
+                $suggestedDiagnosis[] = 'Low-Grade Fever';
+                $suggestedTreatment[] = 'Advised increased fluid intake, rest, & Paracetamol 500mg if fever persists > 38.0°C.';
+            } elseif ($rawTemp < 35.5) {
+                if ($statusSeverity === 'normal') $statusSeverity = 'warning';
+                $alerts[] = ['type' => 'warning', 'message' => "Hypothermia / Low Body Temp ($rawTemp °C)"];
+                $suggestedDiagnosis[] = 'Hypothermia / Low Temperature';
+                $suggestedTreatment[] = 'Provided warm blanket, warm fluid intake, & monitored vital signs.';
+            }
+        }
+
+        // 3. Pulse Rate Analysis (bpm)
+        if ($rawPulse > 0) {
+            if ($rawPulse > 100) {
+                $alerts[] = ['type' => 'info', 'message' => "Tachycardia / High Heart Rate ($rawPulse bpm)"];
+                $suggestedDiagnosis[] = 'Tachycardia / Elevated Pulse';
+            } elseif ($rawPulse < 60) {
+                $alerts[] = ['type' => 'info', 'message' => "Bradycardia / Low Heart Rate ($rawPulse bpm)"];
+                $suggestedDiagnosis[] = 'Bradycardia / Low Pulse';
+            }
+        }
+
+        $this->jsonResponse([
+            'success' => true,
+            'severity' => $statusSeverity,
+            'alerts' => $alerts,
+            'suggested_diagnosis' => array_values(array_unique($suggestedDiagnosis)),
+            'suggested_treatment' => array_values(array_unique($suggestedTreatment))
+        ]);
     }
 
     private function jsonResponse(array $data, int $status = 200) {

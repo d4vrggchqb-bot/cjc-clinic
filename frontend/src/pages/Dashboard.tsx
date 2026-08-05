@@ -377,67 +377,134 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Alerts Section */}
-      {(stats.expiringItems.length > 0 || stats.lowStockItems.length > 0) && (
-        <div className="mb-8 space-y-4">
+      {(stats.expiringItems.length > 0 || stats.lowStockItems.length > 0 || predictiveAlerts.length > 0) && (
+        <div className="mb-8 space-y-3.5">
           
           {/* Expiring Items Alert */}
           {stats.expiringItems.length > 0 && (
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-orange-500 text-orange-800 px-5 py-4 rounded-xl flex items-start gap-3 w-full animate-fade-in">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-              <div>
-                <h3 className="font-semibold text-[13px] mb-1">Expiring Items Alert</h3>
-                <ul className="text-[13px] list-disc list-inside space-y-0.5">
-                  {stats.expiringItems.map((item: any, idx: number) => (
-                    <li key={idx}>
-                      <span className="font-semibold">{item.generic_name}</span> (Batch: {item.batch_number}) expires on <span className="font-semibold">{item.expired_on}</span> at {item.clinic_branch}
-                    </li>
-                  ))}
-                </ul>
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-amber-200/80 shadow-sm shadow-amber-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+              <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-amber-100/80 border border-amber-200/60 text-amber-700 flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="font-bold text-sm text-slate-800 tracking-tight">Expiring Items Alert</h3>
+                    <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-amber-200">
+                      {stats.expiringItems.length} {stats.expiringItems.length === 1 ? 'batch' : 'batches'}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {stats.expiringItems.map((item: any, idx: number) => (
+                      <p key={idx} className="text-xs text-slate-600 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-slate-800">{item.generic_name}</span>
+                        <span className="text-slate-400">(Batch: {item.batch_number})</span>
+                        <span className="text-slate-400">•</span>
+                        <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                          Expires on {item.expired_on}
+                        </span>
+                        <span className="text-slate-400 text-[11px]">at {item.clinic_branch}</span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
               </div>
+              
+              <button
+                onClick={() => navigate('/inventory')}
+                className="shrink-0 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer self-end sm:self-center"
+              >
+                <span>Review Items</span>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+              </button>
             </div>
           )}
 
-          {/* Low Stock Alert */}
+          {/* Low Stock Alert (Red Accent Bar Removed & Redesigned) */}
           {stats.lowStockItems.length > 0 && (
-            <div className="bg-gradient-to-r from-red-50 to-rose-50 border-l-4 border-[#C01D38] text-rose-800 px-5 py-4 rounded-xl flex items-start gap-3 w-full animate-fade-in">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-              <div>
-                <h3 className="font-semibold text-[13px] mb-1">Low Stock Alert</h3>
-                <ul className="text-[13px] list-disc list-inside">
-                  {stats.lowStockItems.map((item, idx) => (
-                    <li key={idx}>
-                      <span className="font-semibold">{item.generic_name}</span> ({item.category}) is low on stock! Only <span className="font-semibold text-red-600">{item.total_stock}</span> remaining (Threshold: {item.alert_threshold}).
-                    </li>
-                  ))}
-                </ul>
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-rose-200/80 shadow-sm shadow-rose-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+              <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-rose-100/80 border border-rose-200/60 text-rose-700 flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="font-bold text-sm text-slate-800 tracking-tight">Low Stock Alert</h3>
+                    <span className="bg-rose-100 text-rose-800 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-rose-200">
+                      {stats.lowStockItems.length} {stats.lowStockItems.length === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {stats.lowStockItems.map((item, idx) => (
+                      <p key={idx} className="text-xs text-slate-600 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-slate-800">{item.generic_name}</span>
+                        <span className="text-slate-400">({item.category})</span>
+                        <span className="text-slate-400">•</span>
+                        <span className="bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                          Only {item.total_stock} remaining
+                        </span>
+                        <span className="text-slate-400 text-[11px]">(Threshold: {item.alert_threshold})</span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
               </div>
+
+              <button
+                onClick={() => navigate('/inventory')}
+                className="shrink-0 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer self-end sm:self-center"
+              >
+                <span>Restock Inventory</span>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+              </button>
             </div>
           )}
 
           {/* AI Predictive Alerts */}
           {predictiveAlerts.length > 0 && (
-            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-l-4 border-indigo-500 text-indigo-800 p-5 rounded-2xl shadow-lg shadow-indigo-100/50 flex items-start gap-3 w-full animate-fade-in relative overflow-hidden backdrop-blur-sm">
-              <div className="absolute -right-6 -top-6 text-indigo-100 opacity-50 transform rotate-12">
-                <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-indigo-200/80 shadow-sm shadow-indigo-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+              <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100/80 border border-indigo-200/60 text-indigo-700 flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="font-bold text-sm text-slate-800 tracking-tight flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                      AI Predictive Shortage Warning
+                    </h3>
+                  </div>
+                  <div className="space-y-1">
+                    {predictiveAlerts.map((alert, idx) => (
+                      <p key={idx} className="text-xs text-slate-600 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-slate-800">{alert.name}</span>
+                        <span className="text-slate-400">•</span>
+                        <span>will run out in approx.</span>
+                        <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                          {alert.days_remaining} days
+                        </span>
+                        <span className="text-slate-400 text-[11px]">(based on recent dispensing trends)</span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 shrink-0 mt-0.5 relative z-10 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="16" x2="12" y2="12"></line>
-                <line x1="12" y1="8" x2="12.01" y2="8"></line>
-              </svg>
-              <div className="relative z-10">
-                <h3 className="font-bold text-sm flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                  AI Predictive Shortage Warning
-                </h3>
-                <ul className="text-sm mt-1 list-disc list-inside space-y-1">
-                  {predictiveAlerts.map((alert, idx) => (
-                    <li key={idx}>
-                      <span className="font-semibold">{alert.name}</span> will run out in approx. <span className="font-bold text-indigo-600">{alert.days_remaining} days</span> based on recent dispensing trends.
-                    </li>
-                  ))}
-                </ul>
-              </div>
+
+              <button
+                onClick={() => navigate('/inventory')}
+                className="shrink-0 bg-indigo-900 hover:bg-indigo-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer self-end sm:self-center"
+              >
+                <span>View Inventory</span>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+              </button>
             </div>
           )}
         </div>

@@ -167,8 +167,8 @@ function cjcRequireRole(array $allowedRoles): void
 {
     $user = cjcCurrentUser();
     
-    // System Administrator (root user) bypasses all role checks
-    if ($user['role'] === 'System Administrator') {
+    // System Administrator (root user) and Superadmin bypass all role checks
+    if ($user['role'] === 'System Administrator' || $user['role'] === 'Superadmin') {
         return;
     }
     

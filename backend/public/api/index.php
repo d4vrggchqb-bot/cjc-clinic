@@ -106,6 +106,8 @@ switch ($route) {
             $controller->checkoutAll();
         } elseif ($action === 'saveNotes') {
             $controller->saveNotes();
+        } elseif ($action === 'analyze_vitals') {
+            $controller->analyzeVitals();
         } elseif ($action === 'history') {
             $controller->history();
         }

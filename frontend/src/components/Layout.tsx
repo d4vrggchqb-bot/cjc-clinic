@@ -8,9 +8,29 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
   const location = useLocation();
   const navigate = useNavigate();
   const { confirm } = useConfirm();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('cjc_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const page = location.pathname.substring(1) || 'dashboard';
+
+  const toggleSidebar = () => {
+    setIsCollapsed(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('cjc_sidebar_collapsed', String(next));
+      } catch (e) {
+        console.error('Failed to save sidebar state', e);
+      }
+      return next;
+    });
+  };
 
   const getPageInfo = () => {
     switch (page) {
@@ -87,15 +107,16 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
       <aside className={`
         fixed md:relative inset-y-0 left-0 z-50
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
-        ${isCollapsed ? 'md:w-24' : 'md:w-72'} w-72
-        transition-all duration-300 ease-in-out bg-[#9B101E] flex flex-col shadow-2xl md:z-50
+        ${isCollapsed ? 'md:w-20' : 'md:w-72'} w-72
+        transition-all duration-300 ease-in-out bg-[#9B101E] flex flex-col shadow-2xl shrink-0
       `}>
-        {/* Desktop Toggle Button (Hidden on Mobile) */}
+        {/* Desktop Toggle Button on Sidebar Border */}
         <button 
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden md:block absolute -right-3 top-8 bg-white border border-slate-200 text-[#9B101E] p-1.5 rounded-full shadow-md z-30 hover:bg-slate-50 transition-colors"
+          onClick={toggleSidebar}
+          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          className="hidden md:flex absolute -right-3.5 top-7 bg-white border border-slate-200 text-[#9B101E] p-1.5 rounded-full shadow-md z-30 hover:bg-slate-50 hover:scale-110 transition-all items-center justify-center cursor-pointer"
         >
-          {isCollapsed ? <FiChevronRight size={16} /> : <FiChevronLeft size={16} />}
+          {isCollapsed ? <FiChevronRight size={14} strokeWidth={3} /> : <FiChevronLeft size={14} strokeWidth={3} />}
         </button>
 
         {/* Mobile Close Button in Sidebar */}
@@ -106,34 +127,38 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           <FiX size={20} />
         </button>
 
-        <div className={`pt-8 md:pt-10 pb-6 ${isCollapsed ? 'md:px-2' : 'px-6'} flex flex-col items-center border-b border-white/20 mx-4 transition-all duration-300`}>
+        {/* Logo & Brand Header */}
+        <div className={`pt-6 pb-5 ${isCollapsed ? 'md:px-2' : 'px-5'} flex flex-col items-center border-b border-white/20 mx-3 transition-all duration-300`}>
           <img 
             src="/assets/logo.png" 
             alt="CJC Logo" 
-            className={`${isCollapsed ? 'md:w-12 md:h-12 w-16 h-16' : 'w-20 h-20'} bg-white rounded-full object-contain p-1 shadow-md mb-3 transition-all duration-300`}
+            className={`${isCollapsed ? 'md:w-10 md:h-10 w-16 h-16' : 'w-16 h-16 sm:w-20 sm:h-20'} bg-white rounded-full object-contain p-1 shadow-md mb-2 transition-all duration-300`}
           />
           {(!isCollapsed || isMobileOpen) && (
             <div className={`flex flex-col items-center opacity-100 transition-opacity duration-300 ${isCollapsed ? 'md:hidden' : ''}`}>
-              <h1 className="text-[1.35rem] font-bold text-white tracking-wide mb-1 flex items-start gap-0.5 whitespace-nowrap">
+              <h1 className="text-[1.25rem] sm:text-[1.35rem] font-bold text-white tracking-wide mb-0.5 flex items-start gap-0.5 whitespace-nowrap">
                 CJC-Clinic<span className="text-[1rem] font-bold">+</span>
               </h1>
-              <p className="text-[0.65rem] text-white/90 text-center uppercase tracking-wider font-medium">
+              <p className="text-[0.6rem] sm:text-[0.65rem] text-white/90 text-center uppercase tracking-wider font-medium leading-tight">
                 Clinic Patient Records System and Inventory
               </p>
             </div>
           )}
         </div>
 
-        {/* User Profile Widget (Minimalist) */}
+        {/* User Profile Widget */}
         {user && (
-          <div className={`mx-4 mt-2 p-2 bg-black/10 rounded-lg flex items-center ${isCollapsed ? 'md:justify-center' : 'gap-3'} border border-white/5 shadow-inner transition-all duration-300`}>
-            <div className="w-8 h-8 flex-shrink-0 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm border border-white/10" title={user.name || user.username}>
+          <div 
+            title={isCollapsed ? `${user.name || user.username} (${user.role})` : ''}
+            className={`mx-3 mt-3 p-2 bg-black/15 rounded-xl flex items-center ${isCollapsed ? 'md:justify-center' : 'gap-3'} border border-white/10 shadow-inner transition-all duration-300`}
+          >
+            <div className="w-8 h-8 flex-shrink-0 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-xs border border-white/20">
               {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
             {(!isCollapsed || isMobileOpen) && (
               <div className={`flex flex-col min-w-0 opacity-100 transition-opacity duration-300 ${isCollapsed ? 'md:hidden' : ''}`}>
                 <span className="text-white text-[0.75rem] font-bold truncate tracking-wide">{user.name || user.username}</span>
-                <span className="text-white/70 text-[0.65rem] truncate capitalize mt-0.5">
+                <span className="text-white/80 text-[0.65rem] truncate capitalize mt-0.5">
                   {user.role} {user.clinic_branch ? ` • ${user.clinic_branch}` : ''}
                 </span>
               </div>
@@ -141,7 +166,8 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           </div>
         )}
 
-        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+        {/* Navigation */}
+        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto overflow-x-hidden">
           {navItems.map(item => {
             const isActive = page === item.id;
             const Icon = item.icon;
@@ -153,54 +179,69 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                   setIsMobileOpen(false);
                 }}
                 title={isCollapsed ? item.label : ''}
-                className={`w-full flex items-center ${isCollapsed ? 'md:justify-center md:px-2 px-4 gap-3.5' : 'gap-3.5 px-4'} py-3 rounded-xl transition-all duration-300 ${
+                className={`w-full flex items-center ${isCollapsed ? 'md:justify-center md:px-0 px-4 gap-3.5' : 'gap-3 px-3.5'} py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
                   isActive 
-                    ? 'bg-white/10 border border-white/20 text-white font-bold shadow-[0_4px_12px_rgba(0,0,0,0.1)] backdrop-blur-sm' 
-                    : 'bg-transparent border border-transparent text-white hover:bg-white/10 hover:text-white font-medium'
+                    ? 'bg-white/15 border border-white/25 text-white font-bold shadow-md backdrop-blur-xs' 
+                    : 'bg-transparent border border-transparent text-white/90 hover:bg-white/10 hover:text-white font-medium'
                 }`}
               >
-                <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-white/90'}`} strokeWidth={isActive ? 3 : 2.5} />
-                <span className={`text-[0.8rem] tracking-wider whitespace-nowrap ${isCollapsed ? 'md:hidden block' : 'block'}`}>{item.label}</span>
+                <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-white/85'}`} strokeWidth={isActive ? 2.8 : 2.2} />
+                <span className={`text-[0.78rem] tracking-wider whitespace-nowrap ${isCollapsed ? 'md:hidden block' : 'block'}`}>
+                  {item.label}
+                </span>
               </button>
             );
           })}
         </nav>
-        
-
       </aside>
       
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden relative bg-[#FDFBF7]">
+      {/* Main Content Area (Expands Widescreen when Sidebar is Collapsed) */}
+      <main className="flex-1 flex flex-col overflow-hidden relative bg-[#FDFBF7] min-w-0">
         
-        {/* Top Header Actions (Settings & Logout) */}
-        <header className="h-auto min-h-[5rem] py-3 sm:py-4 bg-white/80 backdrop-blur-md border-b border-slate-200 flex justify-between items-center px-4 sm:px-8 gap-4 shrink-0 z-20 shadow-sm relative w-full">
+        {/* Top Header Actions (Settings & Logout & Sidebar Toggle) */}
+        <header className="h-auto min-h-[4.5rem] py-3 px-4 sm:px-6 bg-white/90 backdrop-blur-md border-b border-slate-200 flex justify-between items-center gap-4 shrink-0 z-20 shadow-xs relative w-full">
           
-          <div className="flex flex-col">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl sm:text-[28px] font-bold text-[#A5192D] tracking-tight leading-tight">
-                {pageInfo.title}
-              </h1>
-              {user && user.role !== 'Superadmin' && user.clinic_branch && (
-                <span className="bg-[#C01D38]/10 text-[#C01D38] border border-[#C01D38]/20 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold tracking-wide uppercase whitespace-nowrap">
-                  {user.clinic_branch}
-                </span>
-              )}
+          <div className="flex items-center gap-3">
+            {/* Desktop Menu Toggle Button */}
+            <button
+              onClick={toggleSidebar}
+              title={isCollapsed ? "Expand Sidebar" : "Minimize Sidebar"}
+              aria-label="Toggle Sidebar"
+              className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl text-slate-700 hover:text-[#9B101E] bg-slate-100/90 hover:bg-red-50 transition-all border border-slate-200 shadow-2xs group cursor-pointer"
+            >
+              <FiMenu className="w-5 h-5 transition-transform duration-200 group-hover:scale-110 text-[#9B101E]" />
+              <span className="text-xs font-bold text-slate-600 group-hover:text-[#9B101E] tracking-wide">
+                {isCollapsed ? 'Expand Sidebar' : 'Minimize Sidebar'}
+              </span>
+            </button>
+
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <h1 className="text-xl sm:text-2xl lg:text-[26px] font-bold text-[#A5192D] tracking-tight leading-tight">
+                  {pageInfo.title}
+                </h1>
+                {user && user.role !== 'Superadmin' && user.clinic_branch && (
+                  <span className="bg-[#C01D38]/10 text-[#C01D38] border border-[#C01D38]/20 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold tracking-wide uppercase whitespace-nowrap">
+                    {user.clinic_branch}
+                  </span>
+                )}
+              </div>
+              <p className="text-[12px] sm:text-[13px] text-slate-500 font-semibold leading-tight hidden sm:block mt-0.5">
+                {pageInfo.subtitle}
+              </p>
             </div>
-            <p className="text-[12px] sm:text-[14px] text-slate-500 font-semibold leading-tight hidden sm:block mt-0.5">
-              {pageInfo.subtitle}
-            </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {user && (
-              <div className="mr-3 text-slate-500 text-[12px] font-medium hidden lg:block">
+              <div className="mr-2 text-slate-500 text-[12px] font-medium hidden lg:block">
                 Welcome back, <span className="font-bold text-slate-700">{user.name || user.username}</span>
               </div>
             )}
             {user && ['Superadmin', 'Admin'].includes(user.role) && (
               <button
                 onClick={() => navigate('/settings')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-colors cursor-pointer ${
                   page === 'settings' ? 'text-[#C01D38] bg-red-50' : 'text-slate-600 hover:text-[#C01D38] hover:bg-red-50'
                 }`}
               >
@@ -213,7 +254,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
             
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
             >
               <FiLogOut className="w-4 h-4" />
               <span>Sign Out</span>
@@ -221,7 +262,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           </div>
         </header>
 
-        {/* Subtle decorative background gradient */}
+        {/* Decorative background gradient */}
         <div className="absolute top-14 left-0 right-0 h-64 bg-gradient-to-b from-[#F5F0E6] to-transparent -z-10"></div>
         <div className="flex-1 overflow-auto">
           {children}

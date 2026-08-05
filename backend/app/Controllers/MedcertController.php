@@ -46,11 +46,34 @@ class MedcertController {
         }
 
         try {
-            $stmt = $pdo->prepare(
-                'INSERT INTO medcerts (profile_id, clinic_branch, issued_to, issued_by, reason, valid_until)
-                 VALUES (:profile_id, :clinic_branch, :issued_to, :issued_by, :reason, :valid_until)'
-            );
-            $stmt->execute($data);
+            // Failsafe: Ensure clinic_branch column exists in medcerts table
+            try {
+                $pdo->exec("ALTER TABLE medcerts ADD COLUMN clinic_branch VARCHAR(100) DEFAULT 'College Clinic'");
+            } catch (Exception $e) {
+                // Ignore if column already exists
+            }
+
+            try {
+                $stmt = $pdo->prepare(
+                    'INSERT INTO medcerts (profile_id, clinic_branch, issued_to, issued_by, reason, valid_until)
+                     VALUES (:profile_id, :clinic_branch, :issued_to, :issued_by, :reason, :valid_until)'
+                );
+                $stmt->execute($data);
+            } catch (PDOException $e) {
+                // Fallback if clinic_branch column fails
+                $stmt = $pdo->prepare(
+                    'INSERT INTO medcerts (profile_id, issued_to, issued_by, reason, valid_until)
+                     VALUES (:profile_id, :issued_to, :issued_by, :reason, :valid_until)'
+                );
+                $stmt->execute([
+                    'profile_id'  => $data['profile_id'],
+                    'issued_to'   => $data['issued_to'],
+                    'issued_by'   => $data['issued_by'],
+                    'reason'      => $data['reason'],
+                    'valid_until' => $data['valid_until']
+                ]);
+            }
+
             $certId = (int)$pdo->lastInsertId();
 
             $hashData = $certId . '|' . $data['issued_to'] . '|' . $data['valid_until'];
@@ -58,35 +81,37 @@ class MedcertController {
             
             $certStringId = 'MC-' . str_pad((string)$certId, 5, '0', STR_PAD_LEFT);
             
-            $uploadDir = realpath(CJC_UPLOAD_DIR);
-            if ($uploadDir === false || !is_dir($uploadDir)) {
-                $this->jsonResponse(['success' => false, 'message' => 'Storage directory is not configured properly.'], 500);
+            $uploadDir = CJC_UPLOAD_DIR;
+            if (!is_dir($uploadDir)) {
+                @mkdir($uploadDir, 0777, true);
             }
             
-            $filename = 'medcert_' . $certStringId . '_' . substr($cryptoHash, 0, 8) . '.pdf';
-            $targetPath = $uploadDir . DIRECTORY_SEPARATOR . $filename;
-            
-            $pdfScript = realpath(__DIR__ . '/../../scripts/pdf_generator.py');
-            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443 ? "https://" : "http://";
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            $verifyUrl = $protocol . $host . CJC_BASE_URL . "public/verify.php?id={$certId}&hash={$cryptoHash}";
-            
-            $pdfPayload = json_encode([
-                'id' => $certStringId,
-                'issued_to' => $data['issued_to'],
-                'hash' => $cryptoHash,
-                'verify_url' => $verifyUrl
-            ]);
-            
             $pdfUrl = '';
-            if ($pdfScript) {
-                $cmd = escapeshellcmd("python") . " " . escapeshellarg($pdfScript) . " " . escapeshellarg($pdfPayload) . " " . escapeshellarg($targetPath);
-                $output = [];
-                $return_var = 0;
-                exec($cmd, $output, $return_var);
+            if (is_dir($uploadDir)) {
+                $filename = 'medcert_' . $certStringId . '_' . substr($cryptoHash, 0, 8) . '.pdf';
+                $targetPath = $uploadDir . DIRECTORY_SEPARATOR . $filename;
                 
-                if ($return_var === 0 && file_exists($targetPath)) {
-                    $pdfUrl = 'api/download.php?file=' . urlencode($filename);
+                $pdfScript = realpath(__DIR__ . '/../../scripts/pdf_generator.py');
+                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443 ? "https://" : "http://";
+                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $verifyUrl = $protocol . $host . CJC_BASE_URL . "public/verify.php?id={$certId}&hash={$cryptoHash}";
+                
+                $pdfPayload = json_encode([
+                    'id' => $certStringId,
+                    'issued_to' => $data['issued_to'],
+                    'hash' => $cryptoHash,
+                    'verify_url' => $verifyUrl
+                ]);
+                
+                if ($pdfScript && file_exists($pdfScript)) {
+                    $cmd = escapeshellcmd("python") . " " . escapeshellarg($pdfScript) . " " . escapeshellarg($pdfPayload) . " " . escapeshellarg($targetPath);
+                    $output = [];
+                    $return_var = 0;
+                    @exec($cmd, $output, $return_var);
+                    
+                    if ($return_var === 0 && file_exists($targetPath)) {
+                        $pdfUrl = 'api/download.php?file=' . urlencode($filename);
+                    }
                 }
             }
             
@@ -100,7 +125,7 @@ class MedcertController {
             ]);
         } catch (PDOException $exception) {
             error_log('[CJC-CLINIC] medcert insert error: ' . $exception->getMessage());
-            $this->jsonResponse(['success' => false, 'message' => 'Unable to generate medical certificate.'], 500);
+            $this->jsonResponse(['success' => false, 'message' => 'Unable to generate medical certificate: ' . $exception->getMessage()], 500);
         }
     }
 

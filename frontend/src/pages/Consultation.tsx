@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX } from 'react-icons/fi';
+import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX, FiActivity } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
+import PatientModal from '../components/PatientModal';
 
 
 interface Patient {
@@ -52,8 +53,20 @@ const Consultation: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [purpose, setPurpose] = useState('');
+  const [availableCues, setAvailableCues] = useState<string[]>([]);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [checkinError, setCheckinError] = useState('');
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+  useEffect(() => {
+    apiFetch('/api/index.php?route=settings&action=get')
+      .then(res => {
+        if (res && res.settings && Array.isArray(res.settings.cues)) {
+          setAvailableCues(res.settings.cues);
+        }
+      })
+      .catch(err => console.error("Failed to load settings cues", err));
+  }, []);
   
   // Quick Add Patient State
   const [isAddingNewPatient, setIsAddingNewPatient] = useState(false);
@@ -86,9 +99,58 @@ const Consultation: React.FC = () => {
   const [bp, setBp] = useState('');
   const [temp, setTemp] = useState('');
   const [weight, setWeight] = useState('');
+  const [pulse, setPulse] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [treatment, setTreatment] = useState('');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [vitalsAnalysis, setVitalsAnalysis] = useState<{
+    severity: string;
+    alerts: { type: string; message: string }[];
+    suggested_diagnosis: string[];
+    suggested_treatment: string[];
+  }>({ severity: 'normal', alerts: [], suggested_diagnosis: [], suggested_treatment: [] });
+
+  // Live Vitals Analysis Effect
+  useEffect(() => {
+    if (!isNotesModalOpen) return;
+    
+    const timer = setTimeout(() => {
+      if (bp.trim() || temp.trim() || pulse.trim()) {
+        apiFetch(`/api/index.php?route=consultations&action=analyze_vitals&bp=${encodeURIComponent(bp)}&temp=${encodeURIComponent(temp)}&pulse=${encodeURIComponent(pulse)}`)
+          .then(res => {
+            if (res.success) {
+              setVitalsAnalysis({
+                severity: res.severity || 'normal',
+                alerts: Array.isArray(res.alerts) ? res.alerts : [],
+                suggested_diagnosis: Array.isArray(res.suggested_diagnosis) ? res.suggested_diagnosis : [],
+                suggested_treatment: Array.isArray(res.suggested_treatment) ? res.suggested_treatment : []
+              });
+            }
+          })
+          .catch(() => {});
+      } else {
+        setVitalsAnalysis({ severity: 'normal', alerts: [], suggested_diagnosis: [], suggested_treatment: [] });
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [bp, temp, pulse, isNotesModalOpen]);
+
+  const appendDiagnosisSuggestion = (text: string) => {
+    setDiagnosis(prev => {
+      if (!prev) return text;
+      if (prev.includes(text)) return prev;
+      return `${prev}, ${text}`;
+    });
+  };
+
+  const appendTreatmentSuggestion = (text: string) => {
+    setTreatment(prev => {
+      if (!prev) return text;
+      if (prev.includes(text)) return prev;
+      return `${prev}\n• ${text}`;
+    });
+  };
 
   // Medical History Modal State
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -501,17 +563,15 @@ const Consultation: React.FC = () => {
               <FiUserPlus className="text-[#A5192D]" />
               Quick Check-in
             </h2>
-            {!isAddingNewPatient && (
-              <button
-                onClick={() => {
-                  setIsAddingNewPatient(true);
-                  setShowSearchDropdown(false);
-                }}
-                className="text-sm font-medium text-[#A5192D] hover:text-[#8A1525] flex items-center gap-1.5 transition-colors"
-              >
-                <FiUserPlus /> Register New Patient
-              </button>
-            )}
+            <button
+              onClick={() => {
+                setIsRegisterModalOpen(true);
+                setShowSearchDropdown(false);
+              }}
+              className="text-sm font-semibold text-[#A5192D] hover:text-[#8A1525] flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <FiUserPlus /> Register New Patient
+            </button>
           </div>
 
           {checkinError && (
@@ -588,85 +648,130 @@ const Consultation: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="flex items-end gap-6">
-              <div className="flex-1 max-w-md relative" ref={searchRef}>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Patient</label>
-                {!selectedPatient ? (
-                  <div className="relative">
-                    <div className="flex">
-                      <div className="relative flex-1">
-                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                        <input 
-                          type="text" 
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          onFocus={() => {
-                            if (searchResults.length > 0) setShowSearchDropdown(true);
-                          }}
-                          placeholder="Search name or ID..."
-                          className="w-full border border-slate-300 rounded px-3 py-2 pl-9 text-sm focus:outline-none focus:border-[#8c1526]"
-                        />
+            <div className="flex flex-col gap-3">
+              {/* Primary Form Inputs Row (Labels, Inputs, & Button Perfectly Aligned) */}
+              <div className="flex flex-col md:flex-row items-end gap-4 w-full">
+                
+                {/* Patient Selector */}
+                <div className="flex-1 min-w-[260px] relative" ref={searchRef}>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Patient *</label>
+                  {!selectedPatient ? (
+                    <div className="relative">
+                      <div className="flex">
+                        <div className="relative flex-1">
+                          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                          <input 
+                            type="text" 
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            onFocus={() => {
+                              if (searchResults.length > 0) setShowSearchDropdown(true);
+                            }}
+                            placeholder="Search name or ID..."
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 pl-9 text-sm focus:outline-none focus:border-[#8c1526] h-[40px]"
+                          />
+                        </div>
                       </div>
-                    </div>
-                    
-                    {showSearchDropdown && search.length >= 2 && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-64 overflow-y-auto z-20">
-                        {isSearching ? (
-                          <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
-                        ) : searchResults.length > 0 ? (
-                          searchResults.map(p => (
-                            <div 
-                              key={p.id}
-                              onClick={() => { setSelectedPatient(p); setShowSearchDropdown(false); }}
-                              className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
-                            >
-                              <div className="font-bold text-sm text-slate-800">{p.name}</div>
-                              <div className="text-xs text-slate-500">{p.patient_id_number || 'No ID'}</div>
+                      
+                      {showSearchDropdown && search.length >= 2 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto z-20">
+                          {isSearching ? (
+                            <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
+                          ) : searchResults.length > 0 ? (
+                            searchResults.map(p => (
+                              <div 
+                                key={p.id}
+                                onClick={() => { setSelectedPatient(p); setShowSearchDropdown(false); }}
+                                className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                              >
+                                <div className="font-bold text-sm text-slate-800">{p.name}</div>
+                                <div className="text-xs text-slate-500">{p.patient_id_number || 'No ID'}</div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="p-4 text-center">
+                              <p className="text-sm text-slate-500">No patients found.</p>
                             </div>
-                          ))
-                        ) : (
-                          <div className="p-4 text-center">
-                            <p className="text-sm text-slate-500">No patients found.</p>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 relative flex items-center justify-between h-[40px]">
+                      <div>
+                        <div className="font-bold text-sm text-slate-800 leading-tight">{selectedPatient.name}</div>
+                        <div className="text-[10px] text-slate-500 leading-tight">{selectedPatient.patient_id_number || 'No ID'}</div>
                       </div>
+                      <button 
+                        onClick={() => { setSelectedPatient(null); setSearch(''); }}
+                        className="text-slate-400 hover:text-red-600 p-1 rounded-full hover:bg-slate-200 transition-colors"
+                        title="Clear selected patient"
+                      >
+                        <FiX className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cues / Purpose Input */}
+                <div className="flex-1 min-w-[280px] relative">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs font-semibold text-slate-700">Cues / Purpose *</label>
+                    {availableCues.length > 0 && (
+                      <span className="text-[10px] text-slate-400 font-normal">Select cue below or type</span>
                     )}
                   </div>
-                ) : (
-                  <div className="bg-slate-50 px-3 py-1.5 rounded border border-slate-200 relative flex items-center justify-between h-[38px]">
-                    <div>
-                      <div className="font-bold text-sm text-slate-800 leading-tight">{selectedPatient.name}</div>
-                      <div className="text-[10px] text-slate-500 leading-tight">{selectedPatient.patient_id_number || 'No ID'}</div>
-                    </div>
-                    <button 
-                      onClick={() => { setSelectedPatient(null); setSearch(''); }}
-                      className="text-slate-400 hover:text-red-600 p-1 rounded-full hover:bg-slate-200 transition-colors"
-                      title="Clear selected patient"
+                  <input 
+                    type="text"
+                    list="cues-list-suggestions"
+                    value={purpose}
+                    onChange={(e) => setPurpose(e.target.value)}
+                    placeholder="e.g. Select cue or type purpose..."
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] h-[40px]"
+                  />
+                  <datalist id="cues-list-suggestions">
+                    {availableCues.map((cue, idx) => (
+                      <option key={idx} value={cue} />
+                    ))}
+                  </datalist>
+                </div>
+
+                {/* Check-in Action Button */}
+                <button 
+                  onClick={handleCheckIn}
+                  disabled={!selectedPatient || !purpose.trim() || isCheckingIn}
+                  className="bg-[#8c1526] hover:bg-[#7a1221] text-white px-8 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 h-[40px] flex items-center justify-center shrink-0 min-w-[120px] shadow-sm cursor-pointer"
+                >
+                  {isCheckingIn ? 'Checking in...' : 'Check-In'}
+                </button>
+              </div>
+
+              {/* Quick Cue Badges Row (Placed neatly underneath Cues / Purpose input) */}
+              {availableCues.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Quick Cues:</span>
+                  {availableCues.map((cue, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        if (!purpose) {
+                          setPurpose(cue);
+                        } else if (!purpose.includes(cue)) {
+                          setPurpose(prev => `${prev}, ${cue}`);
+                        }
+                      }}
+                      className={`text-[11px] px-2.5 py-0.5 rounded-full border transition-all cursor-pointer font-medium ${
+                        purpose.includes(cue)
+                          ? 'bg-[#8c1526] text-white border-[#8c1526] shadow-2xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                      }`}
                     >
-                      <FiX className="w-4 h-4" />
+                      + {cue}
                     </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 max-w-md">
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Purpose / Reason</label>
-                <input 
-                  type="text"
-                  value={purpose}
-                  onChange={(e) => setPurpose(e.target.value)}
-                  placeholder="e.g. Headache, Consultation..."
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
-                />
-              </div>
-
-              <button 
-                onClick={handleCheckIn}
-                disabled={!selectedPatient || !purpose.trim() || isCheckingIn}
-                className="bg-[#8c1526] hover:bg-[#7a1221] text-white px-8 py-2 rounded text-sm font-bold transition-colors disabled:opacity-50 h-[38px] flex items-center justify-center min-w-[120px] shadow-sm"
-              >
-                {isCheckingIn ? 'Checking in...' : 'Check-In'}
-              </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -750,7 +855,7 @@ const Consultation: React.FC = () => {
                   <th className="px-4 py-2 border-r border-slate-300 font-semibold tracking-wide text-center">Patient ID</th>
                   <th className="px-4 py-2 border-r border-slate-300 font-semibold tracking-wide text-center">Name</th>
                   <th className="px-4 py-2 border-r border-slate-300 font-semibold tracking-wide text-center">Time In</th>
-                  <th className="px-4 py-2 border-r border-slate-300 font-semibold tracking-wide text-center">Purpose</th>
+                  <th className="px-4 py-2 border-r border-slate-300 font-semibold tracking-wide text-center">Cues / Purpose</th>
                   <th className="px-4 py-2 border-r border-slate-300 font-semibold tracking-wide text-center">Time Out</th>
                   <th className="px-4 py-2 border-r border-slate-300 font-semibold tracking-wide text-center">Attended By</th>
                   <th className="px-4 py-2 border-r border-slate-300 font-semibold tracking-wide text-center">Status</th>
@@ -842,139 +947,339 @@ const Consultation: React.FC = () => {
           
         </div>
       </div>
-      {/* Medical Notes Modal */}
+      {/* Medical Notes & Consultation Widescreen Modal */}
       {isNotesModalOpen && activeNoteEntry && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
-              <div>
-                <h2 className="text-lg font-bold text-[#8c1526]">Medical Notes & Consultation</h2>
-                <p className="text-xs text-slate-500">Patient: <span className="font-semibold text-slate-700">{activeNoteEntry.patient_name}</span></p>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 transition-all duration-300">
+          <div className="bg-white rounded-3xl shadow-[0_25px_70px_-15px_rgba(0,0,0,0.3)] w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-300">
+            
+            {/* Header */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-[#8B0E1B] to-[#C01D38] px-6 py-5 flex justify-between items-center text-white shrink-0">
+              <div className="relative z-10 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white font-bold">
+                  <FiActivity className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold tracking-tight">Medical Notes & Consultation Workspace</h2>
+                  <p className="text-white/80 text-xs sm:text-sm">
+                    Patient: <span className="font-bold underline underline-offset-2">{activeNoteEntry.patient_name}</span> ({activeNoteEntry.patient_id_number || 'No ID'})
+                  </p>
+                </div>
               </div>
-              <button onClick={() => setIsNotesModalOpen(false)} className="text-slate-400 hover:text-slate-700 font-bold text-xl">✕</button>
+              <button 
+                onClick={() => setIsNotesModalOpen(false)} 
+                className="relative z-10 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2.5 rounded-full transition-all hover:rotate-90 duration-300 shrink-0"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
             </div>
             
-            <div className="p-6 overflow-y-auto flex-1">
-              <h3 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider border-b pb-1">Vital Signs</h3>
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Blood Pressure (mmHg)</label>
-                  <input type="text" value={bp} onChange={e => setBp(e.target.value)} placeholder="e.g. 120/80" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Temperature (°C)</label>
-                  <input type="text" value={temp} onChange={e => setTemp(e.target.value)} placeholder="e.g. 36.5" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Weight (kg)</label>
-                  <input type="text" value={weight} onChange={e => setWeight(e.target.value)} placeholder="e.g. 65" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
-                </div>
-              </div>
+            {/* Modal Body: Widescreen 2-Column Grid */}
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* Left Column: Vitals & Live Smart Clinical Assistant (5 cols) */}
+                <div className="lg:col-span-5 space-y-5">
+                  
+                  {/* Patient Info Quick Card */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">Patient Overview</h4>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between"><span className="text-slate-500">Name:</span> <span className="font-bold text-slate-800">{activeNoteEntry.patient_name}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Branch:</span> <span className="font-medium text-slate-700">{activeNoteEntry.clinic_branch || 'College Clinic'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Check-in Purpose:</span> <span className="font-medium text-[#8c1526]">{activeNoteEntry.purpose}</span></div>
+                    </div>
+                  </div>
 
-              <h3 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider border-b pb-1">Clinical Notes</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Diagnosis / Assessment</label>
-                  <textarea value={diagnosis} onChange={e => setDiagnosis(e.target.value)} rows={3} placeholder="Enter diagnosis or doctor's assessment..." className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] resize-none"></textarea>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Treatment / Prescription</label>
-                  <textarea value={treatment} onChange={e => setTreatment(e.target.value)} rows={3} placeholder="Enter prescribed medicines or given treatments..." className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] resize-none"></textarea>
-                </div>
-              </div>
-              
-              <h3 className="text-sm font-bold text-slate-700 mt-6 mb-3 uppercase tracking-wider border-b pb-1">Administer / Dispense Items</h3>
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                <div className="flex gap-2 mb-4">
-                  <div className="relative flex-1">
-                    <input 
-                      value={selectedInventoryItem} 
-                      onChange={e => {
-                        setSelectedInventoryItem(e.target.value);
-                        setShowDispenseDropdown(true);
-                      }}
-                      onFocus={() => setShowDispenseDropdown(true)}
-                      onBlur={() => setTimeout(() => setShowDispenseDropdown(false), 200)}
-                      placeholder="Search Item (Medicine, Supply...)"
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
-                    />
-                    {showDispenseDropdown && (
-                      <ul className="absolute z-10 w-full bg-white border border-slate-200 mt-1 max-h-60 overflow-y-auto rounded shadow-lg">
-                        {inventoryItems
-                          .filter(item => 
-                            `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(selectedInventoryItem.toLowerCase())
-                          )
-                          .map(item => {
-                            const displayName = `${item.generic_name} ${item.brand_name ? `(${item.brand_name})` : ''} - ${item.category}`;
-                            return (
-                              <li 
-                                key={item.id} 
-                                className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm text-slate-700"
-                                onClick={() => {
-                                  setSelectedInventoryItem(displayName);
-                                  setShowDispenseDropdown(false);
-                                }}
-                              >
-                                {displayName}
-                              </li>
-                            );
-                          })
-                        }
-                        {inventoryItems.filter(item => `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(selectedInventoryItem.toLowerCase())).length === 0 && (
-                          <li className="px-3 py-2 text-sm text-slate-500">No items found.</li>
-                        )}
-                      </ul>
+                  {/* Vital Signs Card */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-3 flex items-center justify-between">
+                      <span>Vital Signs</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Real-time analysis</span>
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Blood Pressure (mmHg)</label>
+                        <input 
+                          type="text" 
+                          value={bp} 
+                          onChange={e => setBp(e.target.value)} 
+                          placeholder="e.g. 120/80" 
+                          className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] bg-slate-50/50" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Temp (°C)</label>
+                        <input 
+                          type="text" 
+                          value={temp} 
+                          onChange={e => setTemp(e.target.value)} 
+                          placeholder="e.g. 36.5" 
+                          className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] bg-slate-50/50" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Weight (kg)</label>
+                        <input 
+                          type="text" 
+                          value={weight} 
+                          onChange={e => setWeight(e.target.value)} 
+                          placeholder="e.g. 60" 
+                          className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] bg-slate-50/50" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Pulse (bpm)</label>
+                        <input 
+                          type="text" 
+                          value={pulse} 
+                          onChange={e => setPulse(e.target.value)} 
+                          placeholder="e.g. 75" 
+                          className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] bg-slate-50/50" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Smart Clinical Assistant & Suggestion Card */}
+                  <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4.5 rounded-2xl shadow-md border border-slate-700/80">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200">Smart Vitals Assistant</h4>
+                      </div>
+                      <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700 font-semibold">Live AI Suggest</span>
+                    </div>
+
+                    {/* Vitals Condition Warning Badges */}
+                    {vitalsAnalysis.alerts.length > 0 ? (
+                      <div className="space-y-1.5 mb-3">
+                        {vitalsAnalysis.alerts.map((al, idx) => (
+                          <div 
+                            key={idx} 
+                            className={`text-xs px-3 py-1.5 rounded-xl border font-semibold flex items-center gap-2 ${
+                              al.type === 'critical'
+                                ? 'bg-red-500/20 text-red-200 border-red-500/40'
+                                : al.type === 'warning'
+                                ? 'bg-amber-500/20 text-amber-200 border-amber-500/40'
+                                : 'bg-blue-500/20 text-blue-200 border-blue-500/40'
+                            }`}
+                          >
+                            <FiAlertCircle className="shrink-0 w-3.5 h-3.5" />
+                            <span>{al.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 mb-3 italic">
+                        Type vital signs above (e.g. BP or Temp) to trigger automatic health analysis & diagnosis recommendations.
+                      </p>
+                    )}
+
+                    {/* Suggested Diagnosis Chips */}
+                    {vitalsAnalysis.suggested_diagnosis.length > 0 && (
+                      <div className="mb-3">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">Suggested Diagnoses (Click to Insert):</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {vitalsAnalysis.suggested_diagnosis.map((d, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => appendDiagnosisSuggestion(d)}
+                              className="text-[11px] bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 border border-amber-400/40 px-2.5 py-1 rounded-lg transition-all font-medium flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>+</span> {d}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Suggested Treatment Chips */}
+                    {vitalsAnalysis.suggested_treatment.length > 0 && (
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">Suggested Treatment (Click to Insert):</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {vitalsAnalysis.suggested_treatment.map((t, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => appendTreatmentSuggestion(t)}
+                              className="text-[11px] bg-emerald-400/20 hover:bg-emerald-400/30 text-emerald-200 border border-emerald-400/40 px-2.5 py-1 rounded-lg transition-all font-medium text-left flex items-start gap-1 cursor-pointer"
+                            >
+                              <span>+</span> {t.length > 40 ? `${t.substring(0, 40)}...` : t}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
-                  <input 
-                    type="number" 
-                    min="1"
-                    value={dispenseQty} 
-                    onChange={e => setDispenseQty(parseInt(e.target.value) || 1)}
-                    className="w-24 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" 
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      if (!selectedInventoryItem) return;
-                      const item = inventoryItems.find(i => `${i.generic_name} ${i.brand_name ? `(${i.brand_name})` : ''} - ${i.category}` === selectedInventoryItem);
-                      if (item) {
-                        setDispensedItems(prev => [...prev, { item_id: item.id, quantity: dispenseQty, name: item.generic_name }]);
-                        setSelectedInventoryItem('');
-                        setDispenseQty(1);
-                      } else {
-                        alert('Please select a valid item from the list.');
-                      }
-                    }}
-                    className="px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded hover:bg-slate-700 transition-colors"
-                  >
-                    Add
-                  </button>
+
+                  {/* Common Preset Chips */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block mb-2">Quick Common Conditions:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'Febrile Illness', 'Tension Headache', 'Dysmenorrhea',
+                        'Upper Respiratory Infection', 'Hyperacidity', 'Acute Gastroenteritis', 'Allergic Rhinitis'
+                      ].map((item, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => appendDiagnosisSuggestion(item)}
+                          className="text-[11px] bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer"
+                        >
+                          + {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                 </div>
 
-                {dispensedItems.length > 0 ? (
-                  <ul className="space-y-2">
-                    {dispensedItems.map((di, idx) => (
-                      <li key={idx} className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded text-sm">
-                        <span className="font-semibold text-slate-700">{di.name}</span>
-                        <div className="flex items-center gap-4">
-                          <span className="text-slate-500">Qty: <span className="font-bold text-slate-800">{di.quantity}</span></span>
-                          <button onClick={() => setDispensedItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 text-xs font-bold">Remove</button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-slate-500 italic text-center">No items selected to dispense.</p>
-                )}
-                <p className="text-xs text-orange-600 mt-3 flex items-center gap-1">
-                  <FiAlertCircle /> 
-                  Items added here will be automatically deducted from the inventory when you save notes.
-                </p>
+                {/* Right Column: Notes & Dispensing Workspace (7 cols) */}
+                <div className="lg:col-span-7 space-y-5">
+                  
+                  {/* Diagnosis & Treatment Text Areas */}
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="text-xs font-bold text-slate-800">Diagnosis / Clinical Assessment *</label>
+                        <span className="text-[10px] text-slate-400">Type or click suggestion chips on left</span>
+                      </div>
+                      <textarea 
+                        value={diagnosis} 
+                        onChange={e => setDiagnosis(e.target.value)} 
+                        rows={3} 
+                        placeholder="Enter diagnosis or doctor's assessment..." 
+                        className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] bg-slate-50/30"
+                      ></textarea>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="text-xs font-bold text-slate-800">Treatment / Prescription / Plan</label>
+                        <span className="text-[10px] text-slate-400">Care plan & prescribed meds</span>
+                      </div>
+                      <textarea 
+                        value={treatment} 
+                        onChange={e => setTreatment(e.target.value)} 
+                        rows={3} 
+                        placeholder="Enter prescribed medicines, advice, or given treatments..." 
+                        className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] bg-slate-50/30"
+                      ></textarea>
+                    </div>
+                  </div>
+
+                  {/* Administer / Dispense Items Section */}
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 mb-3 flex items-center gap-2">
+                      <FiActivity className="text-[#8c1526]" />
+                      Administer / Dispense Medicines & Supplies
+                    </h3>
+
+                    <div className="flex gap-2 mb-4">
+                      <div className="relative flex-1">
+                        <input 
+                          value={selectedInventoryItem} 
+                          onChange={e => {
+                            setSelectedInventoryItem(e.target.value);
+                            setShowDispenseDropdown(true);
+                          }}
+                          onFocus={() => setShowDispenseDropdown(true)}
+                          onBlur={() => setTimeout(() => setShowDispenseDropdown(false), 200)}
+                          placeholder="Search Medicine or Supply..."
+                          className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] h-[40px]"
+                        />
+                        {showDispenseDropdown && (
+                          <ul className="absolute z-20 w-full bg-white border border-slate-200 mt-1 max-h-60 overflow-y-auto rounded-xl shadow-xl">
+                            {inventoryItems
+                              .filter(item => 
+                                `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(selectedInventoryItem.toLowerCase())
+                              )
+                              .map(item => {
+                                const displayName = `${item.generic_name} ${item.brand_name ? `(${item.brand_name})` : ''} - ${item.category}`;
+                                return (
+                                  <li 
+                                    key={item.id} 
+                                    className="px-3.5 py-2.5 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 border-b border-slate-100 last:border-0"
+                                    onClick={() => {
+                                      setSelectedInventoryItem(displayName);
+                                      setShowDispenseDropdown(false);
+                                    }}
+                                  >
+                                    <div className="font-bold text-slate-800">{item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''}</div>
+                                    <div className="text-xs text-slate-500">Category: {item.category} • Stock: <span className="font-bold text-emerald-600">{item.total_stock || 'Available'}</span></div>
+                                  </li>
+                                );
+                              })
+                            }
+                            {inventoryItems.filter(item => `${item.generic_name} ${item.brand_name || ''} ${item.category}`.toLowerCase().includes(selectedInventoryItem.toLowerCase())).length === 0 && (
+                              <li className="px-4 py-3 text-sm text-slate-500">No items found.</li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
+
+                      <input 
+                        type="number" 
+                        min="1"
+                        value={dispenseQty} 
+                        onChange={e => setDispenseQty(parseInt(e.target.value) || 1)}
+                        className="w-20 border border-slate-300 rounded-xl px-3 py-2 text-sm text-center focus:outline-none focus:border-[#8c1526] h-[40px] font-bold" 
+                      />
+
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (!selectedInventoryItem) return;
+                          const item = inventoryItems.find(i => `${i.generic_name} ${i.brand_name ? `(${i.brand_name})` : ''} - ${i.category}` === selectedInventoryItem);
+                          if (item) {
+                            setDispensedItems(prev => [...prev, { item_id: item.id, quantity: dispenseQty, name: item.generic_name }]);
+                            const itemNote = `Administered ${item.generic_name}${item.brand_name ? ` (${item.brand_name})` : ''} (${dispenseQty} unit/s PO)`;
+                            setTreatment(prev => {
+                              if (!prev) return itemNote;
+                              if (prev.includes(item.generic_name)) return prev;
+                              return `${prev}\n• ${itemNote}`;
+                            });
+                            setSelectedInventoryItem('');
+                            setDispenseQty(1);
+                          } else {
+                            toast.error('Please select a valid item from the list.');
+                          }
+                        }}
+                        className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold rounded-xl transition-colors shrink-0 h-[40px] shadow-xs cursor-pointer"
+                      >
+                        + Add Item
+                      </button>
+                    </div>
+
+                    {dispensedItems.length > 0 ? (
+                      <div className="space-y-2">
+                        {dispensedItems.map((di, idx) => (
+                          <div key={idx} className="flex justify-between items-center bg-slate-50 px-3.5 py-2.5 border border-slate-200/80 rounded-xl text-sm">
+                            <span className="font-semibold text-slate-800">{di.name}</span>
+                            <div className="flex items-center gap-4">
+                              <span className="text-xs text-slate-500">Qty: <span className="font-bold text-slate-800 text-sm">{di.quantity}</span></span>
+                              <button onClick={() => setDispensedItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-600 hover:text-red-700 text-xs font-bold cursor-pointer">Remove</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic text-center py-2">No medicines/supplies selected for dispensing.</p>
+                    )}
+                    <p className="text-[11px] text-amber-700 bg-amber-50/60 p-2.5 rounded-xl border border-amber-200/60 mt-3 flex items-center gap-1.5">
+                      <FiAlertCircle className="shrink-0 w-3.5 h-3.5" /> 
+                      Items added here will be automatically deducted from the clinic inventory upon saving.
+                    </p>
+                  </div>
+
+                </div>
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-200 flex justify-between items-center bg-slate-50 rounded-b-lg">
+            {/* Modal Footer */}
+            <div className="p-4 sm:px-6 border-t border-slate-200 flex justify-between items-center bg-white shrink-0">
               <button 
                 onClick={() => {
                   const tomorrow = new Date();
@@ -988,14 +1293,24 @@ const Consultation: React.FC = () => {
                   });
                   setIsMedcertModalOpen(true);
                 }} 
-                className="px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded shadow-sm transition-colors flex items-center gap-2"
+                className="px-4 py-2.5 text-xs sm:text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
               >
                 <FiPrinter /> Generate Medcert / Prescription
               </button>
+
               <div className="flex gap-3">
-                <button onClick={() => setIsNotesModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
-                <button onClick={handleSaveNotes} disabled={isSavingNotes} className="px-4 py-2 text-sm font-bold text-white bg-[#8c1526] hover:bg-[#7a1221] rounded shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2">
-                  {isSavingNotes ? 'Saving...' : 'Save Medical Notes'}
+                <button 
+                  onClick={() => setIsNotesModalOpen(false)} 
+                  className="px-5 py-2.5 text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleSaveNotes} 
+                  disabled={isSavingNotes} 
+                  className="px-6 py-2.5 text-xs sm:text-sm font-bold text-white bg-[#8c1526] hover:bg-[#7a1221] rounded-xl shadow-md transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                >
+                  {isSavingNotes ? 'Saving Notes...' : 'Save Medical Notes'}
                 </button>
               </div>
             </div>
@@ -1145,69 +1460,125 @@ const Consultation: React.FC = () => {
         </div>
       )}
 
-      {/* Fullscreen Print View */}
+      {/* Fullscreen Official Medical Certificate Print View */}
       {showPrintView && (
-        <div className="fixed inset-0 bg-gray-500 z-[100] overflow-auto flex flex-col items-center py-10 print:py-0 print:bg-white print:block">
-          <div className="w-[210mm] min-h-[297mm] bg-white shadow-2xl print:shadow-none p-12 relative flex flex-col">
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] overflow-auto flex flex-col items-center py-8 print:py-0 print:bg-white print:block">
+          
+          {/* Action Header Bar (Hidden during printing) */}
+          <div className="w-full max-w-[210mm] flex justify-between items-center bg-slate-800 text-white px-6 py-3 rounded-2xl mb-4 print:hidden shadow-lg">
+            <div className="flex items-center gap-2 font-bold text-sm">
+              <FiPrinter className="text-[#C01D38]" /> Official Document Preview
+            </div>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => window.print()} 
+                className="px-5 py-2 bg-[#C01D38] hover:bg-[#A5192D] text-white rounded-xl font-bold text-xs shadow transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <FiPrinter /> Print Document Now
+              </button>
+              <button 
+                onClick={() => setShowPrintView(false)} 
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+
+          {/* A4 Paper Printable Sheet */}
+          <div className="w-[210mm] min-h-[297mm] bg-white shadow-2xl print:shadow-none p-14 relative flex flex-col justify-between text-slate-900 font-serif border border-slate-200 print:border-none print:p-8">
             
-            {/* Action Bar (Hidden in Print) */}
-            <div className="absolute top-4 right-4 print:hidden flex gap-2">
-              <button onClick={() => window.print()} className="px-4 py-2 bg-blue-600 text-white rounded font-bold shadow hover:bg-blue-700 flex items-center gap-2">
-                <FiPrinter /> Print Document
-              </button>
-              <button onClick={() => setShowPrintView(false)} className="px-4 py-2 bg-slate-200 text-slate-700 rounded font-bold shadow hover:bg-slate-300">
-                Close
-              </button>
-            </div>
-
-            {/* Letterhead */}
-            <div className="flex justify-center items-center gap-6 border-b-2 border-[#8c1526] pb-6 mb-8 mt-8 print:mt-0">
-              {/* Optional: <img src="/logo.png" alt="CJC Logo" className="w-20 h-20" /> */}
-              <div className="text-center">
-                <h1 className="text-2xl font-black text-[#8c1526] tracking-wide uppercase">Cor Jesu College</h1>
-                <h2 className="text-lg font-bold text-slate-800">CJC {medcertData.clinic_branch}</h2>
-                <p className="text-sm text-slate-500">Sacred Heart Avenue, Digos City, Davao del Sur</p>
-              </div>
-            </div>
-
-            {/* Title */}
-            <div className="text-center mb-10">
-              <h3 className="text-xl font-bold uppercase tracking-widest text-slate-800 underline underline-offset-8">Medical Certificate</h3>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 text-slate-800 text-justify leading-loose text-lg">
-              <p className="mb-6 text-right">Date: <span className="font-semibold underline underline-offset-4">{new Date().toLocaleDateString()}</span></p>
-              <p className="mb-6">To whom it may concern,</p>
-              <p className="mb-6 indent-8">
-                This is to certify that <span className="font-bold underline uppercase px-2">{medcertData.issued_to}</span> has been examined and treated at the Cor Jesu College ({medcertData.clinic_branch}) on the aforementioned date.
-              </p>
-              <p className="mb-6 indent-8">
-                <strong>Diagnosis / Remarks:</strong> {medcertData.reason}
-              </p>
-              <p className="mb-12 indent-8">
-                The patient is advised to rest and is excused from classes/duty until <span className="font-bold underline px-2">{new Date(medcertData.valid_until).toLocaleDateString()}</span>.
-              </p>
-
-              {/* Signatures */}
-              <div className="mt-20 flex justify-end">
-                <div className="text-center w-64">
-                  <div className="border-b border-black mb-1 h-12 flex items-end justify-center font-bold text-xl pb-1">
-                    {medcertData.issued_by}
+            <div>
+              {/* Official Cor Jesu College Header / Letterhead */}
+              <div className="flex justify-between items-center border-b-2 border-[#8c1526] pb-5 mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-[#8c1526] text-white flex items-center justify-center font-extrabold text-2xl shadow-md border-2 border-amber-400 shrink-0 font-sans">
+                    CJC
                   </div>
-                  <div className="text-sm">Clinic Nurse / Physician</div>
+                  <div>
+                    <h1 className="text-2xl font-black text-[#8c1526] tracking-wide uppercase font-sans">Cor Jesu College</h1>
+                    <h2 className="text-sm font-bold text-slate-800 font-sans tracking-wide">HEALTH SERVICES CLINIC — {medcertData.clinic_branch?.toUpperCase() || 'COLLEGE CLINIC'}</h2>
+                    <p className="text-xs text-slate-500 font-sans">Sacred Heart Avenue, Digos City, Davao del Sur 8002</p>
+                  </div>
+                </div>
+                <div className="text-right font-sans">
+                  <div className="text-[11px] text-slate-400 font-medium">Control No:</div>
+                  <div className="text-xs font-bold text-slate-700">MC-{Date.now().toString().slice(-6)}</div>
                 </div>
               </div>
+
+              {/* Certificate Header Title */}
+              <div className="text-center my-8">
+                <h3 className="text-2xl font-extrabold uppercase tracking-widest text-[#8c1526] font-sans underline underline-offset-8">Medical Certificate</h3>
+              </div>
+
+              {/* Main Certification Content */}
+              <div className="text-slate-800 text-justify leading-relaxed text-base space-y-6 my-6 font-serif">
+                <p className="text-right text-sm font-sans font-semibold text-slate-600 mb-6">
+                  Date Issued: <span className="underline underline-offset-4 font-bold text-slate-900">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                </p>
+
+                <p className="font-bold text-base font-sans">TO WHOM IT MAY CONCERN:</p>
+
+                <p className="indent-10 text-base leading-loose">
+                  This is to certify that <span className="font-extrabold text-slate-900 underline uppercase px-2 font-sans">{medcertData.issued_to}</span> has been examined and evaluated at the Cor Jesu College Health Services Clinic ({medcertData.clinic_branch}) on <span className="font-semibold">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>.
+                </p>
+
+                <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200 my-4 font-sans">
+                  <span className="font-bold text-xs uppercase tracking-wider text-slate-500 block mb-1">Diagnosis / Clinical Findings & Remarks:</span>
+                  <p className="text-base font-bold text-slate-900 whitespace-pre-wrap">{medcertData.reason}</p>
+                </div>
+
+                <p className="indent-10 text-base leading-loose">
+                  Based on the physical assessment, the patient is recommended for medical excuse/rest and is excused from attending classes/duty from <span className="font-bold underline px-1">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span> until <span className="font-extrabold text-slate-900 underline px-1 font-sans">{new Date(medcertData.valid_until).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>.
+                </p>
+
+                <p className="indent-10 text-sm text-slate-600 italic">
+                  This medical certificate is issued upon request for whatever valid purpose it may serve, excluding medico-legal proceedings.
+                </p>
+              </div>
             </div>
 
-            {/* Footer */}
-            <div className="mt-auto pt-6 border-t border-slate-200 text-center text-xs text-slate-400">
-              Valid only with official clinic signature. Generated by CJC Clinic Management System.
+            {/* Bottom Signatures & Seal Section */}
+            <div className="pt-8 font-sans">
+              <div className="flex justify-between items-end">
+                {/* Official Seal Badge Box */}
+                <div className="w-44 h-24 border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-center p-2 text-slate-400 text-[10px] uppercase font-bold">
+                  <span>Official Clinic Seal</span>
+                  <span className="text-[9px] font-normal normal-case text-slate-400 mt-1">Stamped Signature Required</span>
+                </div>
+
+                {/* Signature Line */}
+                <div className="text-center w-72">
+                  <div className="border-b-2 border-slate-900 mb-1.5 pb-1 font-extrabold text-lg text-slate-900">
+                    {medcertData.issued_by}
+                  </div>
+                  <div className="text-xs font-bold text-slate-700 uppercase tracking-wide">Attending Clinic Nurse / Physician</div>
+                  <div className="text-[10px] text-slate-400 font-medium">Cor Jesu College Health Services</div>
+                </div>
+              </div>
+
+              {/* Verification Footer */}
+              <div className="mt-10 pt-4 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400">
+                <span>Valid only with official clinic signature & seal • Generated by CJC Clinic Management System</span>
+                <span className="font-bold text-slate-500">Cor Jesu College Health Services</span>
+              </div>
             </div>
 
           </div>
         </div>
       )}
+
+      {/* Patient Registration Modal */}
+      <PatientModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        onSave={() => {
+          setIsRegisterModalOpen(false);
+          toast.success('Patient registered successfully!');
+        }}
+        patientId={null}
+      />
     </div>
   );
 };

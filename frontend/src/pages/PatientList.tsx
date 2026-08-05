@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
 import { FiSearch, FiEye, FiEdit2, FiPlus, FiActivity } from 'react-icons/fi';
 import PatientModal from '../components/PatientModal';
@@ -26,6 +26,7 @@ interface Pagination {
 const PatientList: React.FC = () => {
   const { confirm } = useConfirm();
   const navigate = useNavigate();
+  const location = useLocation();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, per_page: 25, total_count: 0, total_pages: 1 });
   const [loading, setLoading] = useState(true);
@@ -83,6 +84,12 @@ const PatientList: React.FC = () => {
       setIsAdmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (location.state?.openAdd) {
+      handleOpenAdd();
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);
