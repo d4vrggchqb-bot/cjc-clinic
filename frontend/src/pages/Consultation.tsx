@@ -1296,9 +1296,12 @@ const Consultation: React.FC = () => {
                   });
                   setIsMedcertModalOpen(true);
                 }} 
-                className="px-4 py-2.5 text-xs sm:text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 text-xs sm:text-sm font-extrabold text-slate-900 bg-white border-2 border-slate-300 hover:border-[#8c1526] hover:text-[#8c1526] rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 group"
               >
-                <FiPrinter /> Generate Medcert / Prescription
+                <span className="p-1.5 rounded-lg bg-rose-100/80 text-[#8c1526] group-hover:bg-[#8c1526] group-hover:text-white transition-colors shadow-2xs">
+                  <FiPrinter className="w-4 h-4" />
+                </span>
+                <span>Generate Medcert / Prescription</span>
               </button>
 
               <div className="flex gap-3">

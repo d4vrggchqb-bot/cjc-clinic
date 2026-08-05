@@ -76,16 +76,6 @@ const Appointments: React.FC = () => {
   
   // Expanded Groups
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
-  
-  // Quick Add Patient State
-  const [isAddingNewPatient, setIsAddingNewPatient] = useState(false);
-  const [newPatient, setNewPatient] = useState({
-    first_name: '',
-    last_name: '',
-    patient_id_number: '',
-    profile_type: 'student'
-  });
-  const [isRegistering, setIsRegistering] = useState(false);
 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -165,49 +155,6 @@ const Appointments: React.FC = () => {
     } catch (err) {
       toast.error('Failed to search patients');
     }
-    setIsSearching(false);
-  };
-
-  const handleQuickAddPatient = async () => {
-    if (!newPatient.first_name || !newPatient.last_name) {
-      toast.error('First and Last name are required');
-      return;
-    }
-    
-    setIsRegistering(true);
-    const toastId = toast.loading('Registering new patient...');
-    try {
-      const res = await apiFetch('/api/index.php?route=patients&action=create', {
-        method: 'POST',
-        body: JSON.stringify(newPatient)
-      });
-      
-      if (res.success) {
-        toast.success('Patient registered successfully!', { id: toastId });
-        const newPat = {
-          id: res.id,
-          first_name: newPatient.first_name,
-          last_name: newPatient.last_name,
-          patient_id_number: newPatient.patient_id_number,
-          profile_type: newPatient.profile_type,
-          college_dept: ''
-        };
-        
-        if (isGroupMode) {
-          setSelectedGroupPatients([...selectedGroupPatients, newPat]);
-        } else {
-          setSelectedPatient(newPat);
-        }
-        
-        setIsAddingNewPatient(false);
-        setSearch('');
-      } else {
-        toast.error(res.error || 'Failed to register patient', { id: toastId });
-      }
-    } catch (err) {
-      toast.error('Error registering patient', { id: toastId });
-    }
-    setIsRegistering(false);
   };
 
   const handleCreate = async () => {
@@ -341,8 +288,6 @@ const Appointments: React.FC = () => {
     setGroupName('');
     setIsGroupMode(false);
     setEditingAppointmentId(null);
-    setIsAddingNewPatient(false);
-    setNewPatient({ first_name: '', last_name: '', patient_id_number: '', profile_type: 'student' });
     setDate('');
     setTime('');
     setPurposeType((cues && cues.length > 0) ? cues[0] : DEFAULT_CUES[0]);
@@ -653,9 +598,7 @@ const Appointments: React.FC = () => {
             <div className="p-6 overflow-y-auto">
               {!editingAppointmentId && ((!selectedPatient && !isGroupMode) || isGroupMode) ? (
                 <div className="min-h-[250px]" ref={searchRef}>
-                  {!isAddingNewPatient ? (
-                    <>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">Search Patient</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Search Patient</label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <FiSearch className="text-slate-400" />
@@ -741,78 +684,6 @@ const Appointments: React.FC = () => {
                           <FiUserPlus /> Register New Patient
                         </button>
                       </div>
-                    </>
-                  ) : (
-                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold text-slate-800">Quick Registration</h3>
-                        <button 
-                          onClick={() => setIsAddingNewPatient(false)}
-                          className="text-sm text-slate-500 hover:text-slate-800 font-medium"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">First Name *</label>
-                            <input
-                              type="text"
-                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
-                              value={newPatient.first_name}
-                              onChange={(e) => setNewPatient({...newPatient, first_name: e.target.value})}
-                              placeholder="e.g. Juan"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Last Name *</label>
-                            <input
-                              type="text"
-                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
-                              value={newPatient.last_name}
-                              onChange={(e) => setNewPatient({...newPatient, last_name: e.target.value})}
-                              placeholder="e.g. Dela Cruz"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">ID Number (Optional)</label>
-                          <input
-                            type="text"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D]"
-                            value={newPatient.patient_id_number}
-                            onChange={(e) => setNewPatient({...newPatient, patient_id_number: e.target.value})}
-                            placeholder="e.g. 123456"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Profile Type *</label>
-                          <select
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#A5192D] bg-white"
-                            value={newPatient.profile_type}
-                            onChange={(e) => setNewPatient({...newPatient, profile_type: e.target.value})}
-                          >
-                            <option value="student">Student</option>
-                            <option value="employee">Employee</option>
-                          </select>
-                        </div>
-                        
-                        <div className="pt-2">
-                          <button
-                            onClick={handleQuickAddPatient}
-                            disabled={isRegistering || !newPatient.first_name || !newPatient.last_name}
-                            className="w-full py-2.5 rounded-lg font-medium text-white bg-slate-800 hover:bg-slate-900 disabled:opacity-50 transition-colors"
-                          >
-                            {isRegistering ? 'Registering...' : 'Save and Select Patient'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               ) : null}
               
