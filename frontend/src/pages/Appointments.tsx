@@ -3,6 +3,7 @@ import { apiFetch } from '../utils/api';
 import { FiCalendar, FiPlus, FiClock, FiCheck, FiX, FiSearch, FiUserPlus, FiEdit } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
+import PatientModal from '../components/PatientModal';
 
 
 interface Appointment {
@@ -55,6 +56,7 @@ const Appointments: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
 
   // New Appointment Form State
@@ -713,10 +715,11 @@ const Appointments: React.FC = () => {
                                 <p className="text-sm text-slate-500 mb-3">No patients found.</p>
                                 <button
                                   onClick={() => {
-                                    setIsAddingNewPatient(true);
+                                    setIsModalOpen(false);
                                     setShowSearchDropdown(false);
+                                    setIsRegisterModalOpen(true);
                                   }}
-                                  className="inline-flex items-center gap-2 text-sm font-medium text-[#A5192D] hover:text-[#8A1525] transition-colors"
+                                  className="inline-flex items-center gap-2 text-sm font-medium text-[#A5192D] hover:text-[#8A1525] transition-colors cursor-pointer"
                                 >
                                   <FiUserPlus /> Add New Patient
                                 </button>
@@ -729,10 +732,11 @@ const Appointments: React.FC = () => {
                         <p className="text-sm text-slate-500 mb-3">Can't find the student/employee?</p>
                         <button
                           onClick={() => {
-                            setIsAddingNewPatient(true);
+                            setIsModalOpen(false);
                             setShowSearchDropdown(false);
+                            setIsRegisterModalOpen(true);
                           }}
-                          className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+                          className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
                         >
                           <FiUserPlus /> Register New Patient
                         </button>
@@ -923,6 +927,18 @@ const Appointments: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Patient Registration Modal */}
+      <PatientModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        onSave={() => {
+          setIsRegisterModalOpen(false);
+          toast.success('Patient registered successfully!');
+          fetchAppointments();
+        }}
+        patientId={null}
+      />
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { FiAlertTriangle, FiInfo, FiCheckCircle, FiX } from 'react-icons/fi';
+import { FiAlertTriangle, FiInfo, FiCheckCircle, FiSave, FiX } from 'react-icons/fi';
 
-type ConfirmType = 'info' | 'warning' | 'danger';
+type ConfirmType = 'info' | 'warning' | 'danger' | 'save' | 'success';
 
 interface ConfirmOptions {
   title: string;
@@ -55,6 +55,18 @@ export const ConfirmProvider: React.FC<ConfirmProviderProps> = ({ children }) =>
 
   const getTypeStyles = (type: ConfirmType = 'info') => {
     switch (type) {
+      case 'save':
+        return {
+          icon: <FiSave className="w-6 h-6 text-[#8c1526]" />,
+          iconBg: 'bg-rose-100/80 border border-rose-200/60',
+          btnBg: 'bg-[#8c1526] hover:bg-[#7a1221] focus:ring-[#8c1526]',
+        };
+      case 'success':
+        return {
+          icon: <FiCheckCircle className="w-6 h-6 text-emerald-600" />,
+          iconBg: 'bg-emerald-100',
+          btnBg: 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500',
+        };
       case 'danger':
         return {
           icon: <FiAlertTriangle className="w-6 h-6 text-red-600" />,

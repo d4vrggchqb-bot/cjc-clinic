@@ -372,7 +372,7 @@ const Consultation: React.FC = () => {
     const confirmed = await confirm({
       title: 'Save Medical Notes',
       message: 'Are you sure you want to save these medical notes?',
-      type: 'info'
+      type: 'save'
     });
     if (!confirmed) return;
     setIsSavingNotes(true);
@@ -1041,51 +1041,54 @@ const Consultation: React.FC = () => {
                   </div>
 
                   {/* Smart Clinical Assistant & Suggestion Card */}
-                  <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4.5 rounded-2xl shadow-md border border-slate-700/80">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200">Smart Vitals Assistant</h4>
-                      </div>
-                      <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700 font-semibold">Live AI Suggest</span>
+                  <div 
+                    style={{ padding: '24px' }} 
+                    className="bg-gradient-to-br from-amber-50/40 via-white to-rose-50/30 p-6 rounded-2xl border border-amber-200/80 shadow-xs space-y-4"
+                  >
+                    <div className="flex items-center gap-2.5 pb-3 border-b border-amber-100/90">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                        <FiActivity className="text-[#8c1526] w-4 h-4 shrink-0" />
+                        Smart Vitals Assistant
+                      </h4>
                     </div>
 
                     {/* Vitals Condition Warning Badges */}
                     {vitalsAnalysis.alerts.length > 0 ? (
-                      <div className="space-y-1.5 mb-3">
+                      <div className="space-y-2">
                         {vitalsAnalysis.alerts.map((al, idx) => (
                           <div 
                             key={idx} 
-                            className={`text-xs px-3 py-1.5 rounded-xl border font-semibold flex items-center gap-2 ${
+                            className={`text-xs px-3.5 py-2 rounded-xl border font-bold flex items-center gap-2.5 shadow-2xs ${
                               al.type === 'critical'
-                                ? 'bg-red-500/20 text-red-200 border-red-500/40'
+                                ? 'bg-rose-50 text-rose-800 border-rose-200/90'
                                 : al.type === 'warning'
-                                ? 'bg-amber-500/20 text-amber-200 border-amber-500/40'
-                                : 'bg-blue-500/20 text-blue-200 border-blue-500/40'
+                                ? 'bg-amber-50 text-amber-900 border-amber-200/90'
+                                : 'bg-blue-50 text-blue-800 border-blue-200/90'
                             }`}
                           >
-                            <FiAlertCircle className="shrink-0 w-3.5 h-3.5" />
+                            <FiAlertCircle className="shrink-0 w-4 h-4" />
                             <span>{al.message}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-400 mb-3 italic">
+                      <p className="text-xs text-slate-400 italic leading-relaxed py-1">
                         Type vital signs above (e.g. BP or Temp) to trigger automatic health analysis & diagnosis recommendations.
                       </p>
                     )}
 
                     {/* Suggested Diagnosis Chips */}
                     {vitalsAnalysis.suggested_diagnosis.length > 0 && (
-                      <div className="mb-3">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">Suggested Diagnoses (Click to Insert):</span>
+                      <div>
+                        <span className="text-[10px] uppercase font-extrabold text-slate-500 tracking-wider block mb-1.5">Suggested Diagnoses (Click to Insert):</span>
                         <div className="flex flex-wrap gap-1.5">
                           {vitalsAnalysis.suggested_diagnosis.map((d, idx) => (
                             <button
                               key={idx}
                               type="button"
                               onClick={() => appendDiagnosisSuggestion(d)}
-                              className="text-[11px] bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 border border-amber-400/40 px-2.5 py-1 rounded-lg transition-all font-medium flex items-center gap-1 cursor-pointer"
+                              className="text-[11px] bg-[#8c1526]/10 hover:bg-[#8c1526]/20 text-[#8c1526] border border-[#8c1526]/25 px-3 py-1.5 rounded-xl transition-all font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
                             >
                               <span>+</span> {d}
                             </button>
@@ -1097,14 +1100,14 @@ const Consultation: React.FC = () => {
                     {/* Suggested Treatment Chips */}
                     {vitalsAnalysis.suggested_treatment.length > 0 && (
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">Suggested Treatment (Click to Insert):</span>
+                        <span className="text-[10px] uppercase font-extrabold text-slate-500 tracking-wider block mb-1.5">Suggested Treatment (Click to Insert):</span>
                         <div className="flex flex-wrap gap-1.5">
                           {vitalsAnalysis.suggested_treatment.map((t, idx) => (
                             <button
                               key={idx}
                               type="button"
                               onClick={() => appendTreatmentSuggestion(t)}
-                              className="text-[11px] bg-emerald-400/20 hover:bg-emerald-400/30 text-emerald-200 border border-emerald-400/40 px-2.5 py-1 rounded-lg transition-all font-medium text-left flex items-start gap-1 cursor-pointer"
+                              className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200/80 px-3 py-1.5 rounded-xl transition-all font-bold text-left flex items-start gap-1 cursor-pointer shadow-2xs"
                             >
                               <span>+</span> {t.length > 40 ? `${t.substring(0, 40)}...` : t}
                             </button>
