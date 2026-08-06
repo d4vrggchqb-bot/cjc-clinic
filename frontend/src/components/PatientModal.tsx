@@ -7,10 +7,46 @@ interface PatientModalProps {
   onClose: () => void;
   onSave: () => void;
   patientId?: number | null;
+  user?: any;
 }
 
-const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, patientId }) => {
+const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, patientId, user }) => {
   const [step, setStep] = useState(1);
+  const [currentUser, setCurrentUser] = useState<any>(user || null);
+
+  useEffect(() => {
+    if (user) {
+      setCurrentUser(user);
+    } else if (isOpen) {
+      apiFetch('/api/index.php?action=check_session')
+        .then(res => {
+          if (res.success && res.user) {
+            setCurrentUser(res.user);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user, isOpen]);
+
+  const getAutoSelectedSubType = (u: any) => {
+    if (!u || u.role === 'Superadmin' || !u.clinic_branch) {
+      return 'College';
+    }
+    const b = u.clinic_branch.toLowerCase();
+    if (b.includes('basic education') || b.includes('bed')) {
+      return 'BED';
+    }
+    if (b.includes('post graduate') || b.includes('power')) {
+      return 'Post Graduate';
+    }
+    return 'College';
+  };
+
+  const getAutoSelectedDept = (sub: string) => {
+    if (sub === 'BED') return 'Basic Education';
+    return '';
+  };
+
   const [formData, setFormData] = useState({
     profile_type: 'student',
     patient_id_number: '',
@@ -118,19 +154,22 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
           .catch(() => setError('Failed to load patient data'))
           .finally(() => setLoading(false));
       } else {
-        // Reset form
+        // Reset form & auto-select Student Category based on admin branch
+        const defaultSub = getAutoSelectedSubType(currentUser);
+        const defaultDept = getAutoSelectedDept(defaultSub);
+
         setFormData({
           profile_type: 'student',
           patient_id_number: '',
-          school_year: globalSettings.school_year,
+          school_year: globalSettings.school_year || '2026-2027',
           first_name: '',
           last_name: '',
           middle_initial: '',
           birthdate: '',
           gender: '',
           blood_type: '',
-          sub_type: 'College',
-          college_dept: '',
+          sub_type: defaultSub,
+          college_dept: defaultDept,
           year_level: '',
           course: '',
           contact: '',
@@ -161,7 +200,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
         });
       }
     }
-  }, [isOpen, patientId]);
+  }, [isOpen, patientId, currentUser]);
 
   // Real-time check for duplicate ID
   useEffect(() => {
@@ -197,7 +236,12 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
   };
 
   const handleRadioChange = (name: string, value: string) => {
-    setFormData({ ...formData, [name]: value });
+    if (name === 'sub_type') {
+      const autoDept = value === 'BED' ? 'Basic Education' : '';
+      setFormData(prev => ({ ...prev, sub_type: value, college_dept: autoDept, course: '', year_level: '' }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleHealthCheck = (key: string) => {
@@ -228,7 +272,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     const action = patientId ? 'update' : 'create';
     
     // Convert health history obj to string
-    const payload = { 
+    const payload: any = { 
       ...formData, 
       health_history: JSON.stringify(healthHistoryObj)
     };
@@ -455,6 +499,12 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           </>
                         )}
                       </select>
+
+                      {currentUser && currentUser.role !== 'Superadmin' && currentUser.clinic_branch && (
+                        <span className="text-[11px] font-bold text-[#C01D38] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-200 mt-2 md:mt-0">
+                          Default for {currentUser.clinic_branch}
+                        </span>
+                      )}
                     </div>
                     {formData.sub_type === 'College' ? (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

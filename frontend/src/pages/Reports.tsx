@@ -201,129 +201,132 @@ const Reports: React.FC = () => {
   return (
     <div className="px-5 py-5 w-full">
       {/* Toolbar (Filters & Actions) */}
-      <div className="mb-6 sm:mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
-        
-        {/* Filters */}
-        <div className="flex gap-2 flex-wrap xl:flex-nowrap items-center flex-1">
-          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-            <span className="px-2 text-slate-400 flex items-center">
-              <FiCalendar className="w-3.5 h-3.5" />
-            </span>
-            <input 
-              type="date" 
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent w-[105px]"
-            />
-            <span className="px-1 text-slate-400 font-medium text-[11px]">to</span>
-            <input 
-              type="date" 
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="px-1 py-1.5 text-xs outline-none text-slate-700 pr-2 bg-transparent w-[105px]"
-            />
-          </div>
+      <div className="mb-6 sm:mb-8 bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
+        <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4">
+          
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+              <span className="px-2.5 text-slate-400 flex items-center">
+                <FiCalendar className="w-3.5 h-3.5" />
+              </span>
+              <input 
+                type="date" 
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent w-[105px]"
+              />
+              <span className="px-1 text-slate-400 font-medium text-[11px]">to</span>
+              <input 
+                type="date" 
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="px-1 py-1.5 text-xs outline-none text-slate-700 pr-2 bg-transparent w-[105px]"
+              />
+            </div>
 
-          {(userRole === 'Superadmin') && (
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            {(userRole === 'Superadmin') && (
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+                <select 
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent pr-3 cursor-pointer"
+                >
+                  <option value="All Branches">All Branches</option>
+                  <option value="College Clinic">College Clinic</option>
+                  <option value="Basic Education Clinic">Basic Education Clinic</option>
+                  <option value="Power Campus Clinic">Power Campus Clinic</option>
+                </select>
+              </div>
+            )}
+
+            {/* New Filters */}
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+              <span className="pl-2.5 pr-1 text-slate-400 flex items-center">
+                <FiFilter className="w-3.5 h-3.5" />
+              </span>
               <select 
-                value={selectedBranch}
-                onChange={(e) => setSelectedBranch(e.target.value)}
-                className="px-2 py-1.5 text-xs outline-none text-slate-700 bg-transparent pr-3"
+                value={department}
+                onChange={(e) => { setDepartment(e.target.value); setProgram('All Programs'); setYearLevel('All Year Levels'); }}
+                className="px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[140px] truncate cursor-pointer pr-2"
               >
-                <option value="All Branches">All Branches</option>
-                <option value="College Clinic">College Clinic</option>
-                <option value="Basic Education Clinic">Basic Education Clinic</option>
-                <option value="Power Campus Clinic">Power Campus Clinic</option>
+                <option value="All Departments">All Departments</option>
+                {allDepartments.map((dept: string, idx: number) => (
+                  <option key={idx} value={dept}>{dept}</option>
+                ))}
               </select>
             </div>
-          )}
 
-          {/* New Filters */}
-          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-            <span className="px-2 text-slate-400 flex items-center">
-              <FiFilter className="w-3.5 h-3.5" />
-            </span>
-            <select 
-              value={department}
-              onChange={(e) => { setDepartment(e.target.value); setProgram('All Programs'); setYearLevel('All Year Levels'); }}
-              className="px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent w-[140px] truncate"
-            >
-              <option value="All Departments">All Departments</option>
-              {allDepartments.map((dept: string, idx: number) => (
-                <option key={idx} value={dept}>{dept}</option>
-              ))}
-            </select>
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+              <select 
+                value={program}
+                onChange={(e) => { setProgram(e.target.value); setYearLevel('All Year Levels'); }}
+                className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[120px] truncate cursor-pointer pr-2"
+              >
+                <option value="All Programs">All Programs</option>
+                {dynamicPrograms.map((prog: string, idx: number) => (
+                  <option key={idx} value={prog}>{prog}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+              <select 
+                value={yearLevel}
+                onChange={(e) => setYearLevel(e.target.value)}
+                className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[130px] truncate cursor-pointer pr-2"
+              >
+                <option value="All Year Levels">All Year Levels</option>
+                {dynamicYearLevels.map((yr: string, idx: number) => (
+                  <option key={idx} value={yr}>{yr}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-            <select 
-              value={program}
-              onChange={(e) => { setProgram(e.target.value); setYearLevel('All Year Levels'); }}
-              className="px-2 py-1.5 text-xs outline-none text-slate-700 bg-transparent w-[110px] truncate"
+          {/* Action Export Buttons */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0 w-full 2xl:w-auto">
+            <button 
+              onClick={handleExportClick}
+              className="bg-slate-800 hover:bg-slate-900 text-white px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm flex-1 sm:flex-none cursor-pointer whitespace-nowrap"
             >
-              <option value="All Programs">All Programs</option>
-              {dynamicPrograms.map((prog: string, idx: number) => (
-                <option key={idx} value={prog}>{prog}</option>
-              ))}
-            </select>
-          </div>
+              <FiDownload className="w-4 h-4 shrink-0" /> Export Consultations
+            </button>
+            <button 
+              onClick={() => {
+                if (!data || !data.borrowing_export_data || data.borrowing_export_data.length === 0) {
+                  alert("No borrowing data available for this date range and filters.");
+                  return;
+                }
+                const exportData = data.borrowing_export_data;
+                const headers = Object.keys(exportData[0]).join(',');
+                const rows = exportData.map((row: any) => {
+                  return Object.values(row).map((val: any) => {
+                    let cell = val === null ? '' : String(val);
+                    if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                      cell = `"${cell.replace(/"/g, '""')}"`;
+                    }
+                    return cell;
+                  }).join(',');
+                });
 
-          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-            <select 
-              value={yearLevel}
-              onChange={(e) => setYearLevel(e.target.value)}
-              className="px-2 py-1.5 text-xs outline-none text-slate-700 bg-transparent pr-3 w-[120px] truncate"
+                const csvContent = [headers, ...rows].join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `Clinic_Borrowings_${startDate}_to_${endDate}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm flex-1 sm:flex-none cursor-pointer whitespace-nowrap"
             >
-              <option value="All Year Levels">All Year Levels</option>
-              {dynamicYearLevels.map((yr: string, idx: number) => (
-                <option key={idx} value={yr}>{yr}</option>
-              ))}
-            </select>
+              <FiDownload className="w-4 h-4 shrink-0" /> Export Borrowings
+            </button>
           </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2.5 w-full xl:w-auto flex-shrink-0">
-          <button 
-            onClick={handleExportClick}
-            className="bg-slate-800 hover:bg-slate-900 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-md flex-1 sm:flex-none"
-          >
-            <FiDownload className="w-4 h-4 flex-shrink-0" /> Export Consultations
-          </button>
-          <button 
-            onClick={() => {
-              if (!data || !data.borrowing_export_data || data.borrowing_export_data.length === 0) {
-                alert("No borrowing data available for this date range and filters.");
-                return;
-              }
-              const exportData = data.borrowing_export_data;
-              const headers = Object.keys(exportData[0]).join(',');
-              const rows = exportData.map((row: any) => {
-                return Object.values(row).map((val: any) => {
-                  let cell = val === null ? '' : String(val);
-                  if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
-                    cell = `"${cell.replace(/"/g, '""')}"`;
-                  }
-                  return cell;
-                }).join(',');
-              });
-
-              const csvContent = [headers, ...rows].join('\n');
-              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-              const url = URL.createObjectURL(blob);
-              
-              const link = document.createElement("a");
-              link.setAttribute("href", url);
-              link.setAttribute("download", `Clinic_Borrowings_${startDate}_to_${endDate}.csv`);
-              link.style.visibility = 'hidden';
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-            className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-md flex-1 sm:flex-none"
-          >
-            <FiDownload className="w-4 h-4 flex-shrink-0" /> Export Borrowings
-          </button>
         </div>
       </div>
 
