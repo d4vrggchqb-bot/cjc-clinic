@@ -31,11 +31,38 @@ const PatientList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [type, setType] = useState<'all' | 'student' | 'employee'>('all');
+  const [filterDept, setFilterDept] = useState('');
+  const [globalSettings, setGlobalSettings] = useState<any>({});
   
   // A debounce mechanism for search would go here ideally, but for now we'll fetch on enter or button click
   // Or we can just use a simple useEffect dependency on search
   // To avoid spamming, let's use a delayed search effect
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    apiFetch('/api/index.php?route=settings&action=get')
+      .then(res => {
+        if (res.settings) setGlobalSettings(res.settings);
+      })
+      .catch(() => console.error("Failed to fetch settings"));
+  }, []);
+
+  const allDepartments = React.useMemo(() => {
+    const depts = new Set<string>();
+    depts.add('Basic Education');
+    if (Array.isArray(globalSettings.departments_hierarchy)) {
+      globalSettings.departments_hierarchy.forEach((d: any) => depts.add(d.department));
+    }
+    if (Array.isArray(globalSettings.post_graduate_hierarchy)) {
+      globalSettings.post_graduate_hierarchy.forEach((s: any) => depts.add(s.school));
+    }
+    if (Array.isArray(globalSettings.custom_categories_hierarchy)) {
+      globalSettings.custom_categories_hierarchy.forEach((c: any) => {
+        if (Array.isArray(c.programs)) c.programs.forEach((p: string) => depts.add(p));
+      });
+    }
+    return Array.from(depts).sort();
+  }, [globalSettings]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -90,13 +117,13 @@ const PatientList: React.FC = () => {
   }, [search]);
 
   useEffect(() => {
-    fetchPatients(pagination.page, debouncedSearch, type);
-  }, [pagination.page, debouncedSearch, type]);
+    fetchPatients(pagination.page, debouncedSearch, type, filterDept);
+  }, [pagination.page, debouncedSearch, type, filterDept]);
 
-  const fetchPatients = async (page: number, searchQuery: string, filterType: string) => {
+  const fetchPatients = async (page: number, searchQuery: string, filterType: string, dept: string = '') => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/index.php?route=patients&action=list&page=${page}&search=${encodeURIComponent(searchQuery)}&type=${filterType}`);
+      const res = await apiFetch(`/api/index.php?route=patients&action=list&page=${page}&search=${encodeURIComponent(searchQuery)}&type=${filterType}&dept=${encodeURIComponent(dept)}`);
       if (res.profiles) {
         setPatients(res.profiles);
         setPagination(res.pagination);
@@ -129,18 +156,30 @@ const PatientList: React.FC = () => {
       {/* Control Bar */}
       <div className="bg-white rounded-t-md border-t border-l border-r border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
         
-        {/* Search */}
-        <div className="relative w-full sm:w-96">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiSearch className="h-4 w-4 text-slate-400" />
+        {/* Search & Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-80">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FiSearch className="h-4 w-4 text-slate-400" />
+            </div>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-md leading-5 bg-[#FAFAFA] placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#C01D38] sm:text-sm transition-colors"
+              placeholder="Search by name or contact..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-          <input
-            type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-md leading-5 bg-[#FAFAFA] placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#C01D38] sm:text-sm transition-colors"
-            placeholder="Search by name or contact number..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <select
+            value={filterDept}
+            onChange={(e) => { setFilterDept(e.target.value); setPagination(prev => ({...prev, page: 1})); }}
+            className="block w-full sm:w-48 px-3 py-2 border border-slate-200 rounded-md leading-5 bg-[#FAFAFA] focus:outline-none focus:bg-white focus:border-[#C01D38] sm:text-sm transition-colors text-slate-700"
+          >
+            <option value="">All Departments</option>
+            {allDepartments.map((dept, idx) => (
+              <option key={idx} value={dept}>{dept}</option>
+            ))}
+          </select>
         </div>
 
         {/* Filter Tabs */}

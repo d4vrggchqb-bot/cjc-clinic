@@ -63,7 +63,8 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     departments_hierarchy: [],
     bed_hierarchy: [],
     college_year_levels: [],
-    post_graduate_hierarchy: []
+    post_graduate_hierarchy: [],
+    custom_categories_hierarchy: []
   });
 
   // Fetch settings once when the component mounts
@@ -77,7 +78,8 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
             departments_hierarchy: Array.isArray(res.settings.departments_hierarchy) ? res.settings.departments_hierarchy : [],
             bed_hierarchy: Array.isArray(res.settings.bed_hierarchy) ? res.settings.bed_hierarchy : [],
             college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
-            post_graduate_hierarchy: Array.isArray(res.settings.post_graduate_hierarchy) ? res.settings.post_graduate_hierarchy : []
+            post_graduate_hierarchy: Array.isArray(res.settings.post_graduate_hierarchy) ? res.settings.post_graduate_hierarchy : [],
+            custom_categories_hierarchy: Array.isArray(res.settings.custom_categories_hierarchy) ? res.settings.custom_categories_hierarchy : []
           });
           // Update default form data if it's currently at the old hardcoded default
           setFormData(prev => ({
@@ -266,6 +268,9 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
   const selectedPostGradSchool = globalSettings.post_graduate_hierarchy.find((s: any) => s.school === formData.college_dept);
   const postGradPrograms = selectedPostGradSchool ? selectedPostGradSchool.programs : [];
 
+  const customCategory = globalSettings.custom_categories_hierarchy?.find((c: any) => c.category === formData.sub_type);
+  const customPrograms = customCategory ? customCategory.programs : [];
+
   if (!isOpen) return null;
 
   // Input wrapper classes for a cleaner look
@@ -428,20 +433,28 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                 
                 {formData.profile_type === 'student' && (
                   <div className="animate-in fade-in duration-300">
-                    <div className="flex items-center gap-5 mb-4 pl-2">
-                      <span className="text-sm font-medium text-slate-700">Student Category:</span>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="sub_type" value="College" checked={formData.sub_type === 'College'} onChange={() => handleRadioChange('sub_type', 'College')} className="w-4 h-4 text-[#C01D38] bg-white border-slate-300 focus:ring-[#C01D38]" />
-                        <span className="text-sm font-normal text-slate-600">College</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="sub_type" value="BED" checked={formData.sub_type === 'BED'} onChange={() => handleRadioChange('sub_type', 'BED')} className="w-4 h-4 text-[#C01D38] bg-white border-slate-300 focus:ring-[#C01D38]" />
-                        <span className="text-sm font-normal text-slate-600">BED (Basic Ed)</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="sub_type" value="Post Graduate" checked={formData.sub_type === 'Post Graduate'} onChange={() => handleRadioChange('sub_type', 'Post Graduate')} className="w-4 h-4 text-[#C01D38] bg-white border-slate-300 focus:ring-[#C01D38]" />
-                        <span className="text-sm font-normal text-slate-600">Post Graduate</span>
-                      </label>
+                    <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 pl-2">
+                      <label className="text-sm font-medium text-slate-700 whitespace-nowrap">Student Category:</label>
+                      <select 
+                        name="sub_type" 
+                        value={formData.sub_type} 
+                        onChange={(e) => handleRadioChange('sub_type', e.target.value)}
+                        className={inputClass + " md:w-64"}
+                      >
+                        {globalSettings.departments_hierarchy?.length > 0 && <option value="College">College</option>}
+                        {globalSettings.bed_hierarchy?.length > 0 && <option value="BED">BED (Basic Ed)</option>}
+                        {globalSettings.post_graduate_hierarchy?.length > 0 && <option value="Post Graduate">Post Graduate</option>}
+                        {globalSettings.custom_categories_hierarchy?.map((cat: any, idx: number) => (
+                          <option key={`custom-${idx}`} value={cat.category}>{cat.category}</option>
+                        ))}
+                        {(!globalSettings.departments_hierarchy?.length && !globalSettings.bed_hierarchy?.length && !globalSettings.post_graduate_hierarchy?.length && !globalSettings.custom_categories_hierarchy?.length) && (
+                          <>
+                            <option value="College">College</option>
+                            <option value="BED">BED (Basic Ed)</option>
+                            <option value="Post Graduate">Post Graduate</option>
+                          </>
+                        )}
+                      </select>
                     </div>
                     {formData.sub_type === 'College' ? (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -498,7 +511,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           </select>
                         </div>
                       </div>
-                    ) : (
+                    ) : formData.sub_type === 'Post Graduate' ? (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className={labelClass}>School <span className="text-red-500">*</span></label>
@@ -528,7 +541,28 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           </select>
                         </div>
                       </div>
-                    )}
+                    ) : customCategory ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className={labelClass}>Department/Program <span className="text-red-500">*</span></label>
+                          <select name="course" value={formData.course} onChange={handleChange} className={inputClass}>
+                            <option value="">Select Option</option>
+                            {customPrograms.map((prog: string, idx: number) => (
+                              <option key={idx} value={prog}>{prog}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Year Level (Optional)</label>
+                          <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass}>
+                            <option value="">Select Year (If applicable)</option>
+                            {globalSettings.college_year_levels.map((yr: string, idx: number) => (
+                              <option key={idx} value={yr}>{yr}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
                 {formData.profile_type === 'employee' && (

@@ -31,6 +31,7 @@ export default function Settings() {
             departments_hierarchy: Array.isArray(res.settings.departments_hierarchy) ? res.settings.departments_hierarchy : [],
             bed_hierarchy: Array.isArray(res.settings.bed_hierarchy) ? res.settings.bed_hierarchy : [],
             post_graduate_hierarchy: Array.isArray(res.settings.post_graduate_hierarchy) ? res.settings.post_graduate_hierarchy : [],
+            custom_categories_hierarchy: Array.isArray(res.settings.custom_categories_hierarchy) ? res.settings.custom_categories_hierarchy : [],
             college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
             cues: Array.isArray(res.settings.cues) ? res.settings.cues : [],
           });
@@ -286,6 +287,19 @@ export default function Settings() {
                   childKey="programs"
                   childLabel="Program"
                   onSave={(newHierarchy: any) => handleHierarchySave('post_graduate_hierarchy', newHierarchy)}
+                />
+              </div>
+
+              {/* Custom Categories Config - Hierarchical */}
+              <div className="mt-8 border-t border-slate-200 pt-6">
+                <HierarchyEditor
+                  title="Custom Student Categories"
+                  description="Manage custom categories (e.g., Vocational, Senior High) and their specific departments/programs."
+                  items={settings.custom_categories_hierarchy || []}
+                  parentKey="category"
+                  childKey="programs"
+                  childLabel="Department/Program"
+                  onSave={(newHierarchy: any) => handleHierarchySave('custom_categories_hierarchy', newHierarchy)}
                 />
               </div>
             </>

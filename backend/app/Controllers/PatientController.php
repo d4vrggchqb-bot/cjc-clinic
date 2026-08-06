@@ -23,6 +23,7 @@ class PatientController {
         $page    = max(1, (int)($_GET['page'] ?? 1));
         $offset  = ($page - 1) * $perPage;
         $search  = trim($_GET['search'] ?? '');
+        $filterDept = trim($_GET['dept'] ?? '');
 
         $conditions = [];
         $params     = [];
@@ -36,6 +37,10 @@ class PatientController {
             $params['search2']   = '%' . $search . '%';
             $params['search3']   = '%' . $search . '%';
         }
+        if ($filterDept !== '') {
+            $conditions[]    = 'college_dept = :dept';
+            $params['dept']  = $filterDept;
+        }
 
         // Apply role and branch filters
         $userRole = $currentUser['role'] ?? '';
@@ -45,7 +50,7 @@ class PatientController {
             if ($userBranch === 'Basic Education Clinic') {
                 $conditions[] = "((profile_type = 'student' AND sub_type = 'BED') OR (profile_type = 'employee' AND college_dept = 'Basic Education'))";
             } else if (in_array($userBranch, ['College Clinic', 'Power Campus Clinic'])) {
-                $conditions[] = "((profile_type = 'student' AND sub_type IN ('College', 'Post Graduate')) OR (profile_type = 'employee' AND (college_dept != 'Basic Education' OR college_dept IS NULL)))";
+                $conditions[] = "((profile_type = 'student' AND (sub_type != 'BED' OR sub_type IS NULL)) OR (profile_type = 'employee' AND (college_dept != 'Basic Education' OR college_dept IS NULL)))";
             }
         }
 

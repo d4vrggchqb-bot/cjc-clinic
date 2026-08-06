@@ -48,9 +48,9 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
     { id: 'patients', label: 'PATIENT LIST', icon: FiUsers },
     { id: 'consultation', label: 'CONSULTATION', icon: FiActivity },
     { id: 'appointments', label: 'APPOINTMENTS', icon: FiClock },
-    { id: 'inventory', label: 'INVENTORY', icon: FiBox, roles: ['Superadmin', 'Admin', 'Doctor', 'Nurse'] },
+    { id: 'inventory', label: 'INVENTORY', icon: FiBox, roles: ['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff'] },
     { id: 'borrowings', label: 'EQUIPMENT BOOKING', icon: FiCalendar },
-    { id: 'reports', label: 'REPORTS', icon: FiFileText, roles: ['Superadmin', 'Admin'] }
+    { id: 'reports', label: 'REPORTS', icon: FiFileText, roles: ['Superadmin', 'Admin', 'Staff'] }
   ].filter(item => !item.roles || (user && item.roles.includes(user.role)));
 
   return (

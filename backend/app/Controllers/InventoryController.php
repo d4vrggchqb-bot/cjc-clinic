@@ -23,7 +23,7 @@ class InventoryController {
 
     public function addItem() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
-        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin']);
+        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin', 'Staff']);
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         
@@ -108,7 +108,7 @@ class InventoryController {
     // --- SMART DISPENSE (FEFO/FIFO) ---
     public function dispense() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
-        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin', 'Doctor', 'Nurse']);
+        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin', 'Doctor', 'Nurse', 'Staff']);
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         $itemId = (int)($input['item_id'] ?? 0);
