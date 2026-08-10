@@ -2,8 +2,19 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
 import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
+import { FiUser, FiLock, FiEye, FiEyeOff, FiShield, FiFolder, FiBox, FiBarChart2, FiHeart, FiArrowRight } from 'react-icons/fi';
 
 const GOOGLE_CLIENT_ID = '814203352511-rp2uq7eajh56v8k9gnspbmureb2hpk3a.apps.googleusercontent.com';
+
+const FeatureCard = ({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) => (
+  <div className="bg-white rounded-[1.5rem] p-3 md:p-4 lg:p-5 flex flex-col items-center text-center shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-transform w-[23%] min-w-[110px] max-w-[160px] cursor-default shrink-0">
+    <div className="bg-[#fdf4f5] text-[#C01D38] p-3 rounded-2xl mb-3 border border-red-50">
+      {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: 'w-5 h-5 lg:w-6 lg:h-6 stroke-[2.5]' })}
+    </div>
+    <h4 className="font-extrabold text-slate-800 text-[11px] lg:text-[13px] mb-1">{title}</h4>
+    <p className="text-[9px] lg:text-[10px] text-slate-500 font-medium px-1 leading-tight">{desc}</p>
+  </div>
+);
 
 const Login: React.FC = () => {
   const [view, setView] = useState<'login' | 'request_reset' | 'perform_reset'>('login');
@@ -121,248 +132,292 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen font-sans flex flex-col-reverse md:flex-row w-full bg-[#F9F9F9]">
-      {/* Left Side: Login Form */}
-      <section className="flex flex-col items-center justify-center bg-[#F9F9F9] w-full md:w-1/2 p-6 md:p-12 relative shadow-xl z-20 min-h-[60vh] md:min-h-screen">
-        <div className="w-full max-w-sm my-auto">
-          {/* Header */}
-          <div className="mb-8 md:mb-10 text-center md:text-left">
-            <h2 className="text-2xl sm:text-[2rem] font-medium text-[#C01D38] mb-1 tracking-tight">
-              {view === 'login' ? 'Sign In' : view === 'request_reset' ? 'Forgot Password' : 'Reset Password'}
-            </h2>
-            <p className="text-slate-600 text-xs sm:text-sm font-medium">
-              {view === 'login' ? 'Access your patient information' : 'Enter your details to reset your password'}
-            </p>
-          </div>
-          
-          {/* Card */}
-          <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 rounded-md p-6 sm:p-8 md:px-10 md:py-12 w-full relative z-10">
-            {error && (
-              <div className="bg-red-50 text-red-600 border border-red-100 rounded py-3 px-4 mb-6 text-sm text-center">
-                {error}
-              </div>
-            )}
-            {message && (
-              <div className="bg-green-50 text-green-600 border border-green-100 rounded py-3 px-4 mb-6 text-sm text-center">
-                {message}
-              </div>
-            )}
-            
-            {view === 'login' && (
-              <form onSubmit={handleLogin}>
-                {/* Username Field */}
-                <div className="mb-5">
-                  <label className="block text-[0.8rem] text-slate-700 mb-1.5 font-medium" htmlFor="username">
-                    Username
-                  </label>
-                  <input 
-                    id="username" 
-                    type="text" 
-                    required 
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-md px-4 py-2.5 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
-                  />
+    <div className="relative w-full h-screen font-sans overflow-hidden bg-slate-50 flex">
+      
+      {/* Background Image - Object Cover positioned at top */}
+      <div 
+        className="absolute inset-0 z-0 w-full h-full object-cover bg-cover bg-top bg-no-repeat" 
+        style={{ backgroundImage: `url('/Norbert.jpg')` }}
+      ></div>
+
+      {/* Massive Sweeping Red Arc */}
+      <div className="absolute top-0 left-0 h-full w-[70vw] z-10 pointer-events-none drop-shadow-[20px_0_40px_rgba(0,0,0,0.6)]">
+        <svg 
+          className="w-full h-full" 
+          preserveAspectRatio="none" 
+          viewBox="0 0 100 100"
+        >
+          <defs>
+            <linearGradient id="redCurveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#7B0411" />
+              <stop offset="50%" stopColor="#A41222" />
+              <stop offset="100%" stopColor="#d61a2e" />
+            </linearGradient>
+          </defs>
+          {/* Exact Mockup Curve: Top at 60%, curves gently inward to 55%, sweeps aggressively to 95% at bottom */}
+          <path d="M0,0 L60,0 C55,40 65,70 95,100 L0,100 Z" fill="url(#redCurveGrad)" />
+        </svg>
+        
+        {/* Subtle dot pattern restricted to the left edge */}
+        <div 
+          className="absolute top-0 left-0 w-[15vw] h-full opacity-[0.06]" 
+          style={{ 
+            backgroundImage: 'radial-gradient(circle, white 2px, transparent 2px)', 
+            backgroundSize: '16px 16px',
+            maskImage: 'linear-gradient(to right, black, transparent)',
+            WebkitMaskImage: 'linear-gradient(to right, black, transparent)'
+          }}
+        ></div>
+        
+        {/* Subtle background plus marks on the red wave */}
+        <div className="absolute top-[10%] right-[42%] text-white/5 text-4xl font-black">+</div>
+        <div className="absolute top-[38%] right-[35%] text-white/10 text-5xl font-black">+</div>
+        <div className="absolute bottom-[20%] right-[18%] text-white/5 text-6xl font-black">+</div>
+      </div>
+
+      {/* Main Content Layout - Exact 35% / 65% split always forced */}
+      <div className="relative z-20 w-full h-full flex flex-row">
+        
+        {/* LEFT COLUMN: 35% fixed width */}
+        <div className="w-[35vw] h-full flex flex-col items-center justify-center p-4 z-30 min-w-[320px]">
+           
+           <div className="w-full max-w-[440px] bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] px-8 py-10 flex flex-col relative z-40 mx-auto">
+              
+              <img src="/assets/logo.png" alt="CJC Logo" className="w-[85px] h-[85px] mx-auto mb-5 object-contain" />
+              
+              <h2 className="text-[28px] lg:text-[32px] font-black text-slate-800 text-center mb-1.5 tracking-tight">
+                {view === 'login' ? 'Welcome Back!' : view === 'request_reset' ? 'Forgot Password' : 'Reset Password'}
+              </h2>
+              <p className="text-[12px] lg:text-[13px] text-slate-500 text-center mb-8 px-2 font-medium leading-relaxed">
+                {view === 'login' 
+                  ? 'Sign in to access your patient records and inventory system.' 
+                  : 'Enter your details to reset your password and regain access.'}
+              </p>
+              
+              {error && (
+                <div className="bg-red-50 text-red-600 border border-red-100 rounded-lg py-2.5 px-4 mb-5 text-xs text-center font-semibold">
+                  {error}
                 </div>
-                
-                {/* Password Field */}
-                <div className="mb-3">
-                  <label className="block text-[0.8rem] text-slate-700 mb-1.5 font-medium" htmlFor="password">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <input 
-                      id="password" 
-                      type={showPassword ? "text" : "password"} 
-                      required 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-md px-4 py-2.5 pr-10 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
-                    />
+              )}
+              {message && (
+                <div className="bg-green-50 text-green-600 border border-green-100 rounded-lg py-2.5 px-4 mb-5 text-xs text-center font-semibold">
+                  {message}
+                </div>
+              )}
+              
+              {/* Forms */}
+              {view === 'login' && (
+                <form onSubmit={handleLogin} className="w-full">
+                  <div className="mb-4">
+                    <label className="block text-[12px] font-extrabold text-slate-800 mb-1.5" htmlFor="username">Username</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <FiUser className="h-[18px] w-[18px] text-slate-400" />
+                      </div>
+                      <input 
+                        id="username" 
+                        type="text" 
+                        required 
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="Enter your username"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3.5 pl-[42px] text-[13px] lg:text-[14px] font-medium focus:border-[#C01D38] focus:ring-1 focus:ring-[#C01D38] outline-none transition-all placeholder:text-slate-400"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="block text-[12px] font-extrabold text-slate-800 mb-1.5" htmlFor="password">Password</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <FiLock className="h-[18px] w-[18px] text-slate-400" />
+                      </div>
+                      <input 
+                        id="password" 
+                        type={showPassword ? "text" : "password"} 
+                        required 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter your password"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3.5 pl-[42px] pr-10 text-[13px] lg:text-[14px] font-medium focus:border-[#C01D38] focus:ring-1 focus:ring-[#C01D38] outline-none transition-all placeholder:text-slate-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-[#C01D38] focus:outline-none transition-colors"
+                      >
+                        {showPassword ? <FiEyeOff className="w-[18px] h-[18px]" /> : <FiEye className="w-[18px] h-[18px]" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end mb-6">
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-[#C01D38] focus:outline-none transition-colors"
+                      onClick={() => { setView('request_reset'); setError(''); setMessage(''); }}
+                      className="text-[11px] lg:text-[12px] text-[#C01D38] hover:text-red-800 font-bold transition-colors"
                     >
-                      {showPassword ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      )}
+                      Forgot Password?
                     </button>
                   </div>
-                </div>
-
-                {/* Forgot Password Link */}
-                <div className="flex justify-end mb-8">
-                  <button
-                    type="button"
-                    onClick={() => { setView('request_reset'); setError(''); setMessage(''); }}
-                    className="text-[0.7rem] text-[#C01D38] hover:underline font-medium bg-transparent border-0 p-0"
+                  
+                  <button 
+                    type="submit" 
+                    className="w-full bg-gradient-to-r from-[#DF1A2E] to-[#B01323] text-white font-bold text-[13px] lg:text-[14px] tracking-wide py-4 rounded-xl hover:shadow-lg transition-all flex items-center justify-between px-6 mb-5"
                   >
-                    Forgot Password?
+                    <span className="flex-1 text-center pl-4">SIGN IN</span>
+                    <FiArrowRight className="w-[18px] h-[18px]" />
                   </button>
-                </div>
-                
-                {/* Submit Button */}
-                <button 
-                  type="submit" 
-                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-md hover:bg-[#a0182f] transition-colors shadow-sm mb-6"
-                >
-                  SIGN IN
-                </button>
-                
-                <div className="relative flex items-center justify-center w-full mb-6">
-                  <div className="border-t border-slate-200 w-full"></div>
-                  <span className="absolute bg-white px-3 text-xs text-slate-400 font-medium tracking-wide">OR</span>
-                </div>
-                
-                <div className="flex justify-center w-full">
-                  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                    <GoogleLogin
-                      onSuccess={handleGoogleSuccess}
-                      onError={handleGoogleError}
-                      useOneTap
-                      theme="outline"
-                      size="large"
-                      width="100%"
-                      text="continue_with"
-                      shape="rectangular"
+                  
+                  <div className="relative flex items-center justify-center w-full mb-5 mt-1">
+                    <div className="border-t border-slate-200 w-full"></div>
+                    <span className="absolute bg-white px-2 text-[9px] uppercase text-slate-400 font-bold tracking-widest">OR</span>
+                  </div>
+                  
+                  <div className="flex justify-center w-full mt-1">
+                    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={handleGoogleError}
+                        useOneTap
+                        theme="outline"
+                        size="large"
+                        text="continue_with"
+                        shape="rectangular"
+                        width="320"
+                      />
+                    </GoogleOAuthProvider>
+                  </div>
+                </form>
+              )}
+
+              {view === 'request_reset' && (
+                <form onSubmit={handleRequestReset} className="w-full">
+                  <div className="mb-5">
+                    <label className="block text-[11px] font-extrabold text-slate-800 mb-1.5" htmlFor="resetUsername">Enter your username</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <FiUser className="h-[16px] w-[16px] text-slate-400" />
+                      </div>
+                      <input 
+                        id="resetUsername" 
+                        type="text" 
+                        required 
+                        value={resetUsername}
+                        onChange={(e) => setResetUsername(e.target.value)}
+                        placeholder="e.g. j.delacruz"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3.5 pl-[38px] text-[12px] lg:text-[13px] font-medium focus:border-[#C01D38] focus:ring-1 focus:ring-[#C01D38] outline-none transition-all placeholder:text-slate-400"
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full bg-gradient-to-r from-[#DF1A2E] to-[#B01323] text-white font-bold text-[12px] lg:text-[13px] tracking-wide py-3.5 rounded-xl hover:shadow-lg transition-all mb-4">
+                    REQUEST RESET LINK
+                  </button>
+                  <div className="text-center">
+                    <button type="button" onClick={() => { setView('login'); setError(''); setMessage(''); }} className="text-xs text-slate-500 hover:text-slate-800 font-bold transition-colors">
+                      Back to Login
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {view === 'perform_reset' && (
+                <form onSubmit={handlePerformReset} className="w-full">
+                  <div className="mb-4">
+                    <label className="block text-[11px] font-extrabold text-slate-800 mb-1.5" htmlFor="resetToken">Reset Token</label>
+                    <input 
+                      id="resetToken" 
+                      type="text" 
+                      required 
+                      value={resetToken}
+                      readOnly
+                      className="w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3.5 text-[12px] lg:text-[13px] font-medium text-slate-500 outline-none"
                     />
-                  </GoogleOAuthProvider>
-                </div>
-              </form>
-            )}
-
-            {view === 'request_reset' && (
-              <form onSubmit={handleRequestReset}>
-                <div className="mb-5">
-                  <label className="block text-[0.8rem] text-slate-700 mb-1.5 font-medium" htmlFor="resetUsername">
-                    Enter your username
-                  </label>
-                  <input 
-                    id="resetUsername" 
-                    type="text" 
-                    required 
-                    value={resetUsername}
-                    onChange={(e) => setResetUsername(e.target.value)}
-                    className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-md px-4 py-2.5 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
-                  />
-                </div>
-                <button 
-                  type="submit" 
-                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-md hover:bg-[#a0182f] transition-colors shadow-sm mb-3"
-                >
-                  REQUEST RESET LINK
-                </button>
-                <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={() => { setView('login'); setError(''); setMessage(''); }}
-                    className="text-[0.8rem] text-slate-500 hover:text-slate-700 font-medium bg-transparent border-0 p-0"
-                  >
-                    Back to Login
+                  </div>
+                  <div className="mb-5">
+                    <label className="block text-[11px] font-extrabold text-slate-800 mb-1.5" htmlFor="newPassword">New Password</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <FiLock className="h-[16px] w-[16px] text-slate-400" />
+                      </div>
+                      <input 
+                        id="newPassword" 
+                        type="password" 
+                        required 
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Enter new password"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3.5 pl-[38px] text-[12px] lg:text-[13px] font-medium focus:border-[#C01D38] focus:ring-1 focus:ring-[#C01D38] outline-none transition-all placeholder:text-slate-400"
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full bg-gradient-to-r from-[#DF1A2E] to-[#B01323] text-white font-bold text-[12px] lg:text-[13px] tracking-wide py-3.5 rounded-xl hover:shadow-lg transition-all mb-4">
+                    RESET PASSWORD
                   </button>
-                </div>
-              </form>
-            )}
+                  <div className="text-center">
+                    <button type="button" onClick={() => { setView('login'); setError(''); setMessage(''); }} className="text-xs text-slate-500 hover:text-slate-800 font-bold transition-colors">
+                      Back to Login
+                    </button>
+                  </div>
+                </form>
+              )}
 
-            {view === 'perform_reset' && (
-              <form onSubmit={handlePerformReset}>
-                <div className="mb-5">
-                  <label className="block text-[0.8rem] text-slate-700 mb-1.5 font-medium" htmlFor="resetToken">
-                    Reset Token (Dev mode)
-                  </label>
-                  <input 
-                    id="resetToken" 
-                    type="text" 
-                    required 
-                    value={resetToken}
-                    readOnly
-                    className="w-full border border-slate-200/70 bg-slate-100 rounded-md px-4 py-2.5 text-sm text-slate-500 outline-none"
-                  />
-                </div>
-                <div className="mb-5">
-                  <label className="block text-[0.8rem] text-slate-700 mb-1.5 font-medium" htmlFor="newPassword">
-                    New Password
-                  </label>
-                  <input 
-                    id="newPassword" 
-                    type="password" 
-                    required 
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full border-t border-l border-b-2 border-r-2 border-slate-200/70 bg-[#FAFAFA] rounded-md px-4 py-2.5 text-sm focus:border-[#C01D38] focus:bg-white outline-none transition-all shadow-inner"
-                  />
-                </div>
-                <button 
-                  type="submit" 
-                  className="w-full bg-[#C01D38] text-white font-bold text-sm tracking-wide py-3.5 rounded-md hover:bg-[#a0182f] transition-colors shadow-sm mb-3"
-                >
-                  RESET PASSWORD
-                </button>
-                <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={() => { setView('login'); setError(''); setMessage(''); }}
-                    className="text-[0.8rem] text-slate-500 hover:text-slate-700 font-medium bg-transparent border-0 p-0"
-                  >
-                    Back to Login
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
+              {/* Security Badge */}
+              <div className="mt-6 bg-[#fdf5f6] rounded-xl p-2.5 flex items-center gap-3 border border-red-50">
+                 <div className="bg-white rounded-lg p-1.5 shadow-sm shrink-0">
+                   <FiShield className="text-[#C01D38] w-[14px] h-[14px] stroke-[2.5]" />
+                 </div>
+                 <div>
+                   <h4 className="text-[#C01D38] font-extrabold text-[10px] tracking-wide">Secure • Reliable • Trusted</h4>
+                   <p className="text-[9px] text-slate-500 mt-[1px] font-medium leading-snug">Your data is protected with enterprise-grade security.</p>
+                 </div>
+              </div>
+           </div>
         </div>
 
-        {/* Copyright & Credits */}
-        <div className="mt-8 md:absolute md:bottom-6 md:left-12 text-center md:text-left">
-          <p className="text-[0.65rem] text-slate-400 font-medium">
-            &copy; 2026 CJC-Clinic. All Rights Reserved.
-          </p>
-          <div className="md:hidden text-[0.6rem] text-slate-400 mt-1">
-            <span>Powered by Rhea Balatero &amp; John Mark Limsan</span>
-          </div>
-        </div>
-      </section>
+        {/* RIGHT COLUMN: Exactly 65% width ALWAYS */}
+        <div className="w-[65vw] flex h-full flex-col items-center relative z-30 pt-[8vh] lg:pt-[10vh] pb-8">
+           
+           {/* Top Headers */}
+           <div className="text-center mb-10 w-full px-4">
+              <div className="text-[#C01D38] text-[20px] md:text-[24px] lg:text-[28px] font-black leading-none mb-1">+</div>
+              <div className="text-[#C01D38] text-[48px] md:text-[56px] lg:text-[72px] font-black leading-none tracking-tight">
+                CJC-Clinic
+              </div>
+              <div className="flex items-center justify-center gap-2 mt-2 mb-3 text-[#C01D38]">
+                 <div className="h-[2px] w-[24px] bg-[#C01D38] rounded-full"></div>
+                 <FiHeart className="w-[14px] h-[14px] lg:w-[16px] lg:h-[16px] fill-current" />
+                 <div className="h-[2px] w-[24px] bg-[#C01D38] rounded-full"></div>
+              </div>
+              <h3 className="text-[14px] md:text-[16px] lg:text-[18px] font-black text-slate-900 tracking-wide mt-1 drop-shadow-sm">
+                Clinic Patient Records System and Inventory
+              </h3>
+           </div>
 
-      {/* Right Side: Branding */}
-      <section 
-        className="w-full md:w-1/2 flex flex-col items-center justify-center border-l border-slate-100 p-8 md:p-12 bg-white min-h-[40vh] md:min-h-screen" 
-        style={{ display: 'flex', backgroundColor: '#ffffff' }}
-      >
-        <div className="text-center max-w-md w-full my-auto">
-          <img 
-            src="/assets/logo.png" 
-            alt="CJC Logo" 
-            className="w-24 h-24 md:w-56 md:h-56 mx-auto mb-4 md:mb-6 object-contain"
-            style={{ margin: '0 auto 1.5rem', objectFit: 'contain' }}
-          />
-          <h1 style={{ fontSize: '2.25rem', color: '#C01D38', fontWeight: 'bold', margin: '0', position: 'relative', display: 'inline-block' }}>
-            CJC-Clinic<sup style={{ position: 'absolute', top: '-1rem', fontSize: '1.25rem', fontWeight: 'bold' }}>+</sup>
-          </h1>
-          <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#475569', fontWeight: '500' }}>
-            Clinic Patient Records System and Inventory
-          </p>
-          
-          <div style={{ margin: '1.5rem auto', borderTop: '1px solid rgba(226, 232, 240, 0.6)', width: '75%' }}></div>
-          
-          <div style={{ color: '#64748b' }}>
-            <div style={{ fontSize: '0.65rem', opacity: 0.75 }}>Powered by</div>
-            <div style={{ fontSize: '0.7rem', fontStyle: 'italic', opacity: 0.85, marginTop: '0.25rem', color: '#475569' }}>
-              Rhea Balatero &amp; John Mark Limsan
-            </div>
-            <div style={{ fontSize: '0.6rem', fontStyle: 'italic', opacity: 0.5, marginTop: '0.25rem' }}>
-              Originally conceived and developed by Bangcailan, Diva, Ngojo, and Sipaylan
-            </div>
-          </div>
+           {/* 4 Feature Cards (Fixed width layout that wraps safely) */}
+           <div className="flex flex-row flex-wrap justify-center gap-3 md:gap-4 lg:gap-5 w-full max-w-[850px] px-2">
+              <FeatureCard icon={<FiFolder />} title="Patient Records" desc="Secure patient information" />
+              <FeatureCard icon={<FiBox />} title="Inventory" desc="Track and manage clinic supplies" />
+              <FeatureCard icon={<FiBarChart2 />} title="Reports" desc="Generate accurate statistics" />
+              <FeatureCard icon={<FiShield />} title="Secure Access" desc="Role-based system access" />
+           </div>
+
+           {/* Elegant Footer Pill pushed to bottom */}
+           <div className="mt-auto bg-white rounded-full px-8 py-3 lg:px-12 lg:py-3.5 shadow-lg flex flex-col items-center text-center relative w-fit mx-auto min-w-[280px] lg:min-w-[400px]">
+              {/* Shield Pin */}
+              <div className="absolute -top-[16px] bg-white rounded-full p-[3px] shadow-sm border border-slate-50">
+                 <div className="bg-[#C01D38] rounded-full p-[6px]">
+                    <FiShield className="text-white w-[14px] h-[14px] fill-current stroke-[2.5]" />
+                 </div>
+              </div>
+              
+              <p className="text-[8px] lg:text-[9px] text-slate-400 font-extrabold uppercase tracking-widest mt-1">Powered by</p>
+              <p className="text-[12px] lg:text-[14px] font-black text-[#C01D38] mt-[1px] tracking-tight">Rhea Balatero & John Mark Limsan</p>
+              <p className="text-[8px] lg:text-[9px] text-slate-400 mt-[3px] font-medium">Originally conceived and developed by Bangcalian, Diva, Ngojo, and Sipayon</p>
+           </div>
+           
         </div>
-      </section>
+      </div>
     </div>
   );
 };
