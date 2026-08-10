@@ -31,7 +31,7 @@ const PatientList: React.FC = () => {
   const [pagination, setPagination] = useState<Pagination>({ page: 1, per_page: 25, total_count: 0, total_pages: 1 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [type, setType] = useState<'all' | 'student' | 'employee'>('all');
+  const [type, setType] = useState<'all' | 'student' | 'employee' | 'guest'>('all');
   const [filterDept, setFilterDept] = useState('');
   const [globalSettings, setGlobalSettings] = useState<any>({});
   
@@ -209,6 +209,12 @@ const PatientList: React.FC = () => {
           >
             Employees
           </button>
+          <button 
+            onClick={() => setType('guest')}
+            className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-semibold rounded-sm transition-all ${type === 'guest' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Guests
+          </button>
         </div>
       </div>
 
@@ -275,6 +281,8 @@ const PatientList: React.FC = () => {
                       <span className={`px-2.5 py-1 inline-flex text-[0.65rem] leading-4 font-bold rounded-full uppercase tracking-wider ${
                         patient.profile_type === 'student' 
                           ? 'bg-blue-50 text-blue-700 border border-blue-100' 
+                          : patient.profile_type === 'guest'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
                           : 'bg-slate-100 text-slate-700 border border-slate-200'
                       }`}>
                         {patient.profile_type}

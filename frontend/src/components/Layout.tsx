@@ -238,7 +238,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                 Welcome back, <span className="font-bold text-slate-700">{user.name || user.username}</span>
               </div>
             )}
-            {user && ['Superadmin', 'Admin'].includes(user.role) && (
+            {user && user.role === 'Superadmin' && (
               <button
                 onClick={() => navigate('/settings')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-colors cursor-pointer ${

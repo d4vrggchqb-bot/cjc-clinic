@@ -41,6 +41,7 @@ class SettingsController {
 
         cjcRequireAuth();
         cjcCsrfValidate();
+        cjcRequireRole(['Superadmin']);
         
         $pdo = cjcDatabaseConnection();
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;

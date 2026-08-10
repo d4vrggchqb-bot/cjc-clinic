@@ -14,7 +14,7 @@ class PatientController {
         
         $pdo = cjcDatabaseConnection();
         $profileType = $_GET['type'] ?? 'all';
-        $allowed     = ['student', 'employee'];
+        $allowed     = ['student', 'employee', 'guest'];
         if ($profileType !== 'all' && !in_array($profileType, $allowed, true)) {
             $profileType = 'all';
         }
@@ -327,8 +327,16 @@ class PatientController {
 
         $pdo = cjcDatabaseConnection();
 
+        // Auto-generate Patient ID Number for guest if empty
+        $idNum = trim($input['patient_id_number'] ?? '');
+        if ($profileType === 'guest' && empty($idNum)) {
+            $year = date('Y');
+            $countStmt = $pdo->query("SELECT COUNT(*) FROM profiles WHERE profile_type = 'guest'");
+            $count = (int)$countStmt->fetchColumn() + 1;
+            $idNum = sprintf('GST-%s-%05d', $year, $count);
+        }
+
         // Check for duplicates
-        $idNum = $input['patient_id_number'] ?? null;
         if (!empty($idNum)) {
             $dupSql = "SELECT id FROM profiles WHERE first_name = :fname AND last_name = :lname AND patient_id_number = :id_num LIMIT 1";
             $dupStmt = $pdo->prepare($dupSql);
@@ -358,7 +366,7 @@ class PatientController {
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 'type' => $profileType,
-                'id_num' => $input['patient_id_number'] ?? null,
+                'id_num' => !empty($idNum) ? $idNum : null,
                 'school_year' => $input['school_year'] ?? null,
                 'fname' => $firstName,
                 'lname' => $lastName,
@@ -384,9 +392,27 @@ class PatientController {
                 'vitals' => $input['vital_stats'] ?? null
             ]);
 
-            $this->jsonResponse(['success' => true, 'id' => $pdo->lastInsertId()]);
+            $this->jsonResponse(['success' => true, 'id' => $pdo->lastInsertId(), 'patient_id_number' => $idNum]);
         } catch (PDOException $e) {
             error_log('[CJC-CLINIC] create patient error: ' . $e->getMessage());
+            $this->jsonResponse(['error' => 'Database error'], 500);
+        }
+    }
+
+    public function nextGuestId() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth();
+        $pdo = cjcDatabaseConnection();
+        try {
+            $year = date('Y');
+            $stmt = $pdo->query("SELECT COUNT(*) FROM profiles WHERE profile_type = 'guest'");
+            $count = (int)$stmt->fetchColumn() + 1;
+            $guestId = sprintf('GST-%s-%05d', $year, $count);
+            $this->jsonResponse(['success' => true, 'guest_id' => $guestId]);
+        } catch (PDOException $e) {
             $this->jsonResponse(['error' => 'Database error'], 500);
         }
     }

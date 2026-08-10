@@ -60,6 +60,8 @@ switch ($route) {
             $controller->get();
         } elseif ($action === 'check_id') {
             $controller->checkId();
+        } elseif ($action === 'next_guest_id') {
+            $controller->nextGuestId();
         }
         break;
 

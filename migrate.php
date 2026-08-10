@@ -99,20 +99,27 @@ try {
     }
 
     try {
-        $pdo->exec("ALTER TABLE `inventory_items` ADD COLUMN `formulation` VARCHAR(100) DEFAULT NULL AFTER `dosage`");
+        $pdo->exec("ALTER TABLE `profiles` MODIFY COLUMN `profile_type` ENUM('student', 'employee', 'guest') NOT NULL DEFAULT 'student'");
     } catch (PDOException $e) {
-        // Ignore if column already exists
+        // Ignore error
     }
-    
+
     try {
-        $pdo->exec("ALTER TABLE `profiles` 
-            ADD COLUMN `mother_name` VARCHAR(100) DEFAULT NULL AFTER `last_name`,
-            ADD COLUMN `father_name` VARCHAR(100) DEFAULT NULL AFTER `mother_name`,
-            ADD COLUMN `height` VARCHAR(50) DEFAULT NULL AFTER `gender`,
-            ADD COLUMN `weight` VARCHAR(50) DEFAULT NULL AFTER `height`
+        $pdo->exec("ALTER TABLE `borrowings` ADD COLUMN `booking_code` VARCHAR(20) DEFAULT NULL UNIQUE AFTER `id`");
+    } catch (PDOException $e) {
+        // Ignore error
+    }
+
+    try {
+        $pdo->exec("ALTER TABLE `inventory_items` 
+            ADD COLUMN `date_acquired` DATE DEFAULT NULL,
+            ADD COLUMN `date_purchased` DATE DEFAULT NULL,
+            ADD COLUMN `last_calibrated` DATE DEFAULT NULL,
+            ADD COLUMN `calibration_due` DATE DEFAULT NULL,
+            ADD COLUMN `calibration_notes` TEXT DEFAULT NULL
         ");
     } catch (PDOException $e) {
-        // Ignore if columns already exist
+        // Ignore error
     }
     
     echo "Tables created/updated successfully. Recovered {$recoveredExtracts} OCR extract(s).\n";

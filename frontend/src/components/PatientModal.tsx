@@ -396,6 +396,16 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
               <div className="bg-slate-100/80 p-1.5 rounded-xl inline-flex flex-wrap sm:flex-nowrap gap-1 mb-5 border border-slate-200/60">
                 <button type="button" onClick={() => handleRadioChange('profile_type', 'student')} className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 whitespace-nowrap shadow-sm text-center ${formData.profile_type === 'student' ? 'bg-white text-[#C01D38] shadow border border-slate-200/60' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 shadow-none border-transparent'}`}>Student <span className="hidden sm:inline">Profile</span></button>
                 <button type="button" onClick={() => handleRadioChange('profile_type', 'employee')} className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 whitespace-nowrap shadow-sm text-center ${formData.profile_type === 'employee' ? 'bg-white text-[#C01D38] shadow border border-slate-200/60' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 shadow-none border-transparent'}`}>Employee <span className="hidden sm:inline">Profile</span></button>
+                <button type="button" onClick={() => {
+                  handleRadioChange('profile_type', 'guest');
+                  if (!patientId && (!formData.patient_id_number || formData.patient_id_number.startsWith('GST-'))) {
+                    apiFetch('/api/index.php?route=patients&action=next_guest_id')
+                      .then(res => {
+                        if (res.guest_id) setFormData(prev => ({ ...prev, profile_type: 'guest', patient_id_number: res.guest_id }));
+                      })
+                      .catch(() => {});
+                  }
+                }} className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 whitespace-nowrap shadow-sm text-center ${formData.profile_type === 'guest' ? 'bg-white text-[#C01D38] shadow border border-slate-200/60' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 shadow-none border-transparent'}`}>Guest <span className="hidden sm:inline">Visitor</span></button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">

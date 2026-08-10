@@ -1144,6 +1144,12 @@ const Consultation: React.FC = () => {
                   
                   {/* Diagnosis & Treatment Text Areas */}
                   <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+                    {userRole === 'Staff' && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+                        <FiAlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                        <span>Staff Access: You can view medical notes and record patient vital signs, but editing diagnosis and prescriptions is restricted to Physicians/Nurses.</span>
+                      </div>
+                    )}
                     <div>
                       <div className="flex justify-between items-center mb-1.5">
                         <label className="text-xs font-bold text-slate-800">Diagnosis / Clinical Assessment *</label>
@@ -1152,9 +1158,10 @@ const Consultation: React.FC = () => {
                       <textarea 
                         value={diagnosis} 
                         onChange={e => setDiagnosis(e.target.value)} 
+                        disabled={userRole === 'Staff'}
                         rows={3} 
-                        placeholder="Enter diagnosis or doctor's assessment..." 
-                        className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] bg-slate-50/30"
+                        placeholder={userRole === 'Staff' ? "Diagnosis entry restricted to Physicians/Nurses" : "Enter diagnosis or doctor's assessment..."} 
+                        className={`w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] ${userRole === 'Staff' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/30'}`}
                       ></textarea>
                     </div>
 
@@ -1166,9 +1173,10 @@ const Consultation: React.FC = () => {
                       <textarea 
                         value={treatment} 
                         onChange={e => setTreatment(e.target.value)} 
+                        disabled={userRole === 'Staff'}
                         rows={3} 
-                        placeholder="Enter prescribed medicines, advice, or given treatments..." 
-                        className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] bg-slate-50/30"
+                        placeholder={userRole === 'Staff' ? "Treatment entry restricted to Physicians/Nurses" : "Enter prescribed medicines, advice, or given treatments..."} 
+                        className={`w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] ${userRole === 'Staff' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/30'}`}
                       ></textarea>
                     </div>
                   </div>
