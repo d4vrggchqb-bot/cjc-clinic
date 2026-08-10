@@ -27,6 +27,11 @@ class BorrowingController {
             $stmt = $pdo->prepare("INSERT INTO borrowings (profile_id, purpose, expected_return_date, status) VALUES (?, ?, ?, 'active')");
             $stmt->execute([$profileId, $purpose, $expectedReturnDate]);
             $borrowingId = $pdo->lastInsertId();
+
+            // Auto-generate booking reference code (e.g. EQ-2026-00042)
+            $bookingCode = 'EQ-' . date('Y') . '-' . str_pad($borrowingId, 5, '0', STR_PAD_LEFT);
+            $codeStmt = $pdo->prepare("UPDATE borrowings SET booking_code = ? WHERE id = ?");
+            $codeStmt->execute([$bookingCode, $borrowingId]);
             
             // 2. Process each item
             foreach ($items as $item) {
@@ -142,7 +147,7 @@ class BorrowingController {
         $pdo = cjcDatabaseConnection();
         $stmt = $pdo->query("
             SELECT bi.id as borrowed_item_id, bi.quantity, b.created_at as item_created,
-                   b.id as borrowing_id, b.purpose, b.expected_return_date, b.created_at,
+                   b.id as borrowing_id, b.booking_code, b.purpose, b.expected_return_date, b.created_at,
                    p.first_name, p.last_name, p.course, p.year_level, p.profile_type,
                    i.generic_name, i.brand_name, i.id as inventory_item_id
             FROM borrowed_items bi
@@ -162,7 +167,7 @@ class BorrowingController {
         
         $pdo = cjcDatabaseConnection();
         $stmt = $pdo->query("
-            SELECT b.id as borrowing_id, b.purpose, b.created_at,
+            SELECT b.id as borrowing_id, b.booking_code, b.purpose, b.created_at,
                    p.first_name, p.last_name, p.course, p.year_level, p.profile_type,
                    bi.item_type, bi.status, bi.quantity,
                    i.generic_name, i.brand_name
@@ -181,6 +186,7 @@ class BorrowingController {
             if (!isset($history[$bId])) {
                 $history[$bId] = [
                     'id' => $bId,
+                    'booking_code' => $row['booking_code'] ?: ('EQ-' . date('Y') . '-' . str_pad($bId, 5, '0', STR_PAD_LEFT)),
                     'purpose' => $row['purpose'],
                     'created_at' => $row['created_at'],
                     'first_name' => $row['first_name'],

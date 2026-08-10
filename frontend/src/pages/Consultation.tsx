@@ -93,8 +93,9 @@ const Consultation: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
-  // Medical Notes Modal State
+  // Medical Notes & Staff Vitals Modal State
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
+  const [isStaffVitalsModalOpen, setIsStaffVitalsModalOpen] = useState(false);
   const [activeNoteEntry, setActiveNoteEntry] = useState<LogbookEntry | null>(null);
   const [bp, setBp] = useState('');
   const [temp, setTemp] = useState('');
@@ -110,9 +111,18 @@ const Consultation: React.FC = () => {
     suggested_treatment: string[];
   }>({ severity: 'normal', alerts: [], suggested_diagnosis: [], suggested_treatment: [] });
 
+  const openStaffVitalsModal = (entry: LogbookEntry) => {
+    setActiveNoteEntry(entry);
+    setBp(entry.blood_pressure || '');
+    setTemp(entry.temperature || '');
+    setWeight(entry.weight || '');
+    setPulse('');
+    setIsStaffVitalsModalOpen(true);
+  };
+
   // Live Vitals Analysis Effect
   useEffect(() => {
-    if (!isNotesModalOpen) return;
+    if (!isNotesModalOpen && !isStaffVitalsModalOpen) return;
     
     const timer = setTimeout(() => {
       if (bp.trim() || temp.trim() || pulse.trim()) {
@@ -404,6 +414,68 @@ const Consultation: React.FC = () => {
     }
   };
 
+  const handleSaveStaffVitals = async () => {
+    if (!activeNoteEntry) return;
+    setIsSavingNotes(true);
+    try {
+      const res = await apiFetch(`/api/index.php?route=consultations&action=saveNotes`, {
+        method: 'POST',
+        body: JSON.stringify({
+          id: activeNoteEntry.id,
+          blood_pressure: bp,
+          temperature: temp,
+          weight: weight,
+          diagnosis: activeNoteEntry.diagnosis || '',
+          treatment: activeNoteEntry.treatment || '',
+          clinic_branch: activeNoteEntry.clinic_branch || 'College Clinic'
+        })
+      });
+      if (res.success) {
+        toast.success('Patient vital signs saved successfully!');
+        setIsStaffVitalsModalOpen(false);
+        fetchEntries();
+      } else {
+        toast.error(res.message || 'Failed to save vital signs.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('An error occurred while saving vital signs.');
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
+  const handleReturnMedicine = async (itemId: number, itemName: string) => {
+    const qtyStr = prompt(`How many units of "${itemName}" are being returned?`, '1');
+    if (!qtyStr) return;
+    const returnQty = parseInt(qtyStr, 10);
+    if (isNaN(returnQty) || returnQty <= 0) {
+      toast.error('Please enter a valid positive number.');
+      return;
+    }
+
+    try {
+      const res = await apiFetch('/api/index.php?route=inventory&action=return_medicine', {
+        method: 'POST',
+        body: JSON.stringify({
+          item_id: itemId,
+          quantity: returnQty,
+          profile_id: activeNoteEntry?.profile_id,
+          patient_name: activeNoteEntry?.patient_name,
+          clinic_branch: activeNoteEntry?.clinic_branch || 'College Clinic'
+        })
+      });
+
+      if (res.success) {
+        toast.success(`Success! ${returnQty} unit(s) of ${itemName} returned to inventory stock.`);
+      } else {
+        toast.error(res.error || 'Failed to return medicine.');
+      }
+    } catch (err) {
+      toast.error('Network error returning medicine.');
+    }
+  };
+
   const handleGenerateMedcert = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeNoteEntry) return;
@@ -556,8 +628,9 @@ const Consultation: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden p-3 sm:p-6 gap-4 sm:gap-6">
         
-        {/* Top Horizontal Bar: Check-in */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-5 flex-shrink-0">
+        {/* Top Horizontal Bar: Check-in (Hidden for Superadmin) */}
+        {userRole !== 'Superadmin' && (
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-5 flex-shrink-0">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
               <FiUserPlus className="text-[#A5192D]" />
@@ -775,6 +848,7 @@ const Consultation: React.FC = () => {
             </div>
           )}
         </div>
+        )}
 
         {/* Bottom Panel: Data Table */}
         <div className="flex-1 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden">
@@ -894,28 +968,59 @@ const Consultation: React.FC = () => {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-center gap-2">
-                          {entry.status === 'waiting' && (
-                            <button 
-                              onClick={() => handleStartConsultation(entry.id)}
-                              className="bg-[#28a745] hover:bg-[#218838] text-white text-xs font-bold px-3 py-1 rounded transition-colors"
-                            >
-                              Start
-                            </button>
-                          )}
-                          {(entry.status === 'in-progress' || entry.status === 'active') && !entry.time_out && (
+                          {userRole !== 'Superadmin' && (
                             <>
-                              <button 
-                                onClick={() => openNotesModal(entry)}
-                                className="bg-[#8c1526] hover:bg-[#7a1221] text-white text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap"
-                              >
-                                Medical Notes
-                              </button>
-                              <button 
-                                onClick={() => handleCheckout(entry.id)}
-                                className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap"
-                              >
-                                Set Time Out
-                              </button>
+                              {entry.status === 'waiting' && (
+                                <>
+                                  <button 
+                                    onClick={() => handleStartConsultation(entry.id)}
+                                    className="bg-[#28a745] hover:bg-[#218838] text-white text-xs font-bold px-3 py-1 rounded transition-colors"
+                                  >
+                                    Start
+                                  </button>
+                                  {userRole === 'Staff' && (
+                                    <button 
+                                      onClick={() => openStaffVitalsModal(entry)}
+                                      className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap flex items-center gap-1"
+                                    >
+                                      <FiActivity /> Record Vitals
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                              {(entry.status === 'in-progress' || entry.status === 'active') && !entry.time_out && (
+                                <>
+                                  {userRole === 'Staff' ? (
+                                    <button 
+                                      onClick={() => openStaffVitalsModal(entry)}
+                                      className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap flex items-center gap-1"
+                                    >
+                                      <FiActivity /> Record Vitals
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      onClick={() => openNotesModal(entry)}
+                                      className="bg-[#8c1526] hover:bg-[#7a1221] text-white text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap"
+                                    >
+                                      Medical Notes
+                                    </button>
+                                  )}
+                                  <button 
+                                    onClick={() => handleCheckout(entry.id)}
+                                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap"
+                                  >
+                                    Set Time Out
+                                  </button>
+                                </>
+                              )}
+                              {entry.status === 'completed' && userRole === 'Staff' && (
+                                <button 
+                                  onClick={() => openStaffVitalsModal(entry)}
+                                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap flex items-center gap-1"
+                                >
+                                  <FiActivity /> View Vitals
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -1269,8 +1374,15 @@ const Consultation: React.FC = () => {
                         {dispensedItems.map((di, idx) => (
                           <div key={idx} className="flex justify-between items-center bg-slate-50 px-3.5 py-2.5 border border-slate-200/80 rounded-xl text-sm">
                             <span className="font-semibold text-slate-800">{di.name}</span>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 sm:gap-3">
                               <span className="text-xs text-slate-500">Qty: <span className="font-bold text-slate-800 text-sm">{di.quantity}</span></span>
+                              <button
+                                type="button"
+                                onClick={() => handleReturnMedicine(di.item_id, di.name)}
+                                className="text-amber-700 hover:text-amber-800 text-xs font-bold bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200 transition-colors cursor-pointer"
+                              >
+                                ↩ Return
+                              </button>
                               <button onClick={() => setDispensedItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-600 hover:text-red-700 text-xs font-bold cursor-pointer">Remove</button>
                             </div>
                           </div>
@@ -1577,6 +1689,159 @@ const Consultation: React.FC = () => {
                 <span>Valid only with official clinic signature & seal • Generated by CJC Clinic Management System</span>
                 <span className="font-bold text-slate-500">Cor Jesu College Health Services</span>
               </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Staff Dedicated Vital Signs Record Modal */}
+      {isStaffVitalsModalOpen && activeNoteEntry && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 transition-all duration-300">
+          <div className="bg-white rounded-3xl shadow-[0_25px_70px_-15px_rgba(0,0,0,0.3)] w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-300">
+            
+            {/* Header */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-sky-700 to-blue-800 px-6 py-5 flex justify-between items-center text-white shrink-0">
+              <div className="relative z-10 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white font-bold">
+                  <FiActivity className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg sm:text-xl font-bold tracking-tight">Patient Vital Signs Record</h2>
+                    <span className="bg-white/20 text-white text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border border-white/30">Staff Access</span>
+                  </div>
+                  <p className="text-white/80 text-xs mt-0.5">
+                    Patient: <span className="font-bold underline underline-offset-2">{activeNoteEntry.patient_name}</span> ({activeNoteEntry.patient_id_number || 'No ID'})
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsStaffVitalsModalOpen(false)} 
+                className="relative z-10 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2.5 rounded-full transition-all hover:rotate-90 duration-300 shrink-0"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[80vh] space-y-5 bg-slate-50/50">
+              
+              {/* Patient Quick Card */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">Patient Overview</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><span className="text-slate-500">Name:</span> <span className="font-bold text-slate-800">{activeNoteEntry.patient_name}</span></div>
+                  <div><span className="text-slate-500">Branch:</span> <span className="font-medium text-slate-700">{activeNoteEntry.clinic_branch || 'College Clinic'}</span></div>
+                  <div className="col-span-2"><span className="text-slate-500">Check-in Purpose:</span> <span className="font-medium text-[#8c1526]">{activeNoteEntry.purpose}</span></div>
+                </div>
+              </div>
+
+              {/* Vital Signs Form Inputs */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center justify-between">
+                  <span>Record Patient Vitals</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Real-time Smart Assistant</span>
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Blood Pressure (mmHg)</label>
+                    <input 
+                      type="text" 
+                      value={bp} 
+                      onChange={e => setBp(e.target.value)} 
+                      placeholder="e.g. 120/80" 
+                      className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Temperature (°C)</label>
+                    <input 
+                      type="text" 
+                      value={temp} 
+                      onChange={e => setTemp(e.target.value)} 
+                      placeholder="e.g. 36.5" 
+                      className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Weight (kg)</label>
+                    <input 
+                      type="text" 
+                      value={weight} 
+                      onChange={e => setWeight(e.target.value)} 
+                      placeholder="e.g. 60" 
+                      className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Pulse Rate (bpm)</label>
+                    <input 
+                      type="text" 
+                      value={pulse} 
+                      onChange={e => setPulse(e.target.value)} 
+                      placeholder="e.g. 72" 
+                      className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Smart Vitals Assistant Alerts */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2 mb-3">
+                  <FiActivity className="text-sky-600 w-4 h-4 shrink-0" />
+                  Smart Vitals Assistant Analysis
+                </h4>
+
+                {vitalsAnalysis.alerts.length > 0 ? (
+                  <div className="space-y-2">
+                    {vitalsAnalysis.alerts.map((al, idx) => (
+                      <div 
+                        key={idx} 
+                        className={`text-xs px-3.5 py-2.5 rounded-xl border font-bold flex items-center gap-2.5 shadow-2xs ${
+                          al.type === 'critical'
+                            ? 'bg-rose-50 text-rose-800 border-rose-200'
+                            : al.type === 'warning'
+                            ? 'bg-amber-50 text-amber-900 border-amber-200'
+                            : 'bg-blue-50 text-blue-800 border-blue-200'
+                        }`}
+                      >
+                        <FiAlertCircle className="shrink-0 w-4 h-4" />
+                        <span>{al.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">
+                    Type vital signs above (e.g. Blood Pressure or Temperature) to trigger automated clinical health alerts.
+                  </p>
+                )}
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-white px-6 py-4 border-t border-slate-200 flex justify-end gap-3 shrink-0">
+              <button 
+                type="button" 
+                onClick={() => setIsStaffVitalsModalOpen(false)}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={handleSaveStaffVitals}
+                disabled={isSavingNotes}
+                className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold shadow-md transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+              >
+                {isSavingNotes ? 'Saving...' : 'Save Vital Signs'}
+              </button>
             </div>
 
           </div>

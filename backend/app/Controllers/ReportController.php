@@ -24,6 +24,8 @@ class ReportController {
         $department = $_GET['department'] ?? 'All Departments';
         $program = $_GET['program'] ?? 'All Programs';
         $yearLevel = $_GET['year_level'] ?? 'All Year Levels';
+        $semester = $_GET['semester'] ?? 'All Semesters';
+        $purpose = $_GET['purpose'] ?? 'All Purposes';
         
         $branch = $userBranch;
         if ($userRole === 'Superadmin' && isset($_GET['branch']) && $_GET['branch'] !== 'All Branches') {
@@ -52,6 +54,10 @@ class ReportController {
         if ($yearLevel !== 'All Year Levels' && !empty($yearLevel)) {
             $profileConditions .= ' AND p.year_level = :year_level';
             $branchParams['year_level'] = $yearLevel;
+        }
+        if ($purpose !== 'All Purposes' && !empty($purpose)) {
+            $profileConditions .= ' AND c.purpose LIKE :purpose';
+            $branchParams['purpose'] = '%' . $purpose . '%';
         }
 
         // 1. Total Visits by Type (Student vs Employee vs Others)

@@ -335,7 +335,7 @@ class AuthController {
     private function authenticateUser(string $username, string $password): ?array {
         try {
             $pdo = cjcDatabaseConnection();
-            $stmt = $pdo->prepare('SELECT id, username, password_hash, name, role, clinic_branch FROM users WHERE username = :username LIMIT 1');
+            $stmt = $pdo->prepare('SELECT id, username, password_hash, name, role, clinic_branch FROM users WHERE LOWER(username) = LOWER(:username) LIMIT 1');
             $stmt->execute(['username' => $username]);
             $user = $stmt->fetch();
 

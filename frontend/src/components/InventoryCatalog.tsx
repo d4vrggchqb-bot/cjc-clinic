@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiPlus, FiBox, FiAlertCircle, FiChevronDown, FiChevronUp, FiPlusCircle, FiMinusCircle, FiEdit3 } from 'react-icons/fi';
+import { FiPlus, FiBox, FiAlertCircle, FiChevronDown, FiChevronUp, FiPlusCircle, FiMinusCircle, FiEdit3, FiPrinter, FiCheckCircle } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
 
@@ -12,6 +12,11 @@ interface InventoryItem {
   dosage: string | null;
   formulation: string | null;
   alert_threshold: number;
+  date_acquired?: string | null;
+  date_purchased?: string | null;
+  last_calibrated?: string | null;
+  calibration_due?: string | null;
+  calibration_notes?: string | null;
 }
 
 interface InventoryBatch {
@@ -31,6 +36,7 @@ const InventoryCatalog: React.FC = () => {
   const [batches, setBatches] = useState<InventoryBatch[]>([]);
   const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [calibrationCertItem, setCalibrationCertItem] = useState<InventoryItem | null>(null);
   
   // Modals state
   const [showAddItem, setShowAddItem] = useState(false);
@@ -220,6 +226,16 @@ const InventoryCatalog: React.FC = () => {
                       </div>
                     </td>
                     <td className="p-3 text-right">
+                      {item.category === 'equipment' && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setCalibrationCertItem(item); }}
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-xs font-bold mr-1 inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Print Annual Calibration Certificate"
+                        >
+                          <FiPrinter size={12} /> Cert
+                        </button>
+                      )}
                       <button onClick={(e) => { e.stopPropagation(); setShowAddBatch(item.id); }} className="text-emerald-600 hover:text-emerald-800 p-1 mx-1" title="Restock (Add Batch)">
                         <FiPlusCircle size={18} />
                       </button>
@@ -350,16 +366,36 @@ const InventoryCatalog: React.FC = () => {
               {newItem.category === 'equipment' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Equipment Name <span className="text-red-500">*</span></label>
-                    <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} />
+                    <label className="block text-sm font-medium mb-1">Equipment / Apparatus Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} placeholder="e.g. Digital BP Apparatus, Otoscope" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Brand / Model (Optional)</label>
-                    <input type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} />
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.brand_name || ''} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} placeholder="e.g. Omron HEM-7120" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Date Purchased</label>
+                      <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.date_purchased || ''} onChange={e => setNewItem({...newItem, date_purchased: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Date Acquired</label>
+                      <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.date_acquired || ''} onChange={e => setNewItem({...newItem, date_acquired: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Last Calibrated</label>
+                      <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.last_calibrated || ''} onChange={e => setNewItem({...newItem, last_calibrated: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Next Calibration Due</label>
+                      <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.calibration_due || ''} onChange={e => setNewItem({...newItem, calibration_due: e.target.value})} />
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Description / Specs (Optional)</label>
-                    <input type="text" className="w-full border p-2 rounded" value={newItem.dosage} onChange={e => setNewItem({...newItem, dosage: e.target.value})} />
+                    <label className="block text-xs font-semibold mb-1">Calibration Notes / Cert No.</label>
+                    <input type="text" className="w-full border p-2 rounded text-xs" value={newItem.calibration_notes || ''} onChange={e => setNewItem({...newItem, calibration_notes: e.target.value})} placeholder="e.g. Calibrated by Biomedical Tech, Cert #CAL-2026-88" />
                   </div>
                 </>
               )}
@@ -493,6 +529,83 @@ const InventoryCatalog: React.FC = () => {
                 <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">Save Changes</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Annual Calibration Certificate Modal */}
+      {calibrationCertItem && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[90vh]">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center no-print">
+              <span className="font-bold text-sm flex items-center gap-2">
+                <FiCheckCircle className="text-emerald-400" /> Printable Equipment Calibration Certificate
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"
+                >
+                  <FiPrinter /> Print Certificate
+                </button>
+                <button
+                  onClick={() => setCalibrationCertItem(null)}
+                  className="text-slate-400 hover:text-white font-bold text-xl px-2"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Document Sheet */}
+            <div className="p-8 overflow-y-auto bg-white text-slate-800 space-y-6">
+              {/* Header */}
+              <div className="text-center border-b-2 border-slate-900 pb-4">
+                <h2 className="text-xl font-black uppercase text-[#8c1526]">Cor Jesu College Health Services Clinic</h2>
+                <p className="text-xs text-slate-600 uppercase tracking-widest">Biomedical Equipment & Medical Apparatus Inspection</p>
+                <h1 className="text-2xl font-serif font-black uppercase tracking-wider text-slate-900 mt-4">Annual Calibration Certificate</h1>
+                <p className="text-xs text-slate-500 font-mono">Cert No: CAL-{new Date().getFullYear()}-{String(calibrationCertItem.id).padStart(5, '0')}</p>
+              </div>
+
+              {/* Apparatus Details */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 text-xs">
+                <h3 className="font-extrabold uppercase tracking-wider text-slate-700">Apparatus Information</h3>
+                <div className="grid grid-cols-2 gap-3 text-slate-700">
+                  <div><span className="text-slate-500">Equipment Name:</span> <strong className="text-slate-900 font-bold">{calibrationCertItem.generic_name}</strong></div>
+                  <div><span className="text-slate-500">Brand / Model:</span> <strong className="text-slate-900 font-bold">{calibrationCertItem.brand_name || 'N/A'}</strong></div>
+                  <div><span className="text-slate-500">Date Acquired:</span> <strong className="text-slate-900 font-bold">{calibrationCertItem.date_acquired || 'N/A'}</strong></div>
+                  <div><span className="text-slate-500">Date Purchased:</span> <strong className="text-slate-900 font-bold">{calibrationCertItem.date_purchased || 'N/A'}</strong></div>
+                  <div><span className="text-slate-500">Last Calibrated:</span> <strong className="text-emerald-700 font-bold">{calibrationCertItem.last_calibrated || new Date().toISOString().split('T')[0]}</strong></div>
+                  <div><span className="text-slate-500">Next Calibration Due:</span> <strong className="text-amber-700 font-bold">{calibrationCertItem.calibration_due || 'N/A'}</strong></div>
+                </div>
+              </div>
+
+              {/* Inspection Status Banner */}
+              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl text-xs text-emerald-900 space-y-1">
+                <h4 className="font-bold uppercase tracking-wide flex items-center gap-1.5 text-emerald-800">
+                  <FiCheckCircle className="text-emerald-600" /> Calibration Status: PASSED & VERIFIED
+                </h4>
+                <p className="text-emerald-700">
+                  This apparatus has undergone standard biomedical inspection and functionality testing. It meets accuracy and clinical precision standards for health services administration.
+                </p>
+                {calibrationCertItem.calibration_notes && (
+                  <p className="font-medium text-slate-700 pt-1">
+                    <span className="text-slate-500">Notes / Remarks:</span> {calibrationCertItem.calibration_notes}
+                  </p>
+                )}
+              </div>
+
+              {/* Signatures Footer */}
+              <div className="pt-10 flex justify-between items-end text-xs">
+                <div className="w-40 h-20 border-2 border-dashed border-slate-300 rounded-xl flex items-center justify-center text-center p-2 text-slate-400 text-[10px] uppercase font-bold">
+                  Clinic Seal & Stamp
+                </div>
+                <div className="text-center w-64">
+                  <div className="border-b-2 border-slate-900 mb-1 pb-1 font-bold text-slate-900 uppercase">Registered Biomedical Tech / Nurse</div>
+                  <div className="text-[10px] text-slate-500">Cor Jesu College Health Services</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -550,10 +550,13 @@ const BookingHistoryList: React.FC = () => {
           {history.map((record, idx) => (
             <div key={idx} className="border border-slate-200 rounded-lg p-5 flex flex-col md:flex-row md:items-start gap-4 hover:border-slate-300 transition-colors bg-slate-50/50">
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <FiUser className="text-slate-400" />
-                  <span className="font-bold text-slate-700">{record.first_name} {record.last_name}</span>
-                  <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-semibold ml-2 uppercase">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="font-mono text-xs font-extrabold bg-[#8c1526] text-white px-2.5 py-1 rounded-md shadow-2xs tracking-wide">
+                    {record.booking_code || `EQ-${new Date(record.created_at).getFullYear()}-${String(record.id).padStart(5, '0')}`}
+                  </span>
+                  <FiUser className="text-slate-400 ml-1" />
+                  <span className="font-bold text-slate-800">{record.first_name} {record.last_name}</span>
+                  <span className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-semibold uppercase">
                     {record.profile_type}
                   </span>
                 </div>

@@ -32,16 +32,110 @@ class InventoryController {
         }
 
         $pdo = cjcDatabaseConnection();
-        $stmt = $pdo->prepare("INSERT INTO inventory_items (category, brand_name, generic_name, dosage, formulation, alert_threshold) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO inventory_items (category, brand_name, generic_name, dosage, formulation, alert_threshold, date_acquired, date_purchased, last_calibrated, calibration_due, calibration_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $input['category'] ?? 'medicine',
             $input['brand_name'] ?? null,
             $input['generic_name'] ?? '',
             $input['dosage'] ?? null,
             $input['formulation'] ?? null,
-            $input['alert_threshold'] ?? 20
+            $input['alert_threshold'] ?? 20,
+            !empty($input['date_acquired']) ? $input['date_acquired'] : null,
+            !empty($input['date_purchased']) ? $input['date_purchased'] : null,
+            !empty($input['last_calibrated']) ? $input['last_calibrated'] : null,
+            !empty($input['calibration_due']) ? $input['calibration_due'] : null,
+            $input['calibration_notes'] ?? null
         ]);
         $this->jsonResponse(['success' => true, 'id' => $pdo->lastInsertId()]);
+    }
+
+    public function updateItem() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin', 'Staff']);
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $id = (int)($input['id'] ?? 0);
+        if ($id <= 0) $this->jsonResponse(['success' => false, 'error' => 'Invalid item ID'], 400);
+
+        $pdo = cjcDatabaseConnection();
+        $stmt = $pdo->prepare("
+            UPDATE inventory_items 
+            SET category = ?, brand_name = ?, generic_name = ?, dosage = ?, formulation = ?, alert_threshold = ?, 
+                date_acquired = ?, date_purchased = ?, last_calibrated = ?, calibration_due = ?, calibration_notes = ? 
+            WHERE id = ?
+        ");
+        $stmt->execute([
+            $input['category'] ?? 'medicine',
+            $input['brand_name'] ?? null,
+            $input['generic_name'] ?? '',
+            $input['dosage'] ?? null,
+            $input['formulation'] ?? null,
+            $input['alert_threshold'] ?? 20,
+            !empty($input['date_acquired']) ? $input['date_acquired'] : null,
+            !empty($input['date_purchased']) ? $input['date_purchased'] : null,
+            !empty($input['last_calibrated']) ? $input['last_calibrated'] : null,
+            !empty($input['calibration_due']) ? $input['calibration_due'] : null,
+            $input['calibration_notes'] ?? null,
+            $id
+        ]);
+        $this->jsonResponse(['success' => true]);
+    }
+
+    public function returnMedicine() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin', 'Doctor', 'Nurse', 'Staff']);
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $itemId = (int)($input['item_id'] ?? 0);
+        $returnQty = (int)($input['quantity'] ?? 1);
+        $profileId = !empty($input['profile_id']) ? (int)$input['profile_id'] : null;
+        $patientName = trim($input['patient_name'] ?? 'Patient');
+        $branch = $input['clinic_branch'] ?? $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+
+        if ($itemId <= 0 || $returnQty <= 0) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid item or return quantity'], 400);
+        }
+
+        $pdo = cjcDatabaseConnection();
+
+        try {
+            $pdo->beginTransaction();
+
+            // Find an active batch for this item and branch
+            $batchStmt = $pdo->prepare("SELECT id, stock_remaining FROM inventory_batches WHERE item_id = ? AND clinic_branch = ? AND status = 'active' ORDER BY id ASC LIMIT 1");
+            $batchStmt->execute([$itemId, $branch]);
+            $batch = $batchStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$batch) {
+                // Create a new active batch for returns
+                $createBatch = $pdo->prepare("INSERT INTO inventory_batches (item_id, clinic_branch, batch_number, stock_remaining, date_arrived, status) VALUES (?, ?, ?, ?, CURDATE(), 'active')");
+                $createBatch->execute([$itemId, $branch, 'RET-' . date('Ymd'), $returnQty]);
+                $batchId = $pdo->lastInsertId();
+            } else {
+                $batchId = $batch['id'];
+                // Increase stock
+                $updateStock = $pdo->prepare("UPDATE inventory_batches SET stock_remaining = stock_remaining + ? WHERE id = ?");
+                $updateStock->execute([$returnQty, $batchId]);
+            }
+
+            // Log return action
+            $currentUser = cjcCurrentUser();
+            $logStmt = $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'restock', ?, ?, ?, ?)");
+            $logStmt->execute([
+                $batchId,
+                $returnQty,
+                'Returned by ' . $patientName,
+                $profileId,
+                $currentUser['id'] ?? null
+            ]);
+
+            $pdo->commit();
+            $this->jsonResponse(['success' => true, 'message' => 'Medicine returned successfully and inventory stock updated.']);
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('Return Medicine Error: ' . $e->getMessage());
+            $this->jsonResponse(['success' => false, 'error' => 'Database error'], 500);
+        }
     }
 
     // --- BATCHES ---

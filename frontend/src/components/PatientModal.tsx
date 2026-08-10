@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft, FiCheck, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
+import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft, FiCheck, FiRefreshCw, FiAlertCircle, FiZap, FiDatabase, FiCloudDownload, FiCheckCircle } from 'react-icons/fi';
 
 interface PatientModalProps {
   isOpen: boolean;
@@ -26,7 +26,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
         })
         .catch(() => {});
     }
-  }, [user, isOpen]);
+  }, [isOpen, user]);
 
   const getAutoSelectedSubType = (u: any) => {
     if (!u || u.role === 'Superadmin' || !u.clinic_branch) {
@@ -50,29 +50,31 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
   const [formData, setFormData] = useState({
     profile_type: 'student',
     patient_id_number: '',
-    school_year: '2026-2027',
     first_name: '',
     last_name: '',
     middle_initial: '',
     birthdate: '',
-    gender: '',
-    blood_type: '',
+    gender: 'Male',
     sub_type: 'College',
-    college_dept: '',
-    year_level: '',
-    course: '',
+    college_dept: 'CCIS',
+    bed_dept: 'Senior High School',
+    bed_year_level: 'Grade 11',
+    post_graduate_school: 'Law School',
+    post_graduate_program: 'Juris Doctor',
+    custom_category_type: '',
+    custom_category_item: '',
+    course: 'BS Computer Science',
+    year_level: '1st Year',
+    school_year: '2026-2027',
     contact: '',
     email: '',
     address: '',
+    blood_type: 'Unknown',
+    allergies: '',
+    medical_history: '',
     emergency_contact_name: '',
     emergency_contact_number: '',
-    emergency_relation: '',
-    health_history: '',
-    vital_stats: '',
-    height: '',
-    weight: '',
-    mother_name: '',
-    father_name: ''
+    emergency_relation: 'Parent / Guardian'
   });
   
   // Health History specific state
@@ -94,6 +96,63 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
   const [error, setError] = useState('');
   const [idChecking, setIdChecking] = useState(false);
   const [isIdDuplicate, setIsIdDuplicate] = useState(false);
+  const [isFetchingSsc, setIsFetchingSsc] = useState(false);
+  const [sscStatus, setSscStatus] = useState<string | null>(null);
+  const [showSscListModal, setShowSscListModal] = useState(false);
+  const [sscStudents, setSscStudents] = useState<any[]>([]);
+  const [loadingSscList, setLoadingSscList] = useState(false);
+
+  const handleOpenSscList = async () => {
+    setShowSscListModal(true);
+    setLoadingSscList(true);
+    try {
+      const res = await apiFetch('/api/index.php?route=ssc&action=list_ssc');
+      if (res.students) {
+        setSscStudents(res.students);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingSscList(false);
+    }
+  };
+
+  const handleSscLookup = async (overrideId?: string) => {
+    const idNum = (overrideId || formData.patient_id_number).trim();
+    if (!idNum) return;
+    setIsFetchingSsc(true);
+    setSscStatus(null);
+    try {
+      const res = await apiFetch(`/api/index.php?route=ssc&action=lookup&student_id=${encodeURIComponent(idNum)}`);
+      if (res.found && res.clinic_profile) {
+        const p = res.clinic_profile;
+        setFormData(prev => ({
+          ...prev,
+          patient_id_number: p.patient_id_number || prev.patient_id_number,
+          first_name: p.first_name || prev.first_name,
+          last_name: p.last_name || prev.last_name,
+          middle_initial: p.middle_initial || prev.middle_initial,
+          birthdate: p.birthdate || prev.birthdate,
+          gender: p.gender || prev.gender,
+          college_dept: p.college_dept || prev.college_dept,
+          course: p.course || prev.course,
+          year_level: p.year_level || prev.year_level,
+          contact: p.contact || prev.contact,
+          email: p.email || prev.email,
+          address: p.address || prev.address,
+          emergency_contact_name: p.emergency_contact_name || prev.emergency_contact_name,
+          emergency_contact_number: p.emergency_contact_number || prev.emergency_contact_number
+        }));
+        setSscStatus(`Auto-filled student info from SSC Database for ${res.ssc_data.fullName}`);
+      } else {
+        setSscStatus(`Student ID not found in SSC database — please enter details manually.`);
+      }
+    } catch (err) {
+      setSscStatus(`Unable to query SSC Database.`);
+    } finally {
+      setIsFetchingSsc(false);
+    }
+  };
   const [globalSettings, setGlobalSettings] = useState<any>({ 
     school_year: '2026-2027', 
     departments_hierarchy: [],
@@ -410,12 +469,45 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                 <div className="md:col-span-3">
-                  <label className={labelClass}>Patient ID (Student / Employee ID) <span className="text-red-500">*</span></label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className={labelClass}>Patient ID (Student / Employee ID) <span className="text-red-500">*</span></label>
+                    {formData.profile_type === 'student' && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenSscList()}
+                          className="text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                        >
+                          <FiDatabase className="w-3 h-3 text-slate-500" />
+                          <span>SSC Directory</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSscLookup()}
+                          disabled={isFetchingSsc || !formData.patient_id_number.trim()}
+                          className="text-xs font-extrabold text-[#C01D38] hover:text-white hover:bg-[#A5192D] bg-red-50/80 border border-red-200/80 px-3 py-1 rounded-full transition-all duration-200 flex items-center gap-1.5 shadow-2xs disabled:opacity-50 cursor-pointer"
+                        >
+                          {isFetchingSsc && <FiRefreshCw className="animate-spin w-3.5 h-3.5 text-[#C01D38]" />}
+                          <span>Fetch from SSC DB</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <div className="relative">
-                    <input type="text" name="patient_id_number" value={formData.patient_id_number} onChange={handleChange} required className={`${inputClass} ${isIdDuplicate ? 'border-red-500 focus:border-red-600 bg-red-50 text-red-700' : ''}`} placeholder="e.g. 2024-0001 or EMP-0010" />
+                    <input type="text" name="patient_id_number" value={formData.patient_id_number} onChange={handleChange} required className={`${inputClass} ${isIdDuplicate ? 'border-red-500 focus:border-red-600 bg-red-50 text-red-700' : ''}`} placeholder="e.g. 2022-0027-8 or 2021-0492" />
                     {idChecking && <FiRefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
                     {isIdDuplicate && !idChecking && <FiAlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />}
                   </div>
+                  {sscStatus && (
+                    <div className={`mt-1.5 text-xs font-bold px-3 py-2 rounded-xl border flex items-center gap-2 shadow-2xs ${!sscStatus.includes('not found') && !sscStatus.includes('Unable') ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-900 border-amber-200'}`}>
+                      {!sscStatus.includes('not found') && !sscStatus.includes('Unable') ? (
+                        <FiCheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <FiAlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      )}
+                      <span>{sscStatus}</span>
+                    </div>
+                  )}
                   {isIdDuplicate && !idChecking && <span className="text-red-500 text-[10px] font-bold block mt-1 ml-1">This ID is already registered.</span>}
                 </div>
                 <div>
@@ -809,6 +901,82 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
         </div>
 
       </div>
+
+      {/* SSC Student Database Directory Modal */}
+      {showSscListModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-slate-900 px-6 py-4 flex justify-between items-center text-white">
+              <div className="flex items-center gap-2.5">
+                <FiDatabase className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-lg">SSC Student Database Directory</h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowSscListModal(false)}
+                className="text-slate-400 hover:text-white font-bold text-xl p-1 rounded-full hover:bg-white/10"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[70vh] overflow-y-auto space-y-3 bg-slate-50/50">
+              <p className="text-xs text-slate-500 font-medium">
+                Click <strong>"Select & Auto-fill"</strong> on any student profile to auto-populate their info into the registration form.
+              </p>
+
+              {loadingSscList ? (
+                <div className="py-12 text-center text-slate-400 text-sm font-semibold flex items-center justify-center gap-2">
+                  <FiRefreshCw className="animate-spin" /> Loading SSC Database records...
+                </div>
+              ) : sscStudents.length > 0 ? (
+                <div className="space-y-3">
+                  {sscStudents.map((st, idx) => (
+                    <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-extrabold bg-slate-900 text-white px-2 py-0.5 rounded-md">
+                            {st.studentId}
+                          </span>
+                          <span className="font-bold text-slate-800 text-sm">{st.fullName}</span>
+                          <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">{st.yearLevel}</span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span>Dept: <strong className="text-slate-700">{st.department}</strong></span>
+                          <span>Program: <strong className="text-slate-700">{st.program}</strong></span>
+                          <span>DOB: <strong className="text-slate-700">{st.dateOfBirth}</strong></span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowSscListModal(false);
+                          handleSscLookup(st.studentId);
+                        }}
+                        className="bg-[#C01D38] hover:bg-[#8c1526] text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer"
+                      >
+                        Select & Auto-fill
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-slate-400 text-xs">No student records found in the database.</div>
+              )}
+            </div>
+
+            <div className="bg-white px-6 py-3 border-t border-slate-200 flex justify-end">
+              <button 
+                type="button" 
+                onClick={() => setShowSscListModal(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+              >
+                Close Directory
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -27,7 +27,8 @@ export default function Settings() {
       .then(res => {
         if (res.settings) {
           setSettings({
-            school_year: res.settings.school_year || '',
+            school_year: res.settings.school_year || '2026-2027',
+            active_semester: res.settings.active_semester || '1st Semester',
             departments_hierarchy: Array.isArray(res.settings.departments_hierarchy) ? res.settings.departments_hierarchy : [],
             bed_hierarchy: Array.isArray(res.settings.bed_hierarchy) ? res.settings.bed_hierarchy : [],
             post_graduate_hierarchy: Array.isArray(res.settings.post_graduate_hierarchy) ? res.settings.post_graduate_hierarchy : [],
@@ -224,22 +225,39 @@ export default function Settings() {
           {activeTab === 'academic' && (
             <>
               <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-                <h3 className="text-[#8c1526] font-bold text-lg mb-2">School Year</h3>
-                <p className="text-slate-500 text-sm mb-4">The active school year shown on records and reports.</p>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm font-bold text-slate-700">School Year:</span>
-                  <input 
-                    type="text" 
-                    value={settings.school_year} 
-                    onChange={e => setSettings({...settings, school_year: e.target.value})}
-                    className="border border-slate-300 rounded px-3 py-1.5 focus:border-[#8c1526] focus:outline-none"
-                  />
-                  <button 
-                    onClick={handleSaveSettings}
-                    className="bg-[#8c1526] text-white px-4 py-1.5 rounded font-bold text-sm flex items-center gap-2 hover:bg-[#7a1221]"
-                  >
-                    <FiSave /> Save
-                  </button>
+                <h3 className="text-[#8c1526] font-bold text-lg mb-1">Academic Year & Semester Configuration</h3>
+                <p className="text-slate-500 text-sm mb-4">Set the active school year and current semester used for health records, logbooks, and semestral reports.</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">School Year:</label>
+                    <input 
+                      type="text" 
+                      value={settings.school_year || ''} 
+                      onChange={e => setSettings({...settings, school_year: e.target.value})}
+                      placeholder="e.g. 2026-2027"
+                      className="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-sm focus:border-[#8c1526] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Active Semester:</label>
+                    <select
+                      value={settings.active_semester || '1st Semester'}
+                      onChange={e => setSettings({...settings, active_semester: e.target.value})}
+                      className="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-sm focus:border-[#8c1526] focus:outline-none bg-white text-slate-700 font-semibold"
+                    >
+                      <option value="1st Semester">1st Semester</option>
+                      <option value="2nd Semester">2nd Semester</option>
+                      <option value="Summer Term">Summer Term</option>
+                    </select>
+                  </div>
+                  <div>
+                    <button 
+                      onClick={handleSaveSettings}
+                      className="w-full bg-[#8c1526] text-white px-5 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#7a1221] shadow-sm transition-colors cursor-pointer"
+                    >
+                      <FiSave /> Save Academic Term
+                    </button>
+                  </div>
                 </div>
               </div>
 

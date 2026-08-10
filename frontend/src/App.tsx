@@ -15,7 +15,7 @@ import Reports from './pages/Reports';
 import Borrowings from './pages/Borrowings';
 import { ConfirmProvider } from './context/ConfirmContext';
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [user, setUser] = useState<any>(null);
 
@@ -35,7 +35,15 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <div className="flex h-screen items-center justify-center">Loading...</div>;
   }
 
-  return isAuthenticated ? <Layout user={user}>{children}</Layout> : <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Layout user={user}>{children}</Layout>;
 };
 
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -95,13 +103,13 @@ const App: React.FC = () => {
             </ProtectedRoute>
           } />
           
-          <Route path="/patients" element={<ProtectedRoute><PatientList /></ProtectedRoute>} />
-          <Route path="/appointments" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
-          <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
-          <Route path="/consultation" element={<ProtectedRoute><Consultation /></ProtectedRoute>} />
-          <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-          <Route path="/borrowings" element={<ProtectedRoute><Borrowings /></ProtectedRoute>} />
+          <Route path="/patients" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'Doctor', 'Nurse']}><PatientList /></ProtectedRoute>} />
+          <Route path="/appointments" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'Doctor', 'Nurse']}><Appointments /></ProtectedRoute>} />
+          <Route path="/inventory" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'Doctor', 'Nurse']}><Inventory /></ProtectedRoute>} />
+          <Route path="/consultation" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'Doctor', 'Nurse']}><Consultation /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute allowedRoles={['Superadmin', 'Admin', 'Staff', 'Doctor', 'Nurse']}><Reports /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute allowedRoles={['Superadmin']}><Settings /></ProtectedRoute>} />
+          <Route path="/borrowings" element={<ProtectedRoute allowedRoles={['Admin', 'Staff', 'Doctor', 'Nurse']}><Borrowings /></ProtectedRoute>} />
           
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>

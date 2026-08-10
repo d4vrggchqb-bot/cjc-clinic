@@ -40,7 +40,15 @@ const PatientList: React.FC = () => {
   // To avoid spamming, let's use a delayed search effect
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
   useEffect(() => {
+    apiFetch('/api/index.php?action=check_session')
+      .then(res => {
+        if (res.success && res.user) setCurrentUser(res.user);
+      })
+      .catch(() => {});
+
     apiFetch('/api/index.php?route=settings&action=get')
       .then(res => {
         if (res.settings) setGlobalSettings(res.settings);
@@ -151,14 +159,16 @@ const PatientList: React.FC = () => {
   return (
     <div className="px-5 py-5 w-full h-full flex flex-col">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-end sm:items-end gap-4 mb-6 sm:mb-8">
-        <button 
-          onClick={handleOpenAdd}
-          className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-md text-xs sm:text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm w-full sm:w-auto">
-          <FiPlus className="w-4 h-4" strokeWidth={3} />
-          Add New Patient
-        </button>
-      </div>
+      {currentUser?.role !== 'Superadmin' && (
+        <div className="flex flex-col sm:flex-row justify-end sm:items-end gap-4 mb-6 sm:mb-8">
+          <button 
+            onClick={handleOpenAdd}
+            className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-md text-xs sm:text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm w-full sm:w-auto">
+            <FiPlus className="w-4 h-4" strokeWidth={3} />
+            Add New Patient
+          </button>
+        </div>
+      )}
 
       {/* Control Bar */}
       <div className="bg-white rounded-t-md border-t border-l border-r border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -305,11 +315,13 @@ const PatientList: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end gap-2">
-                        <button 
-                          onClick={() => confirmAdmit({id: patient.id, name: patient.name})}
-                          className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors mr-2" title="Admit Patient">
-                          <FiActivity className="w-3.5 h-3.5" /> Admit
-                        </button>
+                        {currentUser?.role !== 'Superadmin' && (
+                          <button 
+                            onClick={() => confirmAdmit({id: patient.id, name: patient.name})}
+                            className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors mr-2" title="Admit Patient">
+                            <FiActivity className="w-3.5 h-3.5" /> Admit
+                          </button>
+                        )}
                         <button 
                           onClick={() => handleOpenView(patient.id)}
                           className="bg-slate-50 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors mr-2" title="View Details">

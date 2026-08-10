@@ -32,6 +32,8 @@ const Reports: React.FC = () => {
   const [department, setDepartment] = useState('All Departments');
   const [program, setProgram] = useState('All Programs');
   const [yearLevel, setYearLevel] = useState('All Year Levels');
+  const [semester, setSemester] = useState('All Semesters');
+  const [purpose, setPurpose] = useState('All Purposes');
   
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -40,7 +42,9 @@ const Reports: React.FC = () => {
   const [globalSettings, setGlobalSettings] = useState<any>({ 
     departments_hierarchy: [],
     bed_hierarchy: [],
-    college_year_levels: []
+    college_year_levels: [],
+    cues: [],
+    active_semester: '1st Semester'
   });
   
   // Modal State
@@ -74,7 +78,9 @@ const Reports: React.FC = () => {
           setGlobalSettings({
             departments_hierarchy: Array.isArray(res.settings.departments_hierarchy) ? res.settings.departments_hierarchy : [],
             bed_hierarchy: Array.isArray(res.settings.bed_hierarchy) ? res.settings.bed_hierarchy : [],
-            college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : []
+            college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
+            cues: Array.isArray(res.settings.cues) ? res.settings.cues : [],
+            active_semester: res.settings.active_semester || '1st Semester'
           });
         }
       })
@@ -85,7 +91,7 @@ const Reports: React.FC = () => {
     if (!startDate || !endDate) return;
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/index.php?route=reports&action=generate&start_date=${startDate}&end_date=${endDate}&branch=${encodeURIComponent(selectedBranch)}&department=${encodeURIComponent(department)}&program=${encodeURIComponent(program)}&year_level=${encodeURIComponent(yearLevel)}`);
+      const res = await apiFetch(`/api/index.php?route=reports&action=generate&start_date=${startDate}&end_date=${endDate}&branch=${encodeURIComponent(selectedBranch)}&department=${encodeURIComponent(department)}&program=${encodeURIComponent(program)}&year_level=${encodeURIComponent(yearLevel)}&semester=${encodeURIComponent(semester)}&purpose=${encodeURIComponent(purpose)}`);
       setData(res);
       setUserRole(res.user_role);
       
@@ -102,7 +108,7 @@ const Reports: React.FC = () => {
     if (startDate && endDate) {
       fetchReport();
     }
-  }, [startDate, endDate, selectedBranch, department, program, yearLevel]);
+  }, [startDate, endDate, selectedBranch, department, program, yearLevel, semester, purpose]);
 
   const handleExportClick = () => {
     if (!data || !data.export_data || data.export_data.length === 0) {
@@ -279,6 +285,34 @@ const Reports: React.FC = () => {
                 <option value="All Year Levels">All Year Levels</option>
                 {dynamicYearLevels.map((yr: string, idx: number) => (
                   <option key={idx} value={yr}>{yr}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Semester Filter */}
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+              <select 
+                value={semester}
+                onChange={(e) => setSemester(e.target.value)}
+                className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[130px] truncate cursor-pointer pr-2 font-semibold"
+              >
+                <option value="All Semesters">All Semesters</option>
+                <option value="1st Semester">1st Semester</option>
+                <option value="2nd Semester">2nd Semester</option>
+                <option value="Summer Term">Summer Term</option>
+              </select>
+            </div>
+
+            {/* Purpose Filter (Pre-saved Cues) */}
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+              <select 
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
+                className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[160px] truncate cursor-pointer pr-2 font-semibold"
+              >
+                <option value="All Purposes">All Visit Purposes</option>
+                {globalSettings.cues?.map((cue: string, idx: number) => (
+                  <option key={idx} value={cue}>{cue}</option>
                 ))}
               </select>
             </div>

@@ -71,6 +71,10 @@ switch ($route) {
             $controller->getItems();
         } elseif ($action === 'add_item') {
             $controller->addItem();
+        } elseif ($action === 'update_item') {
+            $controller->updateItem();
+        } elseif ($action === 'return_medicine') {
+            $controller->returnMedicine();
         } elseif ($action === 'batches') {
             $controller->getBatches();
         } elseif ($action === 'add_batch') {
@@ -182,6 +186,16 @@ switch ($route) {
             $controller->getRecentHistory();
         } elseif ($action === 'return_item') {
             $controller->returnEquipment();
+        }
+        break;
+
+    case 'ssc':
+        require_once __DIR__ . '/../../app/Controllers/SscController.php';
+        $controller = new SscController();
+        if ($action === 'lookup') {
+            $controller->lookup();
+        } elseif ($action === 'list_ssc') {
+            $controller->listSsc();
         }
         break;
 }
