@@ -1,11 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import { FiSearch, FiEye, FiEdit2, FiPlus, FiActivity } from 'react-icons/fi';
+import { FiSearch, FiEye, FiEdit2, FiPlus, FiActivity, FiTrash2, FiX, FiTag, FiCheckCircle } from 'react-icons/fi';
 import PatientModal from '../components/PatientModal';
 import PatientViewModal from '../components/PatientViewModal';
 import { useConfirm } from '../context/ConfirmContext';
 
+const DEFAULT_CUES = [
+  'General Consultation',
+  'Fever / Chills',
+  'Headache / Dizziness',
+  'Stomachache / Abdominal Pain',
+  'Blood Pressure Check',
+  'Medical Certificate / Physical Exam',
+  'First Aid / Injury / Wound Care',
+  'Dysmenorrhea',
+  'Medication Release',
+  'Toothache / Dental',
+  'Other Custom Cue'
+];
 
 interface Patient {
   id: number;
@@ -14,6 +27,7 @@ interface Patient {
   contact: string | null;
   program_department: string | null;
   blood_type: string | null;
+  patient_id_number?: string;
 }
 
 interface Pagination {
@@ -33,14 +47,19 @@ const PatientList: React.FC = () => {
   const [search, setSearch] = useState('');
   const [type, setType] = useState<'all' | 'student' | 'employee' | 'guest'>('all');
   const [filterDept, setFilterDept] = useState('');
+  const [sort, setSort] = useState('newest');
   const [globalSettings, setGlobalSettings] = useState<any>({});
   
-  // A debounce mechanism for search would go here ideally, but for now we'll fetch on enter or button click
-  // Or we can just use a simple useEffect dependency on search
-  // To avoid spamming, let's use a delayed search effect
   const [debouncedSearch, setDebouncedSearch] = useState('');
-
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Admit Patient with Cue State
+  const [isAdmitModalOpen, setIsAdmitModalOpen] = useState(false);
+  const [admittingPatient, setAdmittingPatient] = useState<Patient | null>(null);
+  const [selectedCue, setSelectedCue] = useState('General Consultation');
+  const [customCue, setCustomCue] = useState('');
+  const [complaintNote, setComplaintNote] = useState('');
+  const [isAdmitting, setIsAdmitting] = useState(false);
 
   useEffect(() => {
     apiFetch('/api/index.php?action=check_session')
@@ -55,6 +74,15 @@ const PatientList: React.FC = () => {
       })
       .catch(() => console.error("Failed to fetch settings"));
   }, []);
+
+  const availableCues = React.useMemo(() => {
+    if (Array.isArray(globalSettings?.cues) && globalSettings.cues.length > 0) {
+      const merged = [...globalSettings.cues];
+      if (!merged.includes('Other Custom Cue')) merged.push('Other Custom Cue');
+      return merged;
+    }
+    return DEFAULT_CUES;
+  }, [globalSettings]);
 
   const allDepartments = React.useMemo(() => {
     const depts = new Set<string>();
@@ -76,7 +104,6 @@ const PatientList: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
-  const [isAdmitting, setIsAdmitting] = useState(false);
 
   const handleOpenAdd = () => {
     setSelectedPatientId(null);
@@ -93,21 +120,32 @@ const PatientList: React.FC = () => {
     setIsViewModalOpen(true);
   };
 
-  const confirmAdmit = async (patient: {id: number, name: string}) => {
-    const confirmed = await confirm({
-      title: 'Admit Patient?',
-      message: `Are you sure you want to admit ${patient.name} for a new consultation?`,
-      type: 'info'
-    });
-    if (!confirmed) return;
+  const openAdmitModal = (patient: Patient) => {
+    setAdmittingPatient(patient);
+    setSelectedCue(availableCues[0] || 'General Consultation');
+    setCustomCue('');
+    setComplaintNote('');
+    setIsAdmitModalOpen(true);
+  };
+
+  const handleAdmitSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!admittingPatient) return;
+
+    const finalCue = selectedCue === 'Other Custom Cue' ? (customCue.trim() || 'General Consultation') : selectedCue;
 
     setIsAdmitting(true);
     try {
       const res = await apiFetch('/api/index.php?route=consultations&action=create', {
         method: 'POST',
-        body: JSON.stringify({ profile_id: patient.id, purpose: 'Walk-in Consultation' })
+        body: JSON.stringify({
+          profile_id: admittingPatient.id,
+          purpose: finalCue,
+          complaint: complaintNote
+        })
       });
       if (res.success && res.id) {
+        setIsAdmitModalOpen(false);
         navigate('/consultation', { state: { openNotesFor: res.id } });
       } else {
         alert('Failed to admit patient: ' + (res.message || 'Unknown error'));
@@ -117,6 +155,33 @@ const PatientList: React.FC = () => {
       console.error('Admission failed:', err);
       alert('An error occurred while admitting the patient.');
       setIsAdmitting(false);
+    }
+  };
+
+  const handleDeletePatient = async (id: number, name: string) => {
+    const isConfirmed = await confirm({
+      title: 'Delete Patient Profile',
+      type: 'danger',
+      message: `Are you sure you want to permanently delete the profile for "${name}"?\n\nINFORMING NOTICE FOR ADMIN: This action is PERMANENT and NOT REVERSIBLE. Deleting this profile will permanently erase all associated medical history, vital signs records, consultation notes, and uploaded attachments for this patient.`,
+      confirmText: 'Delete Permanently',
+      confirmVariant: 'danger'
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      const res = await apiFetch('/api/index.php?route=patients&action=delete', {
+        method: 'POST',
+        body: JSON.stringify({ id })
+      });
+      if (res.success) {
+        fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort);
+      } else {
+        alert(res.error || 'Failed to delete patient profile.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete patient profile.');
     }
   };
 
@@ -132,13 +197,13 @@ const PatientList: React.FC = () => {
   }, [search]);
 
   useEffect(() => {
-    fetchPatients(pagination.page, debouncedSearch, type, filterDept);
-  }, [pagination.page, debouncedSearch, type, filterDept]);
+    fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort);
+  }, [pagination.page, debouncedSearch, type, filterDept, sort]);
 
-  const fetchPatients = async (page: number, searchQuery: string, filterType: string, dept: string = '') => {
+  const fetchPatients = async (page: number, searchQuery: string, filterType: string, dept: string = '', sortOption: string = 'newest') => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/index.php?route=patients&action=list&page=${page}&search=${encodeURIComponent(searchQuery)}&type=${filterType}&dept=${encodeURIComponent(dept)}`);
+      const res = await apiFetch(`/api/index.php?route=patients&action=list&page=${page}&search=${encodeURIComponent(searchQuery)}&type=${filterType}&dept=${encodeURIComponent(dept)}&sort=${sortOption}`);
       if (res.profiles) {
         setPatients(res.profiles);
         setPagination(res.pagination);
@@ -196,6 +261,17 @@ const PatientList: React.FC = () => {
             {allDepartments.map((dept, idx) => (
               <option key={idx} value={dept}>{dept}</option>
             ))}
+          </select>
+          <select
+            value={sort}
+            onChange={(e) => { setSort(e.target.value); setPagination(prev => ({...prev, page: 1})); }}
+            className="block w-full sm:w-48 px-3 py-2 border border-slate-200 rounded-md leading-5 bg-[#FAFAFA] focus:outline-none focus:bg-white focus:border-[#C01D38] sm:text-sm transition-colors text-slate-700 font-medium cursor-pointer"
+          >
+            <option value="newest">Sort: Newest First</option>
+            <option value="oldest">Sort: Oldest First</option>
+            <option value="name_asc">Sort: Name (A - Z)</option>
+            <option value="name_desc">Sort: Name (Z - A)</option>
+            <option value="dept_asc">Sort: Department</option>
           </select>
         </div>
 
@@ -317,8 +393,8 @@ const PatientList: React.FC = () => {
                       <div className="flex justify-end gap-2">
                         {currentUser?.role !== 'Superadmin' && (
                           <button 
-                            onClick={() => confirmAdmit({id: patient.id, name: patient.name})}
-                            className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors mr-2" title="Admit Patient">
+                            onClick={() => openAdmitModal(patient)}
+                            className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors mr-2 cursor-pointer" title="Admit Patient to Queue">
                             <FiActivity className="w-3.5 h-3.5" /> Admit
                           </button>
                         )}
@@ -329,9 +405,16 @@ const PatientList: React.FC = () => {
                         </button>
                         <button 
                           onClick={() => handleOpenEdit(patient.id)}
-                          className="bg-slate-50 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors" title="Edit Patient">
+                          className="bg-slate-50 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors mr-2" title="Edit Patient">
                           <FiEdit2 className="w-3.5 h-3.5" /> Edit
                         </button>
+                        {(currentUser?.role === 'Admin' || currentUser?.role === 'Superadmin') && (
+                          <button 
+                            onClick={() => handleDeletePatient(patient.id, patient.name)}
+                            className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer" title="Delete Patient Profile Permanently">
+                            <FiTrash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -378,6 +461,107 @@ const PatientList: React.FC = () => {
         onClose={() => setIsViewModalOpen(false)} 
         patientId={selectedPatientId} 
       />
+
+      {/* Admit Patient Modal */}
+      {isAdmitModalOpen && admittingPatient && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity animate-in fade-in duration-300" onClick={() => setIsAdmitModalOpen(false)}></div>
+          
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden z-10 animate-in zoom-in-95 duration-300 border border-slate-200">
+            <div className="bg-[#9B101E] px-6 py-5 text-white relative">
+              <button 
+                onClick={() => setIsAdmitModalOpen(false)}
+                className="absolute right-4 top-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-all cursor-pointer"
+              >
+                <FiX className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center border border-white/20">
+                  <FiActivity className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Admit Patient to Queue</h3>
+                  <p className="text-xs text-white/80 font-medium">Categorize visit cue for report generation & queue tracking</p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleAdmitSubmit} className="p-6 space-y-4">
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-0.5">Patient Details</div>
+                <div className="text-base font-extrabold text-slate-800">{admittingPatient.name}</div>
+                {admittingPatient.patient_id_number && (
+                  <div className="text-xs font-semibold text-slate-500">ID: {admittingPatient.patient_id_number}</div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                  <FiTag className="text-[#C01D38]" /> Select Cue / Purpose of Visit <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedCue}
+                    onChange={(e) => setSelectedCue(e.target.value)}
+                    required
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white focus:outline-none focus:border-[#C01D38] focus:ring-2 focus:ring-red-100 transition-all cursor-pointer shadow-2xs"
+                  >
+                    {availableCues.map((cueOption, idx) => (
+                      <option key={idx} value={cueOption}>
+                        {cueOption === 'Other Custom Cue' ? 'Other (Type new custom cue...)' : cueOption}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {selectedCue === 'Other Custom Cue' && (
+                <div className="animate-in fade-in duration-200 bg-red-50/50 p-3 rounded-2xl border border-red-100 space-y-1">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Write New Cue <span className="text-[#C01D38] text-[11px] font-normal">(Will auto-save to Clinical Presets settings)</span> <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customCue}
+                    onChange={(e) => setCustomCue(e.target.value)}
+                    placeholder="e.g. Dysmenorrhea, Toothache, Ear Checkup..."
+                    required
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:border-[#C01D38] bg-white shadow-2xs"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Chief Complaint / Initial Symptoms (Optional)</label>
+                <textarea
+                  rows={2}
+                  value={complaintNote}
+                  onChange={(e) => setComplaintNote(e.target.value)}
+                  placeholder="Record initial symptoms or walk-in reason..."
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-[#C01D38] bg-slate-50 focus:bg-white resize-none"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAdmitModalOpen(false)}
+                  className="flex-1 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAdmitting}
+                  className="flex-1 py-2.5 bg-[#C01D38] hover:bg-[#a0182f] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {isAdmitting ? 'Admitting...' : 'Admit & Open Queue'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

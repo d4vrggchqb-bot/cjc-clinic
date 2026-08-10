@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { FiAlertTriangle, FiInfo, FiCheckCircle, FiSave, FiX } from 'react-icons/fi';
+import { FiAlertTriangle, FiInfo, FiCheckCircle, FiSave, FiX, FiTrash2 } from 'react-icons/fi';
 
 type ConfirmType = 'info' | 'warning' | 'danger' | 'save' | 'success';
 
@@ -7,9 +7,11 @@ interface ConfirmOptions {
   title: string;
   message: string;
   type?: ConfirmType;
+  confirmVariant?: ConfirmType;
   confirmText?: string;
   cancelText?: string;
   hideCancel?: boolean;
+  onConfirm?: () => void | Promise<void>;
 }
 
 interface ConfirmContextType {
@@ -43,7 +45,14 @@ export const ConfirmProvider: React.FC<ConfirmProviderProps> = ({ children }) =>
     });
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (options?.onConfirm) {
+      try {
+        await options.onConfirm();
+      } catch (err) {
+        console.error('Confirm callback error:', err);
+      }
+    }
     if (resolvePromise) resolvePromise(true);
     setIsOpen(false);
   };
@@ -69,8 +78,8 @@ export const ConfirmProvider: React.FC<ConfirmProviderProps> = ({ children }) =>
         };
       case 'danger':
         return {
-          icon: <FiAlertTriangle className="w-6 h-6 text-red-600" />,
-          iconBg: 'bg-red-100',
+          icon: <FiTrash2 className="w-6 h-6 text-red-600" />,
+          iconBg: 'bg-red-100/90 border border-red-200',
           btnBg: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
         };
       case 'warning':
@@ -89,7 +98,7 @@ export const ConfirmProvider: React.FC<ConfirmProviderProps> = ({ children }) =>
     }
   };
 
-  const currentStyles = options ? getTypeStyles(options.type) : getTypeStyles('info');
+  const currentStyles = options ? getTypeStyles(options.type || options.confirmVariant || 'info') : getTypeStyles('info');
 
   return (
     <ConfirmContext.Provider value={{ confirm }}>

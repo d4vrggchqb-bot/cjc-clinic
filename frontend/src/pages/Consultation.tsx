@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX, FiActivity } from 'react-icons/fi';
+import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX, FiActivity, FiClock, FiEdit2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
 import PatientModal from '../components/PatientModal';
@@ -103,7 +103,6 @@ const Consultation: React.FC = () => {
   const [pulse, setPulse] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [treatment, setTreatment] = useState('');
-  const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [vitalsAnalysis, setVitalsAnalysis] = useState<{
     severity: string;
     alerts: { type: string; message: string }[];
@@ -111,56 +110,10 @@ const Consultation: React.FC = () => {
     suggested_treatment: string[];
   }>({ severity: 'normal', alerts: [], suggested_diagnosis: [], suggested_treatment: [] });
 
-  const openStaffVitalsModal = (entry: LogbookEntry) => {
-    setActiveNoteEntry(entry);
-    setBp(entry.blood_pressure || '');
-    setTemp(entry.temperature || '');
-    setWeight(entry.weight || '');
-    setPulse('');
-    setIsStaffVitalsModalOpen(true);
-  };
-
-  // Live Vitals Analysis Effect
-  useEffect(() => {
-    if (!isNotesModalOpen && !isStaffVitalsModalOpen) return;
-    
-    const timer = setTimeout(() => {
-      if (bp.trim() || temp.trim() || pulse.trim()) {
-        apiFetch(`/api/index.php?route=consultations&action=analyze_vitals&bp=${encodeURIComponent(bp)}&temp=${encodeURIComponent(temp)}&pulse=${encodeURIComponent(pulse)}`)
-          .then(res => {
-            if (res.success) {
-              setVitalsAnalysis({
-                severity: res.severity || 'normal',
-                alerts: Array.isArray(res.alerts) ? res.alerts : [],
-                suggested_diagnosis: Array.isArray(res.suggested_diagnosis) ? res.suggested_diagnosis : [],
-                suggested_treatment: Array.isArray(res.suggested_treatment) ? res.suggested_treatment : []
-              });
-            }
-          })
-          .catch(() => {});
-      } else {
-        setVitalsAnalysis({ severity: 'normal', alerts: [], suggested_diagnosis: [], suggested_treatment: [] });
-      }
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [bp, temp, pulse, isNotesModalOpen]);
-
-  const appendDiagnosisSuggestion = (text: string) => {
-    setDiagnosis(prev => {
-      if (!prev) return text;
-      if (prev.includes(text)) return prev;
-      return `${prev}, ${text}`;
-    });
-  };
-
-  const appendTreatmentSuggestion = (text: string) => {
-    setTreatment(prev => {
-      if (!prev) return text;
-      if (prev.includes(text)) return prev;
-      return `${prev}\n• ${text}`;
-    });
-  };
+  const [isEditTimeInModalOpen, setIsEditTimeInModalOpen] = useState(false);
+  const [editingTimeInEntry, setEditingTimeInEntry] = useState<LogbookEntry | null>(null);
+  const [newTimeInValue, setNewTimeInValue] = useState('');
+  const [isUpdatingTimeIn, setIsUpdatingTimeIn] = useState(false);
 
   // Medical History Modal State
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -194,7 +147,7 @@ const Consultation: React.FC = () => {
       .catch(console.error);
   };
 
-  const fetchEntries = () => {
+  const fetchEntries = React.useCallback(() => {
     let url = `/api/index.php?route=consultations&action=list&period=${period}&page=${currentPage}&per_page=10&status=${kanbanStatus}&branch=${encodeURIComponent(selectedBranch)}`;
     if (period === 'custom' && fromDate && toDate) {
       url += `&from=${fromDate}&to=${toDate}`;
@@ -209,17 +162,144 @@ const Consultation: React.FC = () => {
         }
       })
       .catch(err => console.error("Error fetching entries:", err));
+  }, [period, currentPage, kanbanStatus, selectedBranch, fromDate, toDate]);
+
+  const openNotesModal = (entry: LogbookEntry) => {
+    setActiveNoteEntry(entry);
+    setBp(entry.blood_pressure || '');
+    setTemp(entry.temperature || '');
+    setWeight(entry.weight || '');
+    setDiagnosis(entry.diagnosis || '');
+    setTreatment(entry.treatment || '');
+    setDispensedItems([]);
+    setIsNotesModalOpen(true);
+  };
+
+  const openStaffVitalsModal = (entry: LogbookEntry) => {
+    setActiveNoteEntry(entry);
+    setBp(entry.blood_pressure || '');
+    setTemp(entry.temperature || '');
+    setWeight(entry.weight || '');
+    setPulse('');
+    setVitalsAnalysis({ severity: 'normal', alerts: [], suggested_diagnosis: [], suggested_treatment: [] });
+    setIsStaffVitalsModalOpen(true);
+  };
+
+  const openEditTimeInModal = (entry: LogbookEntry) => {
+    setEditingTimeInEntry(entry);
+    if (entry.time_in) {
+      const d = new Date(entry.time_in.includes(' ') ? entry.time_in.replace(' ', 'T') : entry.time_in);
+      if (!isNaN(d.getTime())) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        setNewTimeInValue(`${year}-${month}-${day}T${hours}:${mins}`);
+      } else {
+        setNewTimeInValue('');
+      }
+    } else {
+      setNewTimeInValue('');
+    }
+    setIsEditTimeInModalOpen(true);
+  };
+
+  const handleUpdateTimeIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTimeInEntry || !newTimeInValue) return;
+
+    const confirmed = await confirm({
+      title: 'Confirm Time-In Update',
+      message: `Are you sure you want to update the Time-In arrival timestamp for "${editingTimeInEntry.patient_name}"?`,
+      type: 'warning',
+      confirmText: 'Update Timestamp',
+      cancelText: 'Cancel'
+    });
+    if (!confirmed) return;
+
+    setIsUpdatingTimeIn(true);
+    try {
+      const res = await apiFetch('/api/index.php?route=consultations&action=update', {
+        method: 'POST',
+        body: JSON.stringify({
+          id: editingTimeInEntry.id,
+          action: 'update_time_in',
+          time_in: newTimeInValue
+        })
+      });
+      if (res.success) {
+        toast.success('Time-In timestamp updated successfully!');
+        setIsEditTimeInModalOpen(false);
+        fetchEntries();
+      } else {
+        toast.error(res.message || 'Failed to update Time-In timestamp.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('An error occurred while updating Time-In timestamp.');
+    } finally {
+      setIsUpdatingTimeIn(false);
+    }
+  };
+
+  // Live Vitals Analysis Effect
+  useEffect(() => {
+    if (!isNotesModalOpen && !isStaffVitalsModalOpen) return;
+    
+    const timer = setTimeout(() => {
+      if (bp.trim() || temp.trim() || pulse.trim()) {
+        apiFetch(`/api/index.php?route=consultations&action=analyze_vitals&bp=${encodeURIComponent(bp)}&temp=${encodeURIComponent(temp)}&pulse=${encodeURIComponent(pulse)}`)
+          .then(res => {
+            if (res && res.success) {
+              setVitalsAnalysis({
+                severity: res.severity || 'normal',
+                alerts: Array.isArray(res.alerts) ? res.alerts : [],
+                suggested_diagnosis: Array.isArray(res.suggested_diagnosis) ? res.suggested_diagnosis : [],
+                suggested_treatment: Array.isArray(res.suggested_treatment) ? res.suggested_treatment : []
+              });
+            } else {
+              setVitalsAnalysis({ severity: 'normal', alerts: [], suggested_diagnosis: [], suggested_treatment: [] });
+            }
+          })
+          .catch(() => {
+            setVitalsAnalysis({ severity: 'normal', alerts: [], suggested_diagnosis: [], suggested_treatment: [] });
+          });
+      } else {
+        setVitalsAnalysis({ severity: 'normal', alerts: [], suggested_diagnosis: [], suggested_treatment: [] });
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [bp, temp, pulse, isNotesModalOpen, isStaffVitalsModalOpen]);
+
+  const appendDiagnosisSuggestion = (text: string) => {
+    setDiagnosis(prev => {
+      if (!prev) return text;
+      if (prev.includes(text)) return prev;
+      return `${prev}, ${text}`;
+    });
+  };
+
+  const appendTreatmentSuggestion = (text: string) => {
+    setTreatment(prev => {
+      if (!prev) return text;
+      if (prev.includes(text)) return prev;
+      return `${prev}\n• ${text}`;
+    });
   };
 
   useEffect(() => {
     fetchEntries();
-  }, [currentPage, period, fromDate, toDate, kanbanStatus, selectedBranch]);
+  }, [fetchEntries]);
 
   useEffect(() => {
     fetchInventory();
-    const interval = setInterval(fetchEntries, 30000);
+    const interval = setInterval(() => {
+      fetchEntries();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [period, currentPage, kanbanStatus, selectedBranch, fromDate, toDate]);
+  }, [fetchEntries]);
 
   // Search logic for left panel
   useEffect(() => {
@@ -355,27 +435,20 @@ const Consultation: React.FC = () => {
     }
   };
 
-  const openNotesModal = (entry: LogbookEntry) => {
-    setActiveNoteEntry(entry);
-    setBp(entry.blood_pressure || '');
-    setTemp(entry.temperature || '');
-    setWeight(entry.weight || '');
-    setDiagnosis(entry.diagnosis || '');
-    setTreatment(entry.treatment || '');
-    setDispensedItems([]);
-    setIsNotesModalOpen(true);
-  };
-
   useEffect(() => {
     if (location.state?.openNotesFor && entries.length > 0) {
       const entryId = location.state.openNotesFor;
       const entry = entries.find(e => e.id === entryId);
       if (entry) {
-        openNotesModal(entry);
+        if (userRole === 'Staff') {
+          openStaffVitalsModal(entry);
+        } else {
+          openNotesModal(entry);
+        }
         window.history.replaceState({}, document.title); // clear state
       }
     }
-  }, [location.state, entries]);
+  }, [location.state, entries, userRole]);
 
   const handleSaveNotes = async () => {
     if (!activeNoteEntry) return;
@@ -955,7 +1028,21 @@ const Consultation: React.FC = () => {
                           {entry.patient_name}
                         </button>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">{formatTimeOnly(entry.time_in)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span>{formatTimeOnly(entry.time_in)}</span>
+                          {userRole !== 'Superadmin' && (
+                            <button
+                              type="button"
+                              onClick={() => openEditTimeInModal(entry)}
+                              title="Edit Time-In Timestamp"
+                              className="p-1 text-slate-400 hover:text-[#C01D38] hover:bg-red-50 rounded-md transition-all cursor-pointer"
+                            >
+                              <FiEdit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">{entry.purpose}</td>
                       <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-500">
                         {entry.time_out ? formatTimeOnly(entry.time_out) : '-'}
@@ -974,51 +1061,49 @@ const Consultation: React.FC = () => {
                                 <>
                                   <button 
                                     onClick={() => handleStartConsultation(entry.id)}
-                                    className="bg-[#28a745] hover:bg-[#218838] text-white text-xs font-bold px-3 py-1 rounded transition-colors"
+                                    className="bg-[#28a745] hover:bg-[#218838] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer shadow-2xs"
                                   >
                                     Start
                                   </button>
-                                  {userRole === 'Staff' && (
-                                    <button 
-                                      onClick={() => openStaffVitalsModal(entry)}
-                                      className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap flex items-center gap-1"
-                                    >
-                                      <FiActivity /> Record Vitals
-                                    </button>
-                                  )}
+                                  <button 
+                                    onClick={() => (userRole.toLowerCase().includes('staff') ? openStaffVitalsModal(entry) : openNotesModal(entry))}
+                                    className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                  >
+                                    <FiActivity className="w-3.5 h-3.5" /> Record Vitals
+                                  </button>
                                 </>
                               )}
                               {(entry.status === 'in-progress' || entry.status === 'active') && !entry.time_out && (
                                 <>
-                                  {userRole === 'Staff' ? (
+                                  {userRole.toLowerCase().includes('staff') ? (
                                     <button 
                                       onClick={() => openStaffVitalsModal(entry)}
-                                      className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap flex items-center gap-1"
+                                      className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                     >
-                                      <FiActivity /> Record Vitals
+                                      <FiActivity className="w-3.5 h-3.5" /> Record Vitals
                                     </button>
                                   ) : (
                                     <button 
                                       onClick={() => openNotesModal(entry)}
-                                      className="bg-[#8c1526] hover:bg-[#7a1221] text-white text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap"
+                                      className="bg-[#8c1526] hover:bg-[#7a1221] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                     >
-                                      Medical Notes
+                                      <FiActivity className="w-3.5 h-3.5" /> Medical Notes & Vitals
                                     </button>
                                   )}
                                   <button 
                                     onClick={() => handleCheckout(entry.id)}
-                                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap"
+                                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
                                   >
                                     Set Time Out
                                   </button>
                                 </>
                               )}
-                              {entry.status === 'completed' && userRole === 'Staff' && (
+                              {entry.status === 'completed' && (
                                 <button 
-                                  onClick={() => openStaffVitalsModal(entry)}
-                                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1 rounded transition-colors whitespace-nowrap flex items-center gap-1"
+                                  onClick={() => (userRole.toLowerCase().includes('staff') ? openStaffVitalsModal(entry) : openNotesModal(entry))}
+                                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
                                 >
-                                  <FiActivity /> View Vitals
+                                  <FiActivity className="w-3.5 h-3.5" /> {userRole.toLowerCase().includes('staff') ? 'View Vitals' : 'View Vitals & Notes'}
                                 </button>
                               )}
                             </>
@@ -1159,7 +1244,7 @@ const Consultation: React.FC = () => {
                     </div>
 
                     {/* Vitals Condition Warning Badges */}
-                    {vitalsAnalysis.alerts.length > 0 ? (
+                    {vitalsAnalysis?.alerts && Array.isArray(vitalsAnalysis.alerts) && vitalsAnalysis.alerts.length > 0 ? (
                       <div className="space-y-2">
                         {vitalsAnalysis.alerts.map((al, idx) => (
                           <div 
@@ -1184,7 +1269,7 @@ const Consultation: React.FC = () => {
                     )}
 
                     {/* Suggested Diagnosis Chips */}
-                    {vitalsAnalysis.suggested_diagnosis.length > 0 && (
+                    {vitalsAnalysis?.suggested_diagnosis && Array.isArray(vitalsAnalysis.suggested_diagnosis) && vitalsAnalysis.suggested_diagnosis.length > 0 && (
                       <div>
                         <span className="text-[10px] uppercase font-extrabold text-slate-500 tracking-wider block mb-1.5">Suggested Diagnoses (Click to Insert):</span>
                         <div className="flex flex-wrap gap-1.5">
@@ -1203,7 +1288,7 @@ const Consultation: React.FC = () => {
                     )}
 
                     {/* Suggested Treatment Chips */}
-                    {vitalsAnalysis.suggested_treatment.length > 0 && (
+                    {vitalsAnalysis?.suggested_treatment && Array.isArray(vitalsAnalysis.suggested_treatment) && vitalsAnalysis.suggested_treatment.length > 0 && (
                       <div>
                         <span className="text-[10px] uppercase font-extrabold text-slate-500 tracking-wider block mb-1.5">Suggested Treatment (Click to Insert):</span>
                         <div className="flex flex-wrap gap-1.5">
@@ -1798,7 +1883,7 @@ const Consultation: React.FC = () => {
                   Smart Vitals Assistant Analysis
                 </h4>
 
-                {vitalsAnalysis.alerts.length > 0 ? (
+                {vitalsAnalysis?.alerts && Array.isArray(vitalsAnalysis.alerts) && vitalsAnalysis.alerts.length > 0 ? (
                   <div className="space-y-2">
                     {vitalsAnalysis.alerts.map((al, idx) => (
                       <div 
@@ -1858,6 +1943,73 @@ const Consultation: React.FC = () => {
         }}
         patientId={null}
       />
+
+      {/* Edit Time-In Modal */}
+      {isEditTimeInModalOpen && editingTimeInEntry && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity animate-in fade-in duration-300" onClick={() => setIsEditTimeInModalOpen(false)}></div>
+          
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden z-10 animate-in zoom-in-95 duration-300 border border-slate-200">
+            <div className="bg-[#9B101E] px-6 py-5 text-white relative">
+              <button 
+                onClick={() => setIsEditTimeInModalOpen(false)}
+                className="absolute right-4 top-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-all cursor-pointer"
+              >
+                <FiX className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center border border-white/20">
+                  <FiClock className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Edit Time-In Timestamp</h3>
+                  <p className="text-xs text-white/80 font-medium">Adjust arrival time for {editingTimeInEntry.patient_name}</p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleUpdateTimeIn} className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-600 block mb-1">Patient Name</label>
+                <input
+                  type="text"
+                  value={editingTimeInEntry.patient_name}
+                  disabled
+                  className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600 block mb-1">Adjusted Time-In Timestamp <span className="text-red-500">*</span></label>
+                <input
+                  type="datetime-local"
+                  value={newTimeInValue}
+                  onChange={(e) => setNewTimeInValue(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-[#C01D38] bg-slate-50 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div className="pt-3 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsEditTimeInModalOpen(false)}
+                  className="flex-1 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingTimeIn}
+                  className="flex-1 py-2.5 bg-[#C01D38] hover:bg-[#a0182f] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {isUpdatingTimeIn ? 'Updating...' : 'Save Timestamp'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

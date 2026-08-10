@@ -42,14 +42,23 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     headers['X-CSRF-Token'] = token;
   }
 
-  const res = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-    credentials: 'include', // Extremely important for PHP sessions to persist!
-    cache: 'no-store', // Prevent stale data on navigation
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+      credentials: 'include', // Extremely important for PHP sessions to persist!
+      cache: 'no-store', // Prevent stale data on navigation
+    });
+    clearTimeout(timeoutId);
+    return await res.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
 }
 
 export async function apiDownload(endpoint: string, filename: string) {

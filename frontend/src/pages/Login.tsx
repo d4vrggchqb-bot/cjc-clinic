@@ -44,7 +44,7 @@ const Login: React.FC = () => {
       });
 
       if (response.success) {
-        navigate('/dashboard');
+        window.location.href = '/dashboard';
       } else {
         setError(response.error || 'Login failed. Please try again.');
       }
@@ -65,7 +65,7 @@ const Login: React.FC = () => {
       });
 
       if (response.success) {
-        navigate('/dashboard');
+        window.location.href = '/dashboard';
       } else {
         setError(response.error || 'Google Login failed. Ensure you are using a @g.cjc.edu.ph account.');
       }

@@ -65,9 +65,29 @@ class PatientController {
             $totalCount = 0;
         }
 
+        $sortBy = trim($_GET['sort'] ?? 'newest');
+        switch ($sortBy) {
+            case 'name_asc':
+                $orderBy = 'ORDER BY first_name ASC, last_name ASC';
+                break;
+            case 'name_desc':
+                $orderBy = 'ORDER BY first_name DESC, last_name DESC';
+                break;
+            case 'oldest':
+                $orderBy = 'ORDER BY created_at ASC, id ASC';
+                break;
+            case 'dept_asc':
+                $orderBy = 'ORDER BY college_dept ASC, first_name ASC';
+                break;
+            case 'newest':
+            default:
+                $orderBy = 'ORDER BY created_at DESC, id DESC';
+                break;
+        }
+
         $listSql  = "SELECT id, profile_type, patient_id_number, first_name, last_name, middle_initial, contact, college_dept as program_department, blood_type, course, year_level, CONCAT(first_name, ' ', last_name) as name
                      FROM profiles $where
-                     ORDER BY created_at DESC
+                     $orderBy
                      LIMIT :limit OFFSET :offset";
         $listStmt = $pdo->prepare($listSql);
         $listStmt->bindValue(':limit',  $perPage, PDO::PARAM_INT);
@@ -522,6 +542,50 @@ class PatientController {
             $this->jsonResponse(['exists' => $exists]);
         } catch (PDOException $e) {
             $this->jsonResponse(['error' => 'Database error'], 500);
+        }
+    }
+
+    public function deletePatient() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth();
+        cjcRequireRole(['Admin', 'Superadmin']);
+        cjcCsrfValidate();
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $id = (int)($input['id'] ?? 0);
+
+        if ($id <= 0) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid patient ID.'], 400);
+        }
+
+        $pdo = cjcDatabaseConnection();
+        try {
+            // Get patient info for logging
+            $stmt = $pdo->prepare("SELECT first_name, last_name, patient_id_number FROM profiles WHERE id = :id");
+            $stmt->execute(['id' => $id]);
+            $patient = $stmt->fetch();
+
+            if (!$patient) {
+                $this->jsonResponse(['success' => false, 'error' => 'Patient profile not found.'], 404);
+            }
+
+            // Delete profile (Cascades to consultations, borrowings, attachments)
+            $delStmt = $pdo->prepare("DELETE FROM profiles WHERE id = :id");
+            $delStmt->execute(['id' => $id]);
+
+            // Audit log
+            $currentUser = cjcCurrentUser();
+            $patientName = trim($patient['first_name'] . ' ' . $patient['last_name']);
+            $pId = $patient['patient_id_number'] ?: "ID#$id";
+            cjcLogAudit("Deleted patient profile: $patientName ($pId)", 'DELETE', 'Patient');
+
+            $this->jsonResponse(['success' => true, 'message' => "Patient profile $patientName ($pId) deleted successfully."]);
+        } catch (PDOException $e) {
+            error_log('[CJC-CLINIC] delete patient error: ' . $e->getMessage());
+            $this->jsonResponse(['error' => 'Database error during deletion.'], 500);
         }
     }
 

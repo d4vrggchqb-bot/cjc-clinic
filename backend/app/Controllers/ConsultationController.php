@@ -188,8 +188,32 @@ class ConsultationController {
                 'attended_by'   => $attended_by,
                 'clinic_branch' => $branch
             ]);
+
+            $newId = $pdo->lastInsertId();
+
+            // Auto-add new custom cue to settings presets if not already present
+            try {
+                $sStmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'cues' LIMIT 1");
+                $sStmt->execute();
+                $row = $sStmt->fetch();
+                $existingCues = [];
+                if ($row && !empty($row['setting_value'])) {
+                    $decoded = json_decode($row['setting_value'], true);
+                    if (is_array($decoded)) {
+                        $existingCues = $decoded;
+                    }
+                }
+                if (!in_array($purpose, $existingCues)) {
+                    $existingCues[] = $purpose;
+                    $upStmt = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('cues', :val) ON DUPLICATE KEY UPDATE setting_value = :val2");
+                    $valStr = json_encode(array_values($existingCues));
+                    $upStmt->execute(['val' => $valStr, 'val2' => $valStr]);
+                }
+            } catch (Exception $e) {
+                error_log('[CJC-CLINIC] Auto-save custom cue error: ' . $e->getMessage());
+            }
             
-            $this->jsonResponse(['success' => true, 'id' => $pdo->lastInsertId()]);
+            $this->jsonResponse(['success' => true, 'id' => $newId]);
         } catch (PDOException $e) {
             error_log('[CJC-CLINIC] Create consultation error: ' . $e->getMessage());
             $this->jsonResponse(['success' => false, 'message' => 'Unable to save check-in record.'], 500);
@@ -221,6 +245,14 @@ class ConsultationController {
             } elseif ($action === 'start') {
                 $stmt = $pdo->prepare("UPDATE consultations SET status = 'in-progress' WHERE id = :id");
                 $stmt->execute(['id' => $id]);
+            } elseif ($action === 'update_time_in') {
+                $newTimeIn = trim($input['time_in'] ?? '');
+                if (!empty($newTimeIn)) {
+                    $formattedTimeIn = date('Y-m-d H:i:s', strtotime($newTimeIn));
+                    $stmt = $pdo->prepare("UPDATE consultations SET created_at = :time_in WHERE id = :id");
+                    $stmt->execute(['time_in' => $formattedTimeIn, 'id' => $id]);
+                    cjcLogAudit("Updated Time-In timestamp to $formattedTimeIn for consultation ID #$id");
+                }
             }
 
             $this->jsonResponse(['success' => true]);

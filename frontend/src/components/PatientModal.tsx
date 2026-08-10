@@ -290,8 +290,105 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     return () => clearTimeout(timer);
   }, [formData.patient_id_number, patientId, isOpen]);
 
+  const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
+
+  const validateCurrentStep = (currentStep: number): boolean => {
+    const errors: { [key: string]: boolean } = {};
+    let isValid = true;
+    setError('');
+
+    if (currentStep === 1) {
+      if (!formData.patient_id_number.trim()) {
+        errors['patient_id_number'] = true;
+        isValid = false;
+      }
+      if (isIdDuplicate) {
+        errors['patient_id_number'] = true;
+        isValid = false;
+        setError('The entered Patient ID is already registered in the system.');
+        setValidationErrors(errors);
+        return false;
+      }
+      if (!formData.first_name.trim()) {
+        errors['first_name'] = true;
+        isValid = false;
+      }
+      if (!formData.last_name.trim()) {
+        errors['last_name'] = true;
+        isValid = false;
+      }
+      if (!formData.birthdate.trim()) {
+        errors['birthdate'] = true;
+        isValid = false;
+      }
+      if (!formData.gender.trim() || formData.gender === 'Select Gender') {
+        errors['gender'] = true;
+        isValid = false;
+      }
+
+      if (formData.profile_type === 'student') {
+        const sub = formData.sub_type;
+        if (sub === 'College') {
+          if (!formData.college_dept || formData.college_dept === 'Select Department') {
+            errors['college_dept'] = true;
+            isValid = false;
+          }
+          if (!formData.course || formData.course === 'Select Course/Program') {
+            errors['course'] = true;
+            isValid = false;
+          }
+          if (!formData.year_level || formData.year_level === 'Select Year Level') {
+            errors['year_level'] = true;
+            isValid = false;
+          }
+        } else if (sub === 'BED') {
+          if (!formData.bed_dept) {
+            errors['bed_dept'] = true;
+            isValid = false;
+          }
+          if (!formData.bed_year_level) {
+            errors['bed_year_level'] = true;
+            isValid = false;
+          }
+        } else if (sub === 'Post Graduate') {
+          if (!formData.post_graduate_school) {
+            errors['post_graduate_school'] = true;
+            isValid = false;
+          }
+          if (!formData.post_graduate_program) {
+            errors['post_graduate_program'] = true;
+            isValid = false;
+          }
+        }
+      } else if (formData.profile_type === 'employee') {
+        if (!formData.college_dept || formData.college_dept === 'Select Department') {
+          errors['college_dept'] = true;
+          isValid = false;
+        }
+      }
+    }
+
+    setValidationErrors(errors);
+
+    if (!isValid && !error) {
+      setError('Please complete all required fields marked with * (such as Department, Program, Birthdate, etc.) before proceeding.');
+    }
+
+    return isValid;
+  };
+
+  const getInputErrorClass = (fieldName: string) => {
+    return validationErrors[fieldName]
+      ? ' border-red-500 ring-2 ring-red-200 bg-red-50/40 text-red-900 focus:border-red-600 focus:ring-red-300 '
+      : '';
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (validationErrors[name]) {
+      setValidationErrors(prev => ({ ...prev, [name]: false }));
+    }
   };
 
   const handleRadioChange = (name: string, value: string) => {
@@ -320,8 +417,18 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (step < 3) {
+      if (!validateCurrentStep(step)) {
+        return;
+      }
+      setError('');
       setStep(step + 1);
+      return;
+    }
+
+    if (!validateCurrentStep(1)) {
+      setStep(1);
       return;
     }
     
@@ -494,7 +601,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                     )}
                   </div>
                   <div className="relative">
-                    <input type="text" name="patient_id_number" value={formData.patient_id_number} onChange={handleChange} required className={`${inputClass} ${isIdDuplicate ? 'border-red-500 focus:border-red-600 bg-red-50 text-red-700' : ''}`} placeholder="e.g. 2022-0027-8 or 2021-0492" />
+                    <input type="text" name="patient_id_number" value={formData.patient_id_number} onChange={handleChange} required className={`${inputClass} ${isIdDuplicate ? 'border-red-500 focus:border-red-600 bg-red-50 text-red-700' : ''} ${getInputErrorClass('patient_id_number')}`} placeholder="e.g. 2022-0027-8 or 2021-0492" />
                     {idChecking && <FiRefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
                     {isIdDuplicate && !idChecking && <FiAlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />}
                   </div>
@@ -519,11 +626,11 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
                 <div className="md:col-span-5">
                   <label className={labelClass}>First Name <span className="text-red-500">*</span></label>
-                  <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} required className={inputClass} placeholder="Juan" />
+                  <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} required className={`${inputClass} ${getInputErrorClass('first_name')}`} placeholder="Juan" />
                 </div>
                 <div className="md:col-span-5">
                   <label className={labelClass}>Last Name <span className="text-red-500">*</span></label>
-                  <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required className={inputClass} placeholder="Dela Cruz" />
+                  <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required className={`${inputClass} ${getInputErrorClass('last_name')}`} placeholder="Dela Cruz" />
                 </div>
                 <div className="md:col-span-2">
                   <label className={labelClass}>M.I.</label>
@@ -534,7 +641,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                 <div>
                   <label className={labelClass}>Birthdate <span className="text-red-500">*</span></label>
-                  <input type="date" name="birthdate" value={formData.birthdate} onChange={handleChange} required className={inputClass} />
+                  <input type="date" name="birthdate" value={formData.birthdate} onChange={handleChange} required className={`${inputClass} ${getInputErrorClass('birthdate')}`} />
                 </div>
                 <div>
                   <label className={labelClass}>Age</label>
@@ -544,7 +651,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                 </div>
                 <div>
                   <label className={labelClass}>Gender <span className="text-red-500">*</span></label>
-                  <select name="gender" value={formData.gender} onChange={handleChange} required className={inputClass}>
+                  <select name="gender" value={formData.gender} onChange={handleChange} required className={`${inputClass} ${getInputErrorClass('gender')}`}>
                     <option value="">Select Gender</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
@@ -612,7 +719,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className={labelClass}>College / Dept <span className="text-red-500">*</span></label>
-                          <select name="college_dept" value={formData.college_dept} onChange={(e) => setFormData({...formData, college_dept: e.target.value, course: ''})} className={inputClass}>
+                          <select name="college_dept" value={formData.college_dept} onChange={(e) => setFormData({...formData, college_dept: e.target.value, course: ''})} className={`${inputClass} ${getInputErrorClass('college_dept')}`}>
                             <option value="">Select Department</option>
                             {collegeDepartments.map((dept: string, idx: number) => (
                               <option key={idx} value={dept}>{dept}</option>
@@ -620,8 +727,8 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           </select>
                         </div>
                         <div>
-                          <label className={labelClass}>Course/Program</label>
-                          <select name="course" value={formData.course} onChange={handleChange} className={inputClass} disabled={!formData.college_dept}>
+                          <label className={labelClass}>Course/Program <span className="text-red-500">*</span></label>
+                          <select name="course" value={formData.course} onChange={handleChange} className={`${inputClass} ${getInputErrorClass('course')}`} disabled={!formData.college_dept}>
                             <option value="">Select Course/Program</option>
                             {collegePrograms.map((course: string, idx: number) => (
                               <option key={idx} value={course}>{course}</option>
@@ -630,7 +737,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                         </div>
                         <div>
                           <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
-                          <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass}>
+                          <select name="year_level" value={formData.year_level} onChange={handleChange} className={`${inputClass} ${getInputErrorClass('year_level')}`}>
                             <option value="">Select Year</option>
                             {globalSettings.college_year_levels.map((yr: string, idx: number) => (
                               <option key={idx} value={yr}>{yr}</option>

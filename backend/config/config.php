@@ -241,4 +241,37 @@ function cjcDecrypt(string $payload): ?string
     return $decrypted !== false ? $decrypted : null;
 }
 
+/**
+ * Log audit events to audit_logs table
+ */
+function cjcLogAudit($details, $actionType = 'UPDATE', $module = 'General') {
+    try {
+        $pdo = cjcDatabaseConnection();
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `audit_logs` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `user_id` INT DEFAULT NULL,
+            `user_name` VARCHAR(100) DEFAULT NULL,
+            `action_type` VARCHAR(50) DEFAULT 'UPDATE',
+            `module` VARCHAR(50) DEFAULT 'General',
+            `details` TEXT NOT NULL,
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );");
+
+        $user = $_SESSION['cjc_user'] ?? null;
+        $userId = $user['id'] ?? null;
+        $userName = $user['name'] ?? ($user['username'] ?? 'System');
+
+        $stmt = $pdo->prepare("INSERT INTO audit_logs (user_id, user_name, action_type, module, details) VALUES (:uid, :uname, :action, :module, :details)");
+        $stmt->execute([
+            'uid' => $userId,
+            'uname' => $userName,
+            'action' => $actionType,
+            'module' => $module,
+            'details' => $details
+        ]);
+    } catch (Exception $e) {
+        error_log('[CJC-CLINIC] Audit log error: ' . $e->getMessage());
+    }
+}
+
 # c:\xampp\php\php.exe -S localhost:8000 -t backend\public

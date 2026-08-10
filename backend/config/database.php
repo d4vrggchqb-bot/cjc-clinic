@@ -24,39 +24,37 @@ function cjcDatabaseConnection(): PDO
         return $pdo;
     }
 
-    // Smart Auto-Fallback Host Detection
-    $envHost = getenv('DB_HOST');
-    if ($envHost !== false && $envHost !== '') {
-        $host = $envHost;
-    } else {
-        // Ping the School ICT Central Server (192.168.10.96) on MySQL port 3306 with a 0.35s timeout.
-        // If connected (in school Wi-Fi/LAN), use ICT server. Otherwise, default to local computer XAMPP (127.0.0.1) for home testing.
-        $socket = @fsockopen('192.168.10.96', 3306, $errno, $errstr, 0.35);
-        if ($socket) {
-            fclose($socket);
-            $host = '192.168.10.96';
-        } else {
-            $host = '127.0.0.1';
-        }
-    }
-
     $db      = getenv('DB_NAME')    ?: 'cjc_clinic';
-    $user    = getenv('DB_USER')    ?: 'cjc_app';
-    $pass    = getenv('DB_PASS')    ?: 'CHANGE_ME';
+    $user    = getenv('DB_USER')    ?: 'root';
+    $pass    = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '';
     $charset = getenv('DB_CHARSET') ?: 'utf8mb4';
 
-    // Warn loudly if credentials are not configured
-    if ($user === '') {
-        error_log('[CJC-CLINIC] DB_USER environment variable is not set. Using empty credentials — this is insecure.');
-    }
-
-    $dsn     = "mysql:host={$host};dbname={$db};charset={$charset}";
+    // Determine host: Try school ICT server (192.168.10.96) if available, otherwise fallback to local XAMPP (127.0.0.1)
+    $envHost = getenv('DB_HOST') ?: '127.0.0.1';
+    
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES   => false,
     ];
 
-    $pdo = new PDO($dsn, $user, $pass, $options);
-    return $pdo;
+    // Try primary connection
+    try {
+        $dsn = "mysql:host={$envHost};dbname={$db};charset={$charset}";
+        $pdo = new PDO($dsn, $user, $pass, $options);
+        return $pdo;
+    } catch (PDOException $e) {
+        // If primary host failed and it wasn't 127.0.0.1, fallback automatically to local XAMPP
+        if ($envHost !== '127.0.0.1' && $envHost !== 'localhost') {
+            try {
+                $fallbackDsn = "mysql:host=127.0.0.1;dbname={$db};charset={$charset}";
+                $pdo = new PDO($fallbackDsn, 'root', '', $options);
+                return $pdo;
+            } catch (PDOException $e2) {
+                // Throw original exception if both failed
+                throw $e;
+            }
+        }
+        throw $e;
+    }
 }

@@ -20,15 +20,34 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: strin
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    // Check if session is valid
+    let isMounted = true;
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) {
+        setIsAuthenticated(prev => (prev === null ? false : prev));
+      }
+    }, 3500);
+
     apiFetch('/api/index.php?action=check_session')
       .then((res) => {
-        setIsAuthenticated(res.success);
-        if (res.success && res.user) {
+        if (!isMounted) return;
+        if (res && res.success) {
+          setIsAuthenticated(true);
           setUser(res.user);
+        } else {
+          setIsAuthenticated(false);
         }
       })
-      .catch(() => setIsAuthenticated(false));
+      .catch(() => {
+        if (isMounted) setIsAuthenticated(false);
+      })
+      .finally(() => {
+        clearTimeout(safetyTimer);
+      });
+
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   if (isAuthenticated === null) {

@@ -1,8 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch, clearCsrfToken } from '../utils/api';
-import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText, FiChevronLeft, FiChevronRight, FiCalendar, FiMenu, FiX } from 'react-icons/fi';
+import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText, FiChevronLeft, FiChevronRight, FiCalendar, FiMenu, FiX, FiRepeat, FiUserCheck, FiLock, FiShield, FiUser, FiSmile, FiZap, FiAward } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
+
+const PRESET_ACCOUNTS = [
+  { username: 'admin', label: 'College Clinic Admin', role: 'Admin', branch: 'College Clinic', icon: FiShield, iconBg: 'bg-red-100 text-[#C01D38] border-red-200' },
+  { username: 'staff', label: 'College Clinic Staff', role: 'Staff', branch: 'College Clinic', icon: FiUser, iconBg: 'bg-blue-100 text-blue-700 border-blue-200' },
+  { username: 'bedstaff', label: 'Basic Ed Staff', role: 'Staff', branch: 'Basic Education Clinic', icon: FiSmile, iconBg: 'bg-amber-100 text-amber-700 border-amber-200' },
+  { username: 'poweradmin', label: 'Power Campus Admin', role: 'Admin', branch: 'Power Campus Clinic', icon: FiZap, iconBg: 'bg-purple-100 text-purple-700 border-purple-200' },
+  { username: 'superadmin', label: 'System Superadmin', role: 'Superadmin', branch: 'All Clinics', icon: FiAward, iconBg: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+];
 
 const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children, user }) => {
   const location = useLocation();
@@ -18,6 +26,12 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
   });
   
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
+  const [switchUsername, setSwitchUsername] = useState('admin');
+  const [switchPassword, setSwitchPassword] = useState('admin123');
+  const [switchError, setSwitchError] = useState('');
+  const [switchLoading, setSwitchLoading] = useState(false);
+
   const page = location.pathname.substring(1) || 'dashboard';
 
   const toggleSidebar = () => {
@@ -34,9 +48,9 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
 
   const getPageInfo = () => {
     switch (page) {
-      case 'dashboard': return { title: 'Dashboard', subtitle: 'Overview of clinic activity' };
-      case 'patients': return { title: 'Patient List', subtitle: 'Manage student and employee profiles' };
-      case 'consultation': return { title: 'Consultations', subtitle: 'Active patient queues and medical records' };
+      case 'dashboard': return { title: 'Clinic Dashboard', subtitle: 'Overview of daily queue, admissions, and stats' };
+      case 'patients': return { title: 'Patient Profiles', subtitle: 'Manage student, employee, and guest records' };
+      case 'consultation': return { title: 'Consultations & Queue', subtitle: 'Record medical findings, diagnoses, and prescriptions' };
       case 'appointments': return { title: 'Appointments', subtitle: 'Manage scheduled visits and follow-ups' };
       case 'inventory': return { title: 'Inventory Management', subtitle: 'Track medicines, supplies, and equipments' };
       case 'borrowings': return { title: 'Equipment Booking', subtitle: 'Manage borrowed clinic equipments' };
@@ -60,6 +74,37 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
       window.location.href = '/login';
     } catch (err) {
       console.error('Logout failed', err);
+    }
+  };
+
+  const handleSwitchAccountSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!switchUsername.trim() || !switchPassword.trim()) {
+      setSwitchError('Please provide username and password.');
+      return;
+    }
+    setSwitchLoading(true);
+    setSwitchError('');
+
+    try {
+      await apiFetch('/api/index.php?action=logout', { method: 'POST' });
+      clearCsrfToken();
+
+      const res = await apiFetch('/api/index.php?action=login', {
+        method: 'POST',
+        body: JSON.stringify({ username: switchUsername.trim(), password: switchPassword.trim() })
+      });
+
+      if (res.success) {
+        window.location.href = '/dashboard';
+      } else {
+        setSwitchError(res.error || 'Invalid credentials. Failed to switch account.');
+        setSwitchLoading(false);
+      }
+    } catch (err) {
+      console.error('Switch account error:', err);
+      setSwitchError('Failed to execute account switch.');
+      setSwitchLoading(false);
     }
   };
 
@@ -88,39 +133,36 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           </div>
         </div>
         <button 
-          onClick={() => setIsMobileOpen(!isMobileOpen)} 
-          aria-label="Toggle Navigation"
-          className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+          onClick={() => setIsMobileOpen(true)}
+          className="p-2 text-white/90 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
         >
-          {isMobileOpen ? <FiX size={22} /> : <FiMenu size={22} />}
+          <FiMenu size={22} />
         </button>
       </header>
 
       {/* Mobile Backdrop */}
       {isMobileOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 z-40 backdrop-blur-xs md:hidden transition-opacity duration-300"
           onClick={() => setIsMobileOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden animate-in fade-in duration-200"
         />
       )}
 
-      {/* Sidebar (Desktop & Mobile Drawer) */}
+      {/* Sidebar Navigation */}
       <aside className={`
-        fixed md:relative inset-y-0 left-0 z-50
-        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
-        ${isCollapsed ? 'md:w-20' : 'md:w-72'} w-72
-        transition-all duration-300 ease-in-out bg-[#9B101E] flex flex-col shadow-2xl shrink-0
+        fixed md:static inset-y-0 left-0 z-50
+        ${isCollapsed ? 'md:w-[4.8rem]' : 'md:w-64'} w-72
+        bg-[#9B101E] text-white flex flex-col shadow-2xl transition-all duration-300 ease-in-out
+        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        {/* Desktop Toggle Button on Sidebar Border */}
         <button 
           onClick={toggleSidebar}
+          className="hidden md:flex absolute -right-3.5 top-7 bg-white text-[#9B101E] p-1.5 rounded-full shadow-md hover:bg-red-50 border border-slate-200 transition-colors z-20 cursor-pointer"
           title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          className="hidden md:flex absolute -right-3.5 top-7 bg-white border border-slate-200 text-[#9B101E] p-1.5 rounded-full shadow-md z-30 hover:bg-slate-50 hover:scale-110 transition-all items-center justify-center cursor-pointer"
         >
           {isCollapsed ? <FiChevronRight size={14} strokeWidth={3} /> : <FiChevronLeft size={14} strokeWidth={3} />}
         </button>
 
-        {/* Mobile Close Button in Sidebar */}
         <button 
           onClick={() => setIsMobileOpen(false)}
           className="md:hidden absolute right-4 top-4 text-white/80 hover:text-white bg-black/10 p-2 rounded-lg"
@@ -128,7 +170,6 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           <FiX size={20} />
         </button>
 
-        {/* Logo & Brand Header */}
         <div className={`pt-6 pb-5 ${isCollapsed ? 'md:px-2' : 'px-5'} flex flex-col items-center border-b border-white/20 mx-3 transition-all duration-300`}>
           <img 
             src="/assets/logo.png" 
@@ -147,7 +188,6 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           )}
         </div>
 
-        {/* User Profile Widget */}
         {user && (
           <div 
             title={isCollapsed ? `${user.name || user.username} (${user.role})` : ''}
@@ -167,7 +207,6 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           </div>
         )}
 
-        {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto overflow-x-hidden">
           {navItems.map(item => {
             const isActive = page === item.id;
@@ -196,14 +235,13 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
         </nav>
       </aside>
       
-      {/* Main Content Area (Expands Widescreen when Sidebar is Collapsed) */}
+      {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden relative bg-[#FDFBF7] min-w-0">
         
-        {/* Top Header Actions (Settings & Logout & Sidebar Toggle) */}
+        {/* Top Header Actions */}
         <header className="h-auto min-h-[4.5rem] py-3 px-4 sm:px-6 bg-white/90 backdrop-blur-md border-b border-slate-200 flex justify-between items-center gap-4 shrink-0 z-20 shadow-xs relative w-full">
           
           <div className="flex items-center gap-3">
-            {/* Desktop Menu Toggle Button */}
             <button
               onClick={toggleSidebar}
               title={isCollapsed ? "Expand Sidebar" : "Minimize Sidebar"}
@@ -218,12 +256,12 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
 
             <div className="flex flex-col">
               <div className="flex items-center gap-2 sm:gap-3">
-                <h1 className="text-xl sm:text-2xl lg:text-[26px] font-bold text-[#A5192D] tracking-tight leading-tight">
+                <h2 className="text-lg sm:text-xl font-extrabold text-slate-800 capitalize tracking-tight flex items-center gap-2">
                   {pageInfo.title}
-                </h1>
-                {user && user.role !== 'Superadmin' && user.clinic_branch && (
-                  <span className="bg-[#C01D38]/10 text-[#C01D38] border border-[#C01D38]/20 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold tracking-wide uppercase whitespace-nowrap">
-                    {user.clinic_branch}
+                </h2>
+                {user && user.clinic_branch && (
+                  <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-red-100 text-[#C01D38] border border-red-200 tracking-wide">
+                    {user.clinic_branch.toUpperCase()}
                   </span>
                 )}
               </div>
@@ -239,20 +277,23 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                 Welcome back, <span className="font-bold text-slate-700">{user.name || user.username}</span>
               </div>
             )}
-            {user && user.role === 'Superadmin' && (
-              <button
-                onClick={() => navigate('/settings')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-colors cursor-pointer ${
-                  page === 'settings' ? 'text-[#C01D38] bg-red-50' : 'text-slate-600 hover:text-[#C01D38] hover:bg-red-50'
-                }`}
-              >
-                <FiSettings className="w-4 h-4" />
-                <span>Settings</span>
-              </button>
-            )}
             
             <div className="w-px h-5 bg-slate-200 mx-1"></div>
             
+            <button
+              onClick={() => {
+                setSwitchUsername('admin');
+                setSwitchPassword('admin123');
+                setSwitchError('');
+                setIsSwitchModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-all cursor-pointer border border-slate-200/80 shadow-2xs"
+              title="Switch to another clinic account"
+            >
+              <FiRepeat className="w-3.5 h-3.5 text-[#C01D38]" />
+              <span>Switch Account</span>
+            </button>
+
             <button
               onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
@@ -262,6 +303,129 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
             </button>
           </div>
         </header>
+
+        {/* Switch Account Modal Overlay */}
+        {isSwitchModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity animate-in fade-in duration-300" onClick={() => setIsSwitchModalOpen(false)}></div>
+            
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden z-10 animate-in zoom-in-95 duration-300 border border-slate-200">
+              <div className="bg-[#9B101E] px-6 py-5 text-white relative">
+                <button 
+                  onClick={() => setIsSwitchModalOpen(false)}
+                  className="absolute right-4 top-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-all cursor-pointer"
+                >
+                  <FiX className="w-4 h-4" />
+                </button>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center border border-white/20">
+                    <FiRepeat className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold">Switch Clinic Account</h3>
+                    <p className="text-xs text-white/80 font-medium">Select a staff account or log in with different credentials</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {switchError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-bold flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+                    <span>{switchError}</span>
+                  </div>
+                )}
+
+                <div className="mb-4">
+                  <label className="text-xs font-bold text-slate-600 block mb-2 uppercase tracking-wider">Quick Select Account:</label>
+                  <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
+                    {PRESET_ACCOUNTS.map((acc, idx) => {
+                      const isSelected = switchUsername === acc.username;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setSwitchUsername(acc.username);
+                            setSwitchPassword('admin123');
+                            setSwitchError('');
+                          }}
+                          className={`p-2.5 rounded-xl text-left flex items-center justify-between transition-all cursor-pointer border ${
+                            isSelected 
+                              ? 'bg-red-50/80 border-[#C01D38] text-[#C01D38] font-bold shadow-2xs' 
+                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700 font-medium'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center border shrink-0 shadow-2xs ${acc.iconBg}`}>
+                              <acc.icon className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold">{acc.label}</div>
+                              <div className="text-[11px] opacity-75">{acc.branch}</div>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/80 border border-slate-200">
+                            {acc.username}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <form onSubmit={handleSwitchAccountSubmit} className="space-y-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Username</label>
+                    <div className="relative">
+                      <FiUserCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        value={switchUsername}
+                        onChange={(e) => setSwitchUsername(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-[#C01D38] bg-slate-50 focus:bg-white"
+                        placeholder="Username"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Password</label>
+                    <div className="relative">
+                      <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                      <input
+                        type="password"
+                        value={switchPassword}
+                        onChange={(e) => setSwitchPassword(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-[#C01D38] bg-slate-50 focus:bg-white"
+                        placeholder="Password"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-3 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsSwitchModalOpen(false)}
+                      className="flex-1 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={switchLoading}
+                      className="flex-1 py-2.5 bg-[#C01D38] hover:bg-[#a0182f] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                    >
+                      {switchLoading ? 'Switching...' : 'Switch Account Now'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Decorative background gradient */}
         <div className="absolute top-14 left-0 right-0 h-64 bg-gradient-to-b from-[#F5F0E6] to-transparent -z-10"></div>
@@ -274,4 +438,3 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
 };
 
 export default Layout;
-

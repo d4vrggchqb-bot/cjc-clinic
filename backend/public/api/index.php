@@ -62,6 +62,8 @@ switch ($route) {
             $controller->checkId();
         } elseif ($action === 'next_guest_id') {
             $controller->nextGuestId();
+        } elseif ($action === 'delete') {
+            $controller->deletePatient();
         }
         break;
 
