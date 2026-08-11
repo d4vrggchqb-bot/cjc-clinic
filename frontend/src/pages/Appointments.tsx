@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiCalendar, FiPlus, FiClock, FiCheck, FiX, FiSearch, FiUserPlus, FiEdit } from 'react-icons/fi';
+import { FiCalendar, FiPlus, FiClock, FiCheck, FiX, FiSearch, FiUserPlus, FiEdit, FiFilter, FiUsers, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
 import PatientModal from '../components/PatientModal';
@@ -29,6 +29,7 @@ interface Patient {
   last_name: string;
   profile_type: string;
   college_dept: string;
+  year_level?: string;
 }
 
 // Cues will be loaded from settings (managed in Settings -> Clinical Presets)
@@ -39,6 +40,119 @@ const DEFAULT_CUES = [
   'Medical Clearance',
   'Consultation',
   'Follow-up'
+];
+
+interface ProgramItem {
+  label: string;
+  value: string;
+  years: string[];
+}
+
+interface DepartmentCategory {
+  id: string;
+  name: string;
+  programs: ProgramItem[];
+}
+
+const DEPARTMENT_HIERARCHY: DepartmentCategory[] = [
+  {
+    id: 'CCIS',
+    name: 'CCIS - College of Computer & Information Sciences',
+    programs: [
+      { label: 'BS Information Technology (BSIT)', value: 'BSIT', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'BS Computer Science (BSCS)', value: 'BSCS', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'All Programs in CCIS', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
+    ]
+  },
+  {
+    id: 'CON',
+    name: 'CON - College of Nursing',
+    programs: [
+      { label: 'BS Nursing (BSN)', value: 'BSN', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'All Programs in CON', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
+    ]
+  },
+  {
+    id: 'CTE',
+    name: 'CTE - College of Teacher Education',
+    programs: [
+      { label: 'Bachelor of Elementary Education (BEED)', value: 'BEED', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'Bachelor of Secondary Education (BSED)', value: 'BSED', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'All Programs in CTE', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
+    ]
+  },
+  {
+    id: 'CBE',
+    name: 'CBE - College of Business & Education',
+    programs: [
+      { label: 'BS Business Administration (BSBA)', value: 'BSBA', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'BS Accountancy (BSA)', value: 'BSA', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'All Programs in CBE', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
+    ]
+  },
+  {
+    id: 'CCJE',
+    name: 'CCJE - College of Criminal Justice Education',
+    programs: [
+      { label: 'BS Criminology (BSCRIM)', value: 'BSCRIM', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'All Programs in CCJE', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
+    ]
+  },
+  {
+    id: 'Basic Education',
+    name: 'Basic Education Department (BED)',
+    programs: [
+      {
+        label: 'Elementary School',
+        value: 'Elementary',
+        years: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Kindergarten', 'Nursery', 'All Elementary Grades']
+      },
+      {
+        label: 'Junior High School (JHS)',
+        value: 'Junior High School',
+        years: ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'All JHS Grades']
+      },
+      {
+        label: 'Senior High School (SHS)',
+        value: 'Senior High School',
+        years: ['Grade 11', 'Grade 12', 'All SHS Grades']
+      },
+      {
+        label: 'All Basic Education Programs',
+        value: 'All',
+        years: [
+          'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+          'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12',
+          'Kindergarten', 'Nursery', 'All BED Levels'
+        ]
+      }
+    ]
+  },
+  {
+    id: 'Post Graduate',
+    name: 'Post Graduate / Law School',
+    programs: [
+      { label: 'Law School (Juris Doctor)', value: 'Juris Doctor', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'Masteral Programs', value: 'Masteral', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'All Post Graduate Programs', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
+    ]
+  },
+  {
+    id: 'All',
+    name: 'All Departments',
+    programs: [
+      {
+        label: 'All Programs',
+        value: 'All',
+        years: [
+          '1st Year', '2nd Year', '3rd Year', '4th Year',
+          'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+          'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12',
+          'All Year Levels'
+        ]
+      }
+    ]
+  }
 ];
 
 const SkeletonRow = () => (
@@ -73,6 +187,121 @@ const Appointments: React.FC = () => {
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [selectedGroupPatients, setSelectedGroupPatients] = useState<Patient[]>([]);
   const [groupName, setGroupName] = useState('');
+  
+  // Department, Program & Year Batch Selector State
+  const [batchDept, setBatchDept] = useState('CCIS');
+  const [batchProgram, setBatchProgram] = useState('BSIT');
+  const [batchYear, setBatchYear] = useState('1st Year');
+  const [fetchedBatchPatients, setFetchedBatchPatients] = useState<Patient[]>([]);
+  const [checkedBatchPatientIds, setCheckedBatchPatientIds] = useState<Record<number, boolean>>({});
+  const [isFetchingBatch, setIsFetchingBatch] = useState(false);
+  const [hasFetchedBatch, setHasFetchedBatch] = useState(false);
+
+  const selectedDeptObj = DEPARTMENT_HIERARCHY.find(d => d.id === batchDept) || DEPARTMENT_HIERARCHY[0];
+  const availablePrograms = selectedDeptObj.programs;
+  const selectedProgramObj = availablePrograms.find(p => p.value === batchProgram) || availablePrograms[0];
+  const availableYears = selectedProgramObj ? selectedProgramObj.years : ['1st Year'];
+
+  const handleDeptChange = (newDeptId: string) => {
+    setBatchDept(newDeptId);
+    const deptObj = DEPARTMENT_HIERARCHY.find(d => d.id === newDeptId) || DEPARTMENT_HIERARCHY[0];
+    const firstProg = deptObj.programs[0];
+    setBatchProgram(firstProg.value);
+    setBatchYear(firstProg.years[0]);
+    setFetchedBatchPatients([]);
+    setCheckedBatchPatientIds({});
+    setHasFetchedBatch(false);
+  };
+
+  const handleProgramChange = (newProgValue: string) => {
+    setBatchProgram(newProgValue);
+    const progObj = availablePrograms.find(p => p.value === newProgValue) || availablePrograms[0];
+    if (progObj && progObj.years.length > 0) {
+      setBatchYear(progObj.years[0]);
+    }
+    setFetchedBatchPatients([]);
+    setCheckedBatchPatientIds({});
+    setHasFetchedBatch(false);
+  };
+
+  const handleYearChange = (newYearValue: string) => {
+    setBatchYear(newYearValue);
+    setFetchedBatchPatients([]);
+    setCheckedBatchPatientIds({});
+    setHasFetchedBatch(false);
+  };
+
+  const handleFetchBatchStudents = async () => {
+    setIsFetchingBatch(true);
+    setHasFetchedBatch(false);
+    const toastId = toast.loading(`Fetching students for ${batchDept} - ${batchProgram} (${batchYear})...`);
+    try {
+      const res = await apiFetch(`/api/index.php?route=patients&action=by_program_year&dept=${encodeURIComponent(batchDept)}&program=${encodeURIComponent(batchProgram)}&year_level=${encodeURIComponent(batchYear)}`);
+      setHasFetchedBatch(true);
+      if (res && res.success && Array.isArray(res.profiles)) {
+        setFetchedBatchPatients(res.profiles);
+        const initialCheckedMap: Record<number, boolean> = {};
+        res.profiles.forEach((p: Patient) => {
+          initialCheckedMap[p.id] = true;
+        });
+        setCheckedBatchPatientIds(initialCheckedMap);
+
+        if (res.profiles.length > 0) {
+          toast.success(`Found ${res.profiles.length} student(s)! You can uncheck any absent student.`, { id: toastId });
+          if (!groupName.trim()) {
+            setGroupName(`${batchDept} ${batchProgram !== 'All' ? batchProgram : ''} ${batchYear !== 'All Year Levels' ? batchYear : ''} Appointment`.trim());
+          }
+        } else {
+          const matchLabel = [batchDept, batchProgram !== 'All' ? batchProgram : '', !batchYear.toLowerCase().includes('all') ? batchYear : 'All Levels'].filter(Boolean).join(' ');
+          toast(`No students found matching ${matchLabel}.`, { icon: 'ℹ️', id: toastId });
+        }
+      } else {
+        toast.error((res && (res.error || res.message)) || 'Failed to fetch students.', { id: toastId });
+      }
+    } catch (err: any) {
+      console.error('Fetch batch students error:', err);
+      toast.error(err?.message || 'Error fetching students from server.', { id: toastId });
+    } finally {
+      setIsFetchingBatch(false);
+    }
+  };
+
+  const handleTogglePatientCheck = (patientId: number) => {
+    setCheckedBatchPatientIds(prev => ({
+      ...prev,
+      [patientId]: !prev[patientId]
+    }));
+  };
+
+  const handleToggleSelectAllBatch = (selectAll: boolean) => {
+    const newMap: Record<number, boolean> = {};
+    fetchedBatchPatients.forEach(p => {
+      newMap[p.id] = selectAll;
+    });
+    setCheckedBatchPatientIds(newMap);
+  };
+
+  const handleAddCheckedStudentsToRoster = () => {
+    const checkedStudents = fetchedBatchPatients.filter(p => checkedBatchPatientIds[p.id]);
+    if (checkedStudents.length === 0) {
+      toast.error('Please check at least one student to add to the group roster.');
+      return;
+    }
+
+    let addedCount = 0;
+    setSelectedGroupPatients(prev => {
+      const existingIds = new Set(prev.map(p => p.id));
+      const newToAppend = checkedStudents.filter(p => !existingIds.has(p.id));
+      addedCount = newToAppend.length;
+      return [...prev, ...newToAppend];
+    });
+
+    if (addedCount > 0) {
+      toast.success(`Added ${addedCount} selected student(s) to Group Roster!`);
+    } else {
+      toast('All selected students are already in the Group Roster.', { icon: 'ℹ️' });
+    }
+  };
   
   // Expanded Groups
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -154,6 +383,8 @@ const Appointments: React.FC = () => {
       setShowSearchDropdown(true);
     } catch (err) {
       toast.error('Failed to search patients');
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -560,53 +791,65 @@ const Appointments: React.FC = () => {
           </div>
         )}
       </div>
-
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <div className="flex items-center gap-4">
-                <h2 className="text-lg font-bold text-slate-800">
-                  {editingAppointmentId ? 'Edit Appointment' : 'New Appointment'}
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 transition-all duration-300">
+          <div className="bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-300">
+            
+            {/* Sleek Gradient Header (Matching Patient Registration Modal) */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-[#8B0E1B] to-[#C01D38] px-6 py-4 sm:py-5 flex justify-between items-center gap-4 text-white shrink-0">
+              {/* Decorative background shapes */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+              
+              <div className="relative z-10 flex flex-col flex-1 pr-2">
+                <h2 className="text-lg sm:text-xl font-bold tracking-tight">
+                  {editingAppointmentId ? 'Edit Appointment' : 'Schedule New Appointment'}
                 </h2>
-                {!editingAppointmentId && (
-                  <div className="flex items-center bg-slate-200/50 p-1 rounded-lg">
-                    <button 
-                      onClick={() => { setIsGroupMode(false); setSearch(''); setShowSearchDropdown(false); }}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${!isGroupMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      Individual
-                    </button>
-                    <button 
-                      onClick={() => { setIsGroupMode(true); setSearch(''); setShowSearchDropdown(false); setSelectedPatient(null); }}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${isGroupMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      Group Batch
-                    </button>
-                  </div>
-                )}
+                <p className="text-white/90 text-xs sm:text-sm mt-0.5 font-normal">
+                  Schedule individual or group batch appointments for clinic visits
+                </p>
               </div>
+
+              {!editingAppointmentId && (
+                <div className="bg-black/20 backdrop-blur-md p-1 rounded-xl flex gap-1 border border-white/10 shrink-0">
+                  <button 
+                    onClick={() => { setIsGroupMode(false); setSelectedGroupPatients([]); setGroupName(''); }}
+                    className={`px-4 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer ${!isGroupMode ? 'bg-white text-[#C01D38] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+                  >
+                    Individual Patient
+                  </button>
+                  <button 
+                    onClick={() => { setIsGroupMode(true); setSearch(''); setShowSearchDropdown(false); setSelectedPatient(null); }}
+                    className={`px-4 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer ${isGroupMode ? 'bg-white text-[#C01D38] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+                  >
+                    Group Batch
+                  </button>
+                </div>
+              )}
+
               <button 
                 onClick={() => { setIsModalOpen(false); resetForm(); }}
-                className="text-slate-400 hover:text-slate-600 transition-colors bg-white hover:bg-slate-100 p-1.5 rounded-md"
+                className="relative z-10 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 sm:p-2.5 rounded-full transition-all hover:rotate-90 duration-300 shrink-0 cursor-pointer"
+                aria-label="Close modal"
               >
-                <FiX size={20} />
+                <FiX className="w-5 h-5" />
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto">
+            <div className="p-6 overflow-y-auto flex-1 space-y-5">
               {!editingAppointmentId && ((!selectedPatient && !isGroupMode) || isGroupMode) ? (
-                <div className="min-h-[250px]" ref={searchRef}>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Search Patient</label>
+                <div className="min-h-[150px]" ref={searchRef}>
+                  {!isGroupMode && (
+                    <>
+                      <label className="block text-sm font-bold text-slate-800 mb-2">Search Patient</label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <FiSearch className="text-slate-400" />
                         </div>
                         <input
                           type="text"
-                          className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A5192D]/20 focus:border-[#A5192D] transition-all"
-                          placeholder="Type name or ID to search..."
+                          className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all bg-slate-50/50"
+                          placeholder="Type patient name or ID to search..."
                           value={search}
                           onChange={(e) => setSearch(e.target.value)}
                           onFocus={() => {
@@ -616,7 +859,7 @@ const Appointments: React.FC = () => {
                         
                         {/* Autocomplete Dropdown */}
                         {showSearchDropdown && search.length >= 2 && (
-                          <div className="absolute z-10 mt-1 w-full bg-white rounded-lg border border-slate-200 shadow-lg max-h-60 overflow-y-auto">
+                          <div className="absolute z-20 mt-1.5 w-full bg-white rounded-xl border border-slate-200 shadow-xl max-h-60 overflow-y-auto">
                             {isSearching ? (
                               <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
                             ) : searchResults.length > 0 ? (
@@ -627,30 +870,18 @@ const Appointments: React.FC = () => {
                                   className="p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer flex justify-between items-center transition-colors"
                                 >
                                   <div>
-                                    <div className="font-medium text-slate-800">{p.first_name} {p.last_name}</div>
+                                    <div className="font-semibold text-slate-800">{p.first_name} {p.last_name}</div>
                                     <div className="text-xs text-slate-500">{p.patient_id_number || 'No ID'}</div>
                                   </div>
-                                  {isGroupMode && selectedGroupPatients.some(sp => sp.id === p.id) ? (
-                                    <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded">Added</span>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (isGroupMode) {
-                                          if (!selectedGroupPatients.some(sp => sp.id === p.id)) {
-                                            setSelectedGroupPatients([...selectedGroupPatients, p]);
-                                            setSearch('');
-                                            setShowSearchDropdown(false);
-                                          }
-                                        } else {
-                                          setSelectedPatient(p);
-                                        }
-                                      }}
-                                      className="text-xs font-medium px-3 py-1.5 bg-[#A5192D] text-white rounded hover:bg-[#8A1525] transition-colors"
-                                    >
-                                      {isGroupMode ? 'Add' : 'Select'}
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedPatient(p);
+                                    }}
+                                    className="text-xs font-bold px-3.5 py-1.5 bg-[#C01D38] text-white rounded-lg hover:bg-[#8B0E1B] transition-colors"
+                                  >
+                                    Select Patient
+                                  </button>
                                 </div>
                               ))
                             ) : (
@@ -662,9 +893,9 @@ const Appointments: React.FC = () => {
                                     setShowSearchDropdown(false);
                                     setIsRegisterModalOpen(true);
                                   }}
-                                  className="inline-flex items-center gap-2 text-sm font-medium text-[#A5192D] hover:text-[#8A1525] transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-2 text-sm font-bold text-[#C01D38] hover:underline transition-colors cursor-pointer"
                                 >
-                                  <FiUserPlus /> Add New Patient
+                                  <FiUserPlus /> Register New Patient
                                 </button>
                               </div>
                             )}
@@ -679,77 +910,246 @@ const Appointments: React.FC = () => {
                             setShowSearchDropdown(false);
                             setIsRegisterModalOpen(true);
                           }}
-                          className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-2 text-sm font-bold px-5 py-2.5 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
                         >
                           <FiUserPlus /> Register New Patient
                         </button>
                       </div>
+                    </>
+                  )}
                 </div>
               ) : null}
               
-              {(selectedPatient && !isGroupMode) || (isGroupMode && selectedGroupPatients.length > 0) ? (
-                <div className="space-y-5 animate-in fade-in zoom-in-95 duration-300 mt-6 pt-6 border-t border-slate-100">
+              {(selectedPatient && !isGroupMode) || (isGroupMode) ? (
+                <div className="space-y-5 animate-in fade-in duration-300">
                   {!isGroupMode ? (
-                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 flex justify-between items-center">
+                    <div className="bg-red-50/40 p-4 rounded-2xl border border-red-100 flex justify-between items-center">
                       <div>
-                        <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">Selected Patient</p>
-                        <p className="font-bold text-slate-800">{selectedPatient?.first_name} {selectedPatient?.last_name}</p>
-                        <p className="text-sm text-slate-500">{selectedPatient?.patient_id_number || 'No ID'}</p>
+                        <p className="text-xs font-extrabold text-[#C01D38] uppercase tracking-wider mb-1">Selected Patient</p>
+                        <p className="font-bold text-slate-800 text-base">{selectedPatient?.first_name} {selectedPatient?.last_name}</p>
+                        <p className="text-xs text-slate-500">{selectedPatient?.patient_id_number || 'No ID'} • {selectedPatient?.college_dept || selectedPatient?.profile_type}</p>
                       </div>
                       {editingAppointmentId ? null : (
                         <button 
                           onClick={() => setSelectedPatient(null)}
-                          className="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors"
+                          className="text-xs font-bold text-[#C01D38] bg-white px-3.5 py-1.5 rounded-xl border border-red-200 hover:bg-red-50 transition-colors shadow-2xs cursor-pointer"
                         >
-                          Change
+                          Change Patient
                         </button>
                       )}
                     </div>
                   ) : (
-                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                      <div className="mb-4">
+                    <div className="bg-slate-50/60 p-5 rounded-2xl border border-slate-200 space-y-4">
+                      {/* Department -> Program -> Year Level Filter Panel */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[#C01D38] uppercase tracking-wider flex items-center gap-1.5">
+                            <FiPlus className="text-[#C01D38]" /> Filter & Select Group: Department ➔ Program ➔ Year
+                          </span>
+                          <span className="text-[11px] font-semibold text-[#C01D38] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-100">
+                            3-Level Filter
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          {/* 1. Department */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">1. Department</label>
+                            <select
+                              value={batchDept}
+                              onChange={(e) => handleDeptChange(e.target.value)}
+                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all cursor-pointer"
+                            >
+                              {DEPARTMENT_HIERARCHY.map(d => (
+                                <option key={d.id} value={d.id}>
+                                  {d.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* 2. Program / Course */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">2. Program / Course</label>
+                            <select
+                              value={batchProgram}
+                              onChange={(e) => handleProgramChange(e.target.value)}
+                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all cursor-pointer"
+                            >
+                              {availablePrograms.map(p => (
+                                <option key={p.value} value={p.value}>
+                                  {p.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* 3. Year Level */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">3. Year Level</label>
+                            <select
+                              value={batchYear}
+                              onChange={(e) => handleYearChange(e.target.value)}
+                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all cursor-pointer"
+                            >
+                              {availableYears.map(y => (
+                                <option key={y} value={y}>
+                                  {y}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleFetchBatchStudents}
+                          disabled={isFetchingBatch}
+                          className="w-full py-3 bg-gradient-to-r from-[#8B0E1B] via-[#A5192D] to-[#C01D38] hover:from-[#720B15] hover:to-[#A5192D] text-white rounded-xl text-xs font-extrabold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2 active:scale-[0.99]"
+                        >
+                          {isFetchingBatch ? (
+                            <>
+                              <FiRefreshCw className="w-4 h-4 animate-spin text-white" />
+                              <span>Searching Database & Fetching Students...</span>
+                            </>
+                          ) : (
+                            <>
+                              <FiUsers className="w-4 h-4 text-amber-300" />
+                              <FiFilter className="w-3.5 h-3.5 text-white/80" />
+                              <span>Fetch All Matching Students ({batchDept} • {batchProgram} • {batchYear})</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Fetched Students Checklist Section */}
+                        {fetchedBatchPatients.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-slate-200 animate-in fade-in duration-300">
+                            <div className="flex justify-between items-center mb-2 px-1">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={fetchedBatchPatients.every(p => checkedBatchPatientIds[p.id])}
+                                  onChange={(e) => handleToggleSelectAllBatch(e.target.checked)}
+                                  className="w-4 h-4 text-[#C01D38] rounded border-slate-300 focus:ring-[#C01D38]"
+                                />
+                                <span className="text-xs font-bold text-slate-700">
+                                  Select All ({fetchedBatchPatients.filter(p => checkedBatchPatientIds[p.id]).length} of {fetchedBatchPatients.length} Selected)
+                                </span>
+                              </label>
+                              <span className="text-[11px] text-slate-500 font-medium italic">Uncheck any student to exclude</span>
+                            </div>
+
+                            {/* Scrollable Checklist */}
+                            <div className="max-h-44 overflow-y-auto space-y-1.5 border border-slate-200 rounded-lg p-2 bg-slate-50/50">
+                              {fetchedBatchPatients.map(student => {
+                                const isChecked = !!checkedBatchPatientIds[student.id];
+                                return (
+                                  <label
+                                    key={student.id}
+                                    className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
+                                      isChecked
+                                        ? 'bg-white border-red-200 shadow-2xs text-slate-800'
+                                        : 'bg-slate-100/60 border-slate-200 text-slate-400 line-through'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => handleTogglePatientCheck(student.id)}
+                                        className="w-4 h-4 text-[#C01D38] rounded border-slate-300 focus:ring-[#C01D38] cursor-pointer"
+                                      />
+                                      <div>
+                                        <div className="font-semibold text-xs text-slate-800">{student.first_name} {student.last_name}</div>
+                                        <div className="text-[11px] text-slate-500">{student.patient_id_number || 'No ID'} • {student.college_dept || student.profile_type} ({student.year_level || 'N/A'})</div>
+                                      </div>
+                                    </div>
+
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isChecked ? 'bg-red-100 text-[#C01D38]' : 'bg-slate-200 text-slate-500'}`}>
+                                      {isChecked ? 'Selected' : 'Excluded'}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleAddCheckedStudentsToRoster}
+                              className="w-full mt-2.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <FiUserPlus />
+                              + Add {fetchedBatchPatients.filter(p => checkedBatchPatientIds[p.id]).length} Checked Students to Group Roster
+                            </button>
+                          </div>
+                        )}
+
+                        {/* No Students Found Feedback Notice */}
+                        {hasFetchedBatch && fetchedBatchPatients.length === 0 && !isFetchingBatch && (
+                          <div className="mt-3 p-3.5 bg-amber-50/90 border border-amber-200/90 rounded-xl text-amber-900 text-xs flex items-center gap-3 animate-in fade-in duration-300 shadow-xs">
+                            <FiAlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                            <div>
+                              <p className="font-bold text-amber-800">No matching patients found</p>
+                              <p className="text-amber-700 text-[11px] mt-0.5">
+                                No registered students or patients found for <span className="font-semibold">{batchDept} • {batchProgram} • {batchYear}</span>. Please verify patient records or adjust your filter parameters.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">Group Appointment Name *</label>
                         <input
                           type="text"
-                          className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                          className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all bg-white"
                           value={groupName}
                           onChange={(e) => setGroupName(e.target.value)}
-                          placeholder="e.g. PE Camping, 1st Year OJT"
+                          placeholder="e.g. CCIS BSIT 1st Year Appointment"
                         />
                       </div>
-                      <div className="flex justify-between items-center mb-3 pt-3 border-t border-blue-100">
-                        <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Group Roster ({selectedGroupPatients.length})</p>
-                        <button onClick={() => setSelectedGroupPatients([])} className="text-xs text-slate-500 hover:text-red-500 font-semibold">Clear All</button>
+                      <div className="flex justify-between items-center mb-2 pt-3 border-t border-slate-200">
+                        <p className="text-xs font-extrabold text-[#C01D38] uppercase tracking-wider">Group Roster ({selectedGroupPatients.length})</p>
+                        {selectedGroupPatients.length > 0 && (
+                          <button onClick={() => setSelectedGroupPatients([])} className="text-xs text-slate-500 hover:text-red-500 font-semibold cursor-pointer">Clear All</button>
+                        )}
                       </div>
                       <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
-                        {selectedGroupPatients.map(p => (
-                          <div key={p.id} className="flex justify-between items-center bg-white p-2 rounded border border-blue-50 shadow-sm text-sm">
-                            <span className="font-semibold text-slate-700">{p.first_name} {p.last_name}</span>
-                            <button onClick={() => setSelectedGroupPatients(prev => prev.filter(sp => sp.id !== p.id))} className="text-red-400 hover:text-red-600">
-                              <FiX />
-                            </button>
-                          </div>
-                        ))}
+                        {selectedGroupPatients.length === 0 ? (
+                          <p className="text-xs text-slate-400 text-center py-3 italic">No students selected yet. Use the 3-level filter above to fetch and add students.</p>
+                        ) : (
+                          selectedGroupPatients.map(p => (
+                            <div key={p.id} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs text-sm">
+                              <div>
+                                <span className="font-semibold text-slate-800">{p.first_name} {p.last_name}</span>
+                                <span className="text-[11px] text-slate-400 ml-2">({p.college_dept || p.profile_type} - {p.year_level || 'N/A'})</span>
+                              </div>
+                              <button onClick={() => setSelectedGroupPatients(prev => prev.filter(sp => sp.id !== p.id))} className="text-red-400 hover:text-red-600 p-1 cursor-pointer">
+                                <FiX />
+                              </button>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
                   )}
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Date</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Appointment Date *</label>
                       <input
                         type="date"
-                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#A5192D]/20 focus:border-[#A5192D] transition-all"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all bg-slate-50/50"
                         value={date}
                         onChange={(e) => setDate(e.target.value)}
                         min={new Date().toISOString().split('T')[0]}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Time</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Appointment Time *</label>
                       <input
                         type="time"
-                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#A5192D]/20 focus:border-[#A5192D] transition-all"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all bg-slate-50/50"
                         value={time}
                         onChange={(e) => setTime(e.target.value)}
                         min="08:00"
@@ -759,9 +1159,9 @@ const Appointments: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Cues</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Clinical Cues / Purpose *</label>
                     <select
-                      className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#A5192D]/20 focus:border-[#A5192D] transition-all mb-3 bg-white"
+                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all mb-3 bg-slate-50/50 cursor-pointer"
                       value={purposeType}
                       onChange={(e) => setPurposeType(e.target.value)}
                     >
@@ -774,7 +1174,7 @@ const Appointments: React.FC = () => {
                     {purposeType === 'Other' && (
                       <input
                         type="text"
-                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#A5192D]/20 focus:border-[#A5192D] transition-all animate-in fade-in slide-in-from-top-1"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all animate-in fade-in slide-in-from-top-1 bg-white"
                         placeholder="Please specify the purpose..."
                         value={customPurpose}
                         onChange={(e) => setCustomPurpose(e.target.value)}
@@ -787,9 +1187,9 @@ const Appointments: React.FC = () => {
                     <button
                       onClick={handleCreate}
                       disabled={isSubmitting || (!editingAppointmentId && (isGroupMode ? (selectedGroupPatients.length === 0 || !groupName.trim()) : !selectedPatient)) || !date || !time || (!purposeType && !customPurpose)}
-                      className="w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-[#A5192D] to-[#8A1525] hover:from-[#8A1525] hover:to-[#6c101d] transition-all shadow-md disabled:opacity-50 disabled:shadow-none"
+                      className="w-full py-3.5 rounded-xl font-extrabold text-white bg-gradient-to-r from-[#8B0E1B] to-[#C01D38] hover:from-[#720B15] hover:to-[#A5192D] transition-all shadow-md cursor-pointer disabled:opacity-50 disabled:shadow-none"
                     >
-                      {isSubmitting ? 'Saving...' : (editingAppointmentId ? 'Save Changes' : (isGroupMode ? `Schedule ${selectedGroupPatients.length} Appointments` : 'Schedule Appointment'))}
+                      {isSubmitting ? 'Saving Appointments...' : (editingAppointmentId ? 'Save Changes' : (isGroupMode ? `Schedule ${selectedGroupPatients.length} Group Appointments` : 'Schedule Appointment'))}
                     </button>
                   </div>
                 </div>

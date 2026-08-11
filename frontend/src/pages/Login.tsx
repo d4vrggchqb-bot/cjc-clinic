@@ -44,6 +44,27 @@ const Login: React.FC = () => {
       });
 
       if (response.success) {
+        if (response.user && response.user.username) {
+          try {
+            const raw = localStorage.getItem('cjc_saved_switch_accounts');
+            const list = raw ? JSON.parse(raw) : [];
+            const existingIdx = list.findIndex((a: any) => a.username.toLowerCase() === response.user.username.toLowerCase());
+            const newItem = {
+              username: response.user.username,
+              name: response.user.name || response.user.username,
+              role: response.user.role || 'Staff',
+              branch: response.user.clinic_branch || 'College Clinic'
+            };
+            if (existingIdx >= 0) {
+              list[existingIdx] = { ...list[existingIdx], ...newItem };
+            } else {
+              list.push(newItem);
+            }
+            localStorage.setItem('cjc_saved_switch_accounts', JSON.stringify(list));
+          } catch (e) {
+            console.error('Failed to save account to localStorage', e);
+          }
+        }
         window.location.href = '/dashboard';
       } else {
         setError(response.error || 'Login failed. Please try again.');

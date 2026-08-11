@@ -589,6 +589,106 @@ class PatientController {
         }
     }
 
+    public function byProgramYear() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth();
+        $currentUser = cjcCurrentUser();
+        $pdo = cjcDatabaseConnection();
+
+        $dept      = trim($_GET['dept'] ?? '');
+        $program   = trim($_GET['program'] ?? '');
+        $yearLevel = trim($_GET['year_level'] ?? '');
+
+        $conditions = [];
+        $params     = [];
+
+        $isAllDept = ($dept === '' || str_contains(strtolower($dept), 'all'));
+        if (!$isAllDept) {
+            $deptPrefix = trim(explode('-', $dept)[0]);
+            $conditions[] = '(college_dept LIKE ? OR college_dept LIKE ?)';
+            $params[] = '%' . $dept . '%';
+            $params[] = '%' . $deptPrefix . '%';
+        }
+
+        $isAllProgram = ($program === '' || strtolower($program) === 'all' || str_starts_with(strtolower($program), 'all'));
+        if (!$isAllProgram) {
+            $programKeywords = [$program];
+            $progLower = strtolower($program);
+            if ($progLower === 'bscs' || str_contains($progLower, 'computer science')) {
+                $programKeywords = ['BSCS', 'Computer Science', 'CS'];
+            } else if ($progLower === 'bsit' || str_contains($progLower, 'information technology')) {
+                $programKeywords = ['BSIT', 'Information Technology', 'IT'];
+            } else if ($progLower === 'bsn' || str_contains($progLower, 'nursing')) {
+                $programKeywords = ['BSN', 'Nursing'];
+            } else if ($progLower === 'beed' || str_contains($progLower, 'elementary education')) {
+                $programKeywords = ['BEED', 'Elementary Education'];
+            } else if ($progLower === 'bsed' || str_contains($progLower, 'secondary education')) {
+                $programKeywords = ['BSED', 'Secondary Education'];
+            } else if ($progLower === 'bsba' || str_contains($progLower, 'business administration')) {
+                $programKeywords = ['BSBA', 'Business Administration'];
+            } else if ($progLower === 'bscrim' || str_contains($progLower, 'criminology')) {
+                $programKeywords = ['BSCRIM', 'Criminology'];
+            } else if ($progLower === 'bsa' || str_contains($progLower, 'accountancy')) {
+                $programKeywords = ['BSA', 'Accountancy'];
+            } else if ($progLower === 'elementary') {
+                $programKeywords = ['Elementary', 'Grade'];
+            } else if (str_contains($progLower, 'junior high')) {
+                $programKeywords = ['Junior High', 'JHS', 'Grade'];
+            } else if (str_contains($progLower, 'senior high')) {
+                $programKeywords = ['Senior High', 'SHS', 'Grade'];
+            }
+
+            $progClauses = [];
+            foreach ($programKeywords as $kw) {
+                $progClauses[] = "course LIKE ? OR college_dept LIKE ?";
+                $params[] = '%' . $kw . '%';
+                $params[] = '%' . $kw . '%';
+            }
+            $conditions[] = '(' . implode(' OR ', $progClauses) . ')';
+        }
+
+        $isAllYear = ($yearLevel === '' || str_contains(strtolower($yearLevel), 'all'));
+        if (!$isAllYear) {
+            $cleanYear = preg_replace('/[^0-9]/', '', $yearLevel);
+            if ($cleanYear !== '') {
+                $conditions[] = '(year_level LIKE ? OR year_level LIKE ?)';
+                $params[] = '%' . $cleanYear . '%';
+                $params[] = '%' . $yearLevel . '%';
+            } else {
+                $conditions[] = 'year_level LIKE ?';
+                $params[] = '%' . $yearLevel . '%';
+            }
+        }
+
+        $userRole = $currentUser['role'] ?? '';
+        $userBranch = $currentUser['clinic_branch'] ?? '';
+        if ($userRole !== 'Superadmin') {
+            if ($userBranch === 'Basic Education Clinic') {
+                $conditions[] = "((profile_type = 'student' AND sub_type = 'BED') OR (profile_type = 'employee' AND college_dept = 'Basic Education'))";
+            } else if (in_array($userBranch, ['College Clinic', 'Power Campus Clinic'])) {
+                $conditions[] = "((profile_type = 'student' AND (sub_type != 'BED' OR sub_type IS NULL)) OR (profile_type = 'employee' AND (college_dept != 'Basic Education' OR college_dept IS NULL)))";
+            }
+        }
+
+        $where = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+        $sql = "SELECT id, profile_type, patient_id_number, first_name, last_name, college_dept as program_department, course, year_level, CONCAT(first_name, ' ', last_name) as name
+                FROM profiles $where
+                ORDER BY first_name ASC, last_name ASC
+                LIMIT 500";
+
+        try {
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $profiles = $stmt->fetchAll();
+            $this->jsonResponse(['success' => true, 'profiles' => $profiles, 'count' => count($profiles)]);
+        } catch (PDOException $e) {
+            $this->jsonResponse(['error' => 'Database error: ' . $e->getMessage()], 500);
+        }
+    }
+
     private function jsonResponse(array $data, int $status = 200) {
         http_response_code($status);
         header('Content-Type: application/json');

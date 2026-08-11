@@ -64,6 +64,8 @@ switch ($route) {
             $controller->nextGuestId();
         } elseif ($action === 'delete') {
             $controller->deletePatient();
+        } elseif ($action === 'by_program_year') {
+            $controller->byProgramYear();
         }
         break;
 

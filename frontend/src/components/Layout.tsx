@@ -1,16 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch, clearCsrfToken } from '../utils/api';
-import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText, FiChevronLeft, FiChevronRight, FiCalendar, FiMenu, FiX, FiRepeat, FiUserCheck, FiLock, FiShield, FiUser, FiSmile, FiZap, FiAward } from 'react-icons/fi';
+import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText, FiChevronLeft, FiChevronRight, FiCalendar, FiMenu, FiX, FiRepeat, FiUserCheck, FiLock, FiShield, FiUser, FiTrash2, FiPlus, FiCheck } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
-const PRESET_ACCOUNTS = [
-  { username: 'admin', label: 'College Clinic Admin', role: 'Admin', branch: 'College Clinic', icon: FiShield, iconBg: 'bg-red-100 text-[#C01D38] border-red-200' },
-  { username: 'staff', label: 'College Clinic Staff', role: 'Staff', branch: 'College Clinic', icon: FiUser, iconBg: 'bg-blue-100 text-blue-700 border-blue-200' },
-  { username: 'bedstaff', label: 'Basic Ed Staff', role: 'Staff', branch: 'Basic Education Clinic', icon: FiSmile, iconBg: 'bg-amber-100 text-amber-700 border-amber-200' },
-  { username: 'poweradmin', label: 'Power Campus Admin', role: 'Admin', branch: 'Power Campus Clinic', icon: FiZap, iconBg: 'bg-purple-100 text-purple-700 border-purple-200' },
-  { username: 'superadmin', label: 'System Superadmin', role: 'Superadmin', branch: 'All Clinics', icon: FiAward, iconBg: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-];
+interface SavedAccount {
+  username: string;
+  name?: string;
+  role?: string;
+  branch?: string;
+}
+
+const SAVED_ACCOUNTS_KEY = 'cjc_saved_switch_accounts';
+
+const getSavedAccountsFromStorage = (): SavedAccount[] => {
+  try {
+    const raw = localStorage.getItem(SAVED_ACCOUNTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.error('Failed to load saved accounts', e);
+  }
+  return [];
+};
+
+const saveAccountToStorage = (acc: { username: string; name?: string; role?: string; clinic_branch?: string; branch?: string }): SavedAccount[] => {
+  if (!acc.username) return getSavedAccountsFromStorage();
+  try {
+    const list = getSavedAccountsFromStorage();
+    const existingIdx = list.findIndex(a => a.username.toLowerCase() === acc.username.toLowerCase());
+    const newItem: SavedAccount = {
+      username: acc.username,
+      name: acc.name || acc.username,
+      role: acc.role || 'Staff',
+      branch: acc.clinic_branch || acc.branch || 'College Clinic'
+    };
+    if (existingIdx >= 0) {
+      list[existingIdx] = { ...list[existingIdx], ...newItem };
+    } else {
+      list.push(newItem);
+    }
+    localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(list));
+    return list;
+  } catch (e) {
+    console.error('Failed to save account', e);
+    return getSavedAccountsFromStorage();
+  }
+};
 
 const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children, user }) => {
   const location = useLocation();
@@ -27,10 +65,29 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
   
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
-  const [switchUsername, setSwitchUsername] = useState('admin');
-  const [switchPassword, setSwitchPassword] = useState('admin123');
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>(getSavedAccountsFromStorage);
+  const [switchUsername, setSwitchUsername] = useState('');
+  const [switchPassword, setSwitchPassword] = useState('');
   const [switchError, setSwitchError] = useState('');
   const [switchLoading, setSwitchLoading] = useState(false);
+
+  useEffect(() => {
+    if (user && user.username) {
+      const updated = saveAccountToStorage(user);
+      setSavedAccounts(updated);
+    }
+  }, [user]);
+
+  const handleRemoveSavedAccount = (usernameToRemove: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = savedAccounts.filter(a => a.username.toLowerCase() !== usernameToRemove.toLowerCase());
+    setSavedAccounts(updated);
+    try {
+      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(updated));
+    } catch (err) {
+      console.error('Failed to save updated list', err);
+    }
+  };
 
   const page = location.pathname.substring(1) || 'dashboard';
 
@@ -96,6 +153,11 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
       });
 
       if (res.success) {
+        if (res.user) {
+          saveAccountToStorage(res.user);
+        } else {
+          saveAccountToStorage({ username: switchUsername.trim() });
+        }
         window.location.href = '/dashboard';
       } else {
         setSwitchError(res.error || 'Invalid credentials. Failed to switch account.');
@@ -282,8 +344,9 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
             
             <button
               onClick={() => {
-                setSwitchUsername('admin');
-                setSwitchPassword('admin123');
+                const initialUser = savedAccounts.length > 0 ? savedAccounts[0].username : (user?.username || '');
+                setSwitchUsername(initialUser);
+                setSwitchPassword('');
                 setSwitchError('');
                 setIsSwitchModalOpen(true);
               }}
@@ -323,7 +386,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                   </div>
                   <div>
                     <h3 className="text-lg font-bold">Switch Clinic Account</h3>
-                    <p className="text-xs text-white/80 font-medium">Select a staff account or log in with different credentials</p>
+                    <p className="text-xs text-white/80 font-medium">Select a saved account or log in with different credentials</p>
                   </div>
                 </div>
               </div>
@@ -337,41 +400,75 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                 )}
 
                 <div className="mb-4">
-                  <label className="text-xs font-bold text-slate-600 block mb-2 uppercase tracking-wider">Quick Select Account:</label>
-                  <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
-                    {PRESET_ACCOUNTS.map((acc, idx) => {
-                      const isSelected = switchUsername === acc.username;
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => {
-                            setSwitchUsername(acc.username);
-                            setSwitchPassword('admin123');
-                            setSwitchError('');
-                          }}
-                          className={`p-2.5 rounded-xl text-left flex items-center justify-between transition-all cursor-pointer border ${
-                            isSelected 
-                              ? 'bg-red-50/80 border-[#C01D38] text-[#C01D38] font-bold shadow-2xs' 
-                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700 font-medium'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center border shrink-0 shadow-2xs ${acc.iconBg}`}>
-                              <acc.icon className="w-4 h-4" />
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      Saved Accounts for Quick Switch
+                    </label>
+                    {user && user.username && !savedAccounts.some(a => a.username.toLowerCase() === user.username.toLowerCase()) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = saveAccountToStorage(user);
+                          setSavedAccounts(updated);
+                        }}
+                        className="text-[11px] font-bold text-[#C01D38] hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <FiPlus className="w-3 h-3" /> Save Current Account
+                      </button>
+                    )}
+                  </div>
+
+                  {savedAccounts.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {savedAccounts.map((acc, idx) => {
+                        const isSelected = switchUsername.toLowerCase() === acc.username.toLowerCase();
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              setSwitchUsername(acc.username);
+                              setSwitchPassword('');
+                              setSwitchError('');
+                            }}
+                            className={`p-2.5 rounded-xl flex items-center justify-between transition-all cursor-pointer border ${
+                              isSelected 
+                                ? 'bg-red-50/80 border-[#C01D38] text-[#C01D38] font-bold shadow-2xs' 
+                                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700 font-medium'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-xl flex items-center justify-center border shrink-0 shadow-2xs bg-red-100 text-[#C01D38] border-red-200 font-extrabold text-xs">
+                                {acc.name ? acc.name.charAt(0).toUpperCase() : acc.username.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold text-slate-800">{acc.name || acc.username}</div>
+                                <div className="text-[11px] text-slate-500 font-normal">{acc.role || 'Staff'} • {acc.branch || 'Clinic'}</div>
+                              </div>
                             </div>
-                            <div>
-                              <div className="text-xs font-bold">{acc.label}</div>
-                              <div className="text-[11px] opacity-75">{acc.branch}</div>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600">
+                                {acc.username}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleRemoveSavedAccount(acc.username, e)}
+                                title="Remove account from saved list"
+                                className="p-1 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all cursor-pointer"
+                              >
+                                <FiTrash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/80 border border-slate-200">
-                            {acc.username}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center text-xs text-slate-500">
+                      <p className="font-semibold text-slate-700 mb-0.5">No saved accounts yet</p>
+                      <p className="text-[11px] text-slate-400">Accounts you log in to will automatically be remembered here for quick switching.</p>
+                    </div>
+                  )}
                 </div>
 
                 <form onSubmit={handleSwitchAccountSubmit} className="space-y-3">
