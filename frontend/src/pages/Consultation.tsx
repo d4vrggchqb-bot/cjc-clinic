@@ -54,6 +54,11 @@ const Consultation: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [purpose, setPurpose] = useState('');
   const [availableCues, setAvailableCues] = useState<string[]>([]);
+  const [commonConditions, setCommonConditions] = useState<string[]>([
+    'Febrile Illness', 'Tension Headache', 'Dysmenorrhea',
+    'Upper Respiratory Infection', 'Hyperacidity', 'Acute Gastroenteritis', 'Allergic Rhinitis'
+  ]);
+  const [medcertPersonnel, setMedcertPersonnel] = useState<any[]>([]);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [checkinError, setCheckinError] = useState('');
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -61,11 +66,19 @@ const Consultation: React.FC = () => {
   useEffect(() => {
     apiFetch('/api/index.php?route=settings&action=get')
       .then(res => {
-        if (res && res.settings && Array.isArray(res.settings.cues)) {
-          setAvailableCues(res.settings.cues);
+        if (res && res.settings) {
+          if (Array.isArray(res.settings.cues)) {
+            setAvailableCues(res.settings.cues);
+          }
+          if (Array.isArray(res.settings.medcert_personnel)) {
+            setMedcertPersonnel(res.settings.medcert_personnel);
+          }
+          if (Array.isArray(res.settings.common_conditions) && res.settings.common_conditions.length > 0) {
+            setCommonConditions(res.settings.common_conditions);
+          }
         }
       })
-      .catch(err => console.error("Failed to load settings cues", err));
+      .catch(err => console.error("Failed to load settings", err));
   }, []);
   
   // Quick Add Patient State
@@ -96,6 +109,7 @@ const Consultation: React.FC = () => {
   // Medical Notes & Staff Vitals Modal State
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [isStaffVitalsModalOpen, setIsStaffVitalsModalOpen] = useState(false);
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [activeNoteEntry, setActiveNoteEntry] = useState<LogbookEntry | null>(null);
   const [bp, setBp] = useState('');
   const [temp, setTemp] = useState('');
@@ -132,7 +146,9 @@ const Consultation: React.FC = () => {
   const [isGeneratingMedcert, setIsGeneratingMedcert] = useState(false);
   const [medcertData, setMedcertData] = useState({
     issued_to: '',
-    issued_by: 'Clinic Nurse / Doctor',
+    issued_by: '',
+    issued_by_position: '',
+    issued_by_license: '',
     reason: '',
     valid_until: '',
     clinic_branch: 'College Clinic'
@@ -166,9 +182,9 @@ const Consultation: React.FC = () => {
 
   const openNotesModal = (entry: LogbookEntry) => {
     setActiveNoteEntry(entry);
-    setBp(entry.blood_pressure || '');
-    setTemp(entry.temperature || '');
-    setWeight(entry.weight || '');
+    setBp(entry.blood_pressure ? String(entry.blood_pressure) : '');
+    setTemp(entry.temperature ? String(entry.temperature) : '');
+    setWeight(entry.weight ? String(entry.weight) : '');
     setDiagnosis(entry.diagnosis || '');
     setTreatment(entry.treatment || '');
     setDispensedItems([]);
@@ -177,9 +193,9 @@ const Consultation: React.FC = () => {
 
   const openStaffVitalsModal = (entry: LogbookEntry) => {
     setActiveNoteEntry(entry);
-    setBp(entry.blood_pressure || '');
-    setTemp(entry.temperature || '');
-    setWeight(entry.weight || '');
+    setBp(entry.blood_pressure ? String(entry.blood_pressure) : '');
+    setTemp(entry.temperature ? String(entry.temperature) : '');
+    setWeight(entry.weight ? String(entry.weight) : '');
     setPulse('');
     setVitalsAnalysis({ severity: 'normal', alerts: [], suggested_diagnosis: [], suggested_treatment: [] });
     setIsStaffVitalsModalOpen(true);
@@ -248,7 +264,7 @@ const Consultation: React.FC = () => {
     if (!isNotesModalOpen && !isStaffVitalsModalOpen) return;
     
     const timer = setTimeout(() => {
-      if (bp.trim() || temp.trim() || pulse.trim()) {
+      if (String(bp).trim() || String(temp).trim() || String(pulse).trim()) {
         apiFetch(`/api/index.php?route=consultations&action=analyze_vitals&bp=${encodeURIComponent(bp)}&temp=${encodeURIComponent(temp)}&pulse=${encodeURIComponent(pulse)}`)
           .then(res => {
             if (res && res.success) {
@@ -1311,10 +1327,7 @@ const Consultation: React.FC = () => {
                   <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
                     <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block mb-2">Quick Common Conditions:</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {[
-                        'Febrile Illness', 'Tension Headache', 'Dysmenorrhea',
-                        'Upper Respiratory Infection', 'Hyperacidity', 'Acute Gastroenteritis', 'Allergic Rhinitis'
-                      ].map((item, idx) => (
+                      {commonConditions.map((item, idx) => (
                         <button
                           key={idx}
                           type="button"
@@ -1634,7 +1647,28 @@ const Consultation: React.FC = () => {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Issued By</label>
-                <input required type="text" value={medcertData.issued_by} onChange={e => setMedcertData({...medcertData, issued_by: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
+                <select 
+                  required 
+                  value={medcertData.issued_by} 
+                  onChange={e => {
+                    const selectedName = e.target.value;
+                    const selectedPerson = medcertPersonnel.find(p => p.name === selectedName);
+                    setMedcertData({
+                      ...medcertData, 
+                      issued_by: selectedName,
+                      issued_by_position: selectedPerson?.position || '',
+                      issued_by_license: selectedPerson?.license_no || ''
+                    });
+                  }} 
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
+                >
+                  <option value="" disabled>Select personnel...</option>
+                  {medcertPersonnel.map((person, idx) => (
+                    <option key={idx} value={person.name}>
+                      {person.name} ({person.position})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Reason / Remarks</label>
@@ -1700,21 +1734,31 @@ const Consultation: React.FC = () => {
           <div className="w-[210mm] min-h-[297mm] bg-white shadow-2xl print:shadow-none p-14 relative flex flex-col justify-between text-slate-900 font-serif border border-slate-200 print:border-none print:p-8">
             
             <div>
-              {/* Official Cor Jesu College Header / Letterhead */}
-              <div className="flex justify-between items-center border-b-2 border-[#8c1526] pb-5 mb-8">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-[#8c1526] text-white flex items-center justify-center font-extrabold text-2xl shadow-md border-2 border-amber-400 shrink-0 font-sans">
-                    CJC
+              <div className="mb-6 relative">
+                
+                {/* Header Image Background */}
+                <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto" />
+
+                {/* Right: Document Info Box overlay - perfectly covers the image's drawn box */}
+                <div className="absolute top-[5%] right-[0%] bottom-[41%] w-[17%] z-10 overflow-visible">
+                  <div className="w-[200%] h-[200%] scale-50 origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-1 shadow-sm font-sans leading-none">
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Index No.:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">9.9</span>
+                    </div>
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Revision No.:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">01</span>
+                    </div>
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Effective Date:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[14px]">08/01/2024</span>
+                    </div>
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[13px]">Control No.:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[13px]">9.9 -C - 2025</span>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-2xl font-black text-[#8c1526] tracking-wide uppercase font-sans">Cor Jesu College</h1>
-                    <h2 className="text-sm font-bold text-slate-800 font-sans tracking-wide">HEALTH SERVICES CLINIC — {medcertData.clinic_branch?.toUpperCase() || 'COLLEGE CLINIC'}</h2>
-                    <p className="text-xs text-slate-500 font-sans">Sacred Heart Avenue, Digos City, Davao del Sur 8002</p>
-                  </div>
-                </div>
-                <div className="text-right font-sans">
-                  <div className="text-[11px] text-slate-400 font-medium">Control No:</div>
-                  <div className="text-xs font-bold text-slate-700">MC-{Date.now().toString().slice(-6)}</div>
                 </div>
               </div>
 
@@ -1724,55 +1768,57 @@ const Consultation: React.FC = () => {
               </div>
 
               {/* Main Certification Content */}
-              <div className="text-slate-800 text-justify leading-relaxed text-base space-y-6 my-6 font-serif">
-                <p className="text-right text-sm font-sans font-semibold text-slate-600 mb-6">
-                  Date Issued: <span className="underline underline-offset-4 font-bold text-slate-900">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+              <div className="text-slate-800 text-justify text-[15px] space-y-6 mt-8 mb-16 font-serif leading-[2.2]">
+                
+                <p className="font-bold text-base font-serif mb-6">TO WHOM IT MAY CONCERN:</p>
+
+                <p className="indent-12">
+                  This is to certify that <span className="inline-block border-b border-black min-w-[320px] text-center font-bold px-2 uppercase">{medcertData.issued_to}</span>, <span className="inline-block border-b border-black min-w-[60px] text-center px-2">&nbsp;</span> years old
+                  <br />and a resident of <span className="inline-block border-b border-black min-w-[440px] text-center px-2">&nbsp;</span> has been examined at the
+                  <br />School Clinic-Cor Jesu College.
                 </p>
 
-                <p className="font-bold text-base font-sans">TO WHOM IT MAY CONCERN:</p>
-
-                <p className="indent-10 text-base leading-loose">
-                  This is to certify that <span className="font-extrabold text-slate-900 underline uppercase px-2 font-sans">{medcertData.issued_to}</span> has been examined and evaluated at the Cor Jesu College Health Services Clinic ({medcertData.clinic_branch}) on <span className="font-semibold">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>.
-                </p>
-
-                <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200 my-4 font-sans">
-                  <span className="font-bold text-xs uppercase tracking-wider text-slate-500 block mb-1">Diagnosis / Clinical Findings & Remarks:</span>
-                  <p className="text-base font-bold text-slate-900 whitespace-pre-wrap">{medcertData.reason}</p>
+                <div className="pl-12 space-y-3 my-6 leading-relaxed">
+                  <div className="flex items-center gap-3">
+                    <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5">
+                      {!medcertData.reason && <span></span>}
+                    </div>
+                    <span>ESSENTIALLY NORMAL</span>
+                  </div>
+                  <div className="flex items-end gap-3">
+                    <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5 mb-1.5">
+                      {medcertData.reason && <span>✓</span>}
+                    </div>
+                    <span className="whitespace-nowrap">With Findings:</span>
+                    <span className="border-b border-black w-full inline-block min-h-[1.5rem] px-2">{medcertData.reason}</span>
+                  </div>
+                  <div className="flex items-end gap-3">
+                    <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5 mb-1.5">
+                    </div>
+                    <span className="whitespace-nowrap">Recommendations/Remarks:</span>
+                    <span className="border-b border-black w-full inline-block min-h-[1.5rem] px-2">{medcertData.valid_until ? `Recommended rest until ${new Date(medcertData.valid_until).toLocaleDateString('en-US')}` : ''}</span>
+                  </div>
                 </div>
 
-                <p className="indent-10 text-base leading-loose">
-                  Based on the physical assessment, the patient is recommended for medical excuse/rest and is excused from attending classes/duty from <span className="font-bold underline px-1">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span> until <span className="font-extrabold text-slate-900 underline px-1 font-sans">{new Date(medcertData.valid_until).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>.
-                </p>
-
-                <p className="indent-10 text-sm text-slate-600 italic">
-                  This medical certificate is issued upon request for whatever valid purpose it may serve, excluding medico-legal proceedings.
+                <p className="indent-12">
+                  This certification is being issued upon verbal request for whatever legal purpose it may serve.
+                  <br />Issued this <span className="inline-block border-b border-black min-w-[200px] text-center px-2 font-bold">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span> at Digos City, Davao del Sur, Philippines.
                 </p>
               </div>
             </div>
 
-            {/* Bottom Signatures & Seal Section */}
-            <div className="pt-8 font-sans">
-              <div className="flex justify-between items-end">
-                {/* Official Seal Badge Box */}
-                <div className="w-44 h-24 border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-center p-2 text-slate-400 text-[10px] uppercase font-bold">
-                  <span>Official Clinic Seal</span>
-                  <span className="text-[9px] font-normal normal-case text-slate-400 mt-1">Stamped Signature Required</span>
-                </div>
-
-                {/* Signature Line */}
-                <div className="text-center w-72">
-                  <div className="border-b-2 border-slate-900 mb-1.5 pb-1 font-extrabold text-lg text-slate-900">
+            {/* Bottom Signatures Section */}
+            <div className="pt-4 font-serif pb-12">
+              <div className="flex justify-end">
+                <div className="text-center w-[300px]">
+                  <div className="font-extrabold text-base text-slate-900 uppercase">
                     {medcertData.issued_by}
                   </div>
-                  <div className="text-xs font-bold text-slate-700 uppercase tracking-wide">Attending Clinic Nurse / Physician</div>
-                  <div className="text-[10px] text-slate-400 font-medium">Cor Jesu College Health Services</div>
+                  <div className="text-[15px] text-slate-800">{medcertData.issued_by_position}</div>
+                  {medcertData.issued_by_license && (
+                    <div className="text-[15px] text-slate-800">Lic. no. {medcertData.issued_by_license}</div>
+                  )}
                 </div>
-              </div>
-
-              {/* Verification Footer */}
-              <div className="mt-10 pt-4 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400">
-                <span>Valid only with official clinic signature & seal • Generated by CJC Clinic Management System</span>
-                <span className="font-bold text-slate-500">Cor Jesu College Health Services</span>
               </div>
             </div>
 
