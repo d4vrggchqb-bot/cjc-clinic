@@ -314,11 +314,31 @@ class PatientController {
             if (!$profile) {
                 $this->jsonResponse(['error' => 'Patient not found'], 404);
             }
-            
-            $attachmentsStmt = $pdo->prepare("SELECT * FROM profile_attachments WHERE profile_id = :id ORDER BY created_at DESC");
-            $attachmentsStmt->execute(['id' => $id]);
-            $attachments = $attachmentsStmt->fetchAll(PDO::FETCH_ASSOC);
-            $profile['attachments'] = $attachments;
+            // Failsafe: Ensure profile_attachments table exists
+            try {
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS `profile_attachments` (
+                        `id` INT AUTO_INCREMENT PRIMARY KEY,
+                        `profile_id` INT NOT NULL,
+                        `filename` VARCHAR(255) NOT NULL,
+                        `file_url` VARCHAR(500) NOT NULL,
+                        `uploaded_by` VARCHAR(100) DEFAULT NULL,
+                        `extracted_text` LONGTEXT DEFAULT NULL,
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
+                    )
+                ");
+            } catch (Exception $e) {}
+
+            try {
+                $attachmentsStmt = $pdo->prepare("SELECT * FROM profile_attachments WHERE profile_id = :id ORDER BY created_at DESC");
+                $attachmentsStmt->execute(['id' => $id]);
+                $attachments = $attachmentsStmt->fetchAll(PDO::FETCH_ASSOC);
+                $profile['attachments'] = $attachments;
+            } catch (PDOException $e) {
+                // Table might still not exist if privileges are low, gracefully fallback
+                $profile['attachments'] = [];
+            }
 
             $this->jsonResponse(['profile' => $profile]);
         } catch (PDOException $e) {

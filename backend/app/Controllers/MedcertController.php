@@ -52,23 +52,41 @@ class MedcertController {
             } catch (Exception $e) {
                 // Ignore if column already exists
             }
+            // Failsafe: Ensure issued_by_position and issued_by_license columns exist
+            try {
+                $pdo->exec("ALTER TABLE medcerts ADD COLUMN issued_by_position VARCHAR(150) DEFAULT NULL");
+                $pdo->exec("ALTER TABLE medcerts ADD COLUMN issued_by_license VARCHAR(100) DEFAULT NULL");
+            } catch (Exception $e) {
+                // Ignore if column already exists
+            }
 
             try {
                 $stmt = $pdo->prepare(
-                    'INSERT INTO medcerts (profile_id, clinic_branch, issued_to, issued_by, reason, valid_until)
-                     VALUES (:profile_id, :clinic_branch, :issued_to, :issued_by, :reason, :valid_until)'
+                    'INSERT INTO medcerts (profile_id, clinic_branch, issued_to, issued_by, issued_by_position, issued_by_license, reason, valid_until)
+                     VALUES (:profile_id, :clinic_branch, :issued_to, :issued_by, :issued_by_position, :issued_by_license, :reason, :valid_until)'
                 );
-                $stmt->execute($data);
+                $stmt->execute([
+                    'profile_id' => $data['profile_id'],
+                    'clinic_branch' => $data['clinic_branch'],
+                    'issued_to' => $data['issued_to'],
+                    'issued_by' => $data['issued_by'],
+                    'issued_by_position' => $data['issued_by_position'] ?? null,
+                    'issued_by_license' => $data['issued_by_license'] ?? null,
+                    'reason' => $data['reason'],
+                    'valid_until' => $data['valid_until']
+                ]);
             } catch (PDOException $e) {
                 // Fallback if clinic_branch column fails
                 $stmt = $pdo->prepare(
-                    'INSERT INTO medcerts (profile_id, issued_to, issued_by, reason, valid_until)
-                     VALUES (:profile_id, :issued_to, :issued_by, :reason, :valid_until)'
+                    'INSERT INTO medcerts (profile_id, issued_to, issued_by, issued_by_position, issued_by_license, reason, valid_until)
+                     VALUES (:profile_id, :issued_to, :issued_by, :issued_by_position, :issued_by_license, :reason, :valid_until)'
                 );
                 $stmt->execute([
                     'profile_id'  => $data['profile_id'],
                     'issued_to'   => $data['issued_to'],
                     'issued_by'   => $data['issued_by'],
+                    'issued_by_position' => $data['issued_by_position'] ?? null,
+                    'issued_by_license' => $data['issued_by_license'] ?? null,
                     'reason'      => $data['reason'],
                     'valid_until' => $data['valid_until']
                 ]);

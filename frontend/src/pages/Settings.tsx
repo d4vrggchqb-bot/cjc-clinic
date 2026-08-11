@@ -35,6 +35,8 @@ export default function Settings() {
             custom_categories_hierarchy: Array.isArray(res.settings.custom_categories_hierarchy) ? res.settings.custom_categories_hierarchy : [],
             college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
             cues: Array.isArray(res.settings.cues) ? res.settings.cues : [],
+            common_conditions: Array.isArray(res.settings.common_conditions) ? res.settings.common_conditions : ['Febrile Illness', 'Tension Headache', 'Dysmenorrhea', 'Upper Respiratory Infection', 'Hyperacidity', 'Acute Gastroenteritis', 'Allergic Rhinitis'],
+            medcert_personnel: Array.isArray(res.settings.medcert_personnel) ? res.settings.medcert_personnel : [],
           });
         }
         setLoading(false);
@@ -282,6 +284,16 @@ export default function Settings() {
                 onEdit={(oldVal: any, newVal: any) => handleArrayEdit('college_year_levels', oldVal, newVal)}
               />
 
+              {/* Medical Personnel for Med Certs */}
+              <PersonnelEditor 
+                items={settings.medcert_personnel}
+                onSave={(newList: any) => {
+                  const updated = { ...settings, medcert_personnel: newList };
+                  setSettings(updated);
+                  saveSettings({ medcert_personnel: newList });
+                }}
+              />
+
               {/* BED Config - Hierarchical */}
               <div className="mt-8 border-t border-slate-200 pt-6">
                 <HierarchyEditor
@@ -324,14 +336,26 @@ export default function Settings() {
           )}
 
           {activeTab === 'clinical' && (
-            <ConfigListEditor 
-              title="Cues Presets" 
-              description="Cues nurses can select from when checking in a patient (e.g. Headache, Fever, Stomach Ache)."
-              items={settings.cues}
-              onAdd={(v: any) => handleArrayAdd('cues', v)}
-              onRemove={(v: any) => handleArrayRemove('cues', v)}
-              onEdit={(oldVal: any, newVal: any) => handleArrayEdit('cues', oldVal, newVal)}
-            />
+            <>
+              <ConfigListEditor 
+                title="Cues Presets" 
+                description="Cues nurses can select from when checking in a patient (e.g. Headache, Fever, Stomach Ache)."
+                items={settings.cues}
+                onAdd={(v: any) => handleArrayAdd('cues', v)}
+                onRemove={(v: any) => handleArrayRemove('cues', v)}
+                onEdit={(oldVal: any, newVal: any) => handleArrayEdit('cues', oldVal, newVal)}
+              />
+
+              {/* Common Conditions - Flat Array */}
+              <ConfigListEditor 
+                title="Quick Common Conditions" 
+                description="Presets for the Medical Diagnosis modal to quickly add common diagnoses."
+                items={settings.common_conditions || []}
+                onAdd={(v: any) => handleArrayAdd('common_conditions', v)}
+                onRemove={(v: any) => handleArrayRemove('common_conditions', v)}
+                onEdit={(oldVal: any, newVal: any) => handleArrayEdit('common_conditions', oldVal, newVal)}
+              />
+            </>
           )}
 
           {activeTab === 'users' && (
@@ -821,6 +845,138 @@ const ChildEditor = ({ parentName, childrenItems, childLabel, onAdd, onRemove }:
               >
                 <FiX />
               </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+const PersonnelEditor = ({ items, onSave }: any) => {
+  const { confirm } = useConfirm();
+  const [personnel, setPersonnel] = useState<any[]>(items || []);
+  const [editingIdx, setEditingIdx] = useState<number>(-1);
+  const [form, setForm] = useState({ name: '', position: '', license_no: '' });
+
+  useEffect(() => {
+    setPersonnel(items || []);
+  }, [items]);
+
+  const handleAdd = () => {
+    if (!form.name.trim() || !form.position.trim()) return;
+    const newList = [...personnel, { ...form }];
+    setPersonnel(newList);
+    onSave(newList);
+    setForm({ name: '', position: '', license_no: '' });
+  };
+
+  const handleUpdate = () => {
+    if (!form.name.trim() || !form.position.trim()) return;
+    const newList = [...personnel];
+    newList[editingIdx] = { ...form };
+    setPersonnel(newList);
+    onSave(newList);
+    setEditingIdx(-1);
+    setForm({ name: '', position: '', license_no: '' });
+  };
+
+  const handleDelete = async (idx: number, name: string) => {
+    if (await confirm('Delete Personnel', `Remove ${name} from the medical personnel list?`)) {
+      const newList = personnel.filter((_, i) => i !== idx);
+      setPersonnel(newList);
+      onSave(newList);
+    }
+  };
+
+  return (
+    <div className="mt-8 border-t border-slate-200 pt-6">
+      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-1">
+        <FiUsers className="text-[#8c1526]" />
+        Medical Personnel (Med Certs)
+      </h3>
+      <p className="text-slate-500 text-sm mb-4">Manage the list of authorized personnel who can issue medical certificates.</p>
+
+      {/* Add / Edit Form */}
+      <div className="flex gap-2 mb-4 items-end bg-slate-50 p-4 border border-slate-200 rounded flex-wrap">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-xs font-semibold text-slate-600 mb-1">Name (e.g. ELAINE JOY S. CABUSLAY, RN, MD)</label>
+          <input 
+            type="text" 
+            value={form.name} 
+            onChange={e => setForm({...form, name: e.target.value})}
+            className="w-full border border-slate-300 rounded px-3 py-1.5 focus:border-[#007bff] focus:outline-none text-sm"
+          />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-xs font-semibold text-slate-600 mb-1">Position (e.g. School Physician)</label>
+          <input 
+            type="text" 
+            value={form.position} 
+            onChange={e => setForm({...form, position: e.target.value})}
+            className="w-full border border-slate-300 rounded px-3 py-1.5 focus:border-[#007bff] focus:outline-none text-sm"
+          />
+        </div>
+        <div className="w-48">
+          <label className="block text-xs font-semibold text-slate-600 mb-1">License No. (Optional)</label>
+          <input 
+            type="text" 
+            value={form.license_no} 
+            onChange={e => setForm({...form, license_no: e.target.value})}
+            className="w-full border border-slate-300 rounded px-3 py-1.5 focus:border-[#007bff] focus:outline-none text-sm"
+          />
+        </div>
+        <div className="flex items-center pt-5">
+          {editingIdx >= 0 ? (
+            <div className="flex gap-2">
+              <button onClick={handleUpdate} className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded text-sm font-bold flex items-center gap-1">
+                <FiCheck /> Update
+              </button>
+              <button onClick={() => { setEditingIdx(-1); setForm({ name: '', position: '', license_no: '' }); }} className="bg-slate-400 hover:bg-slate-500 text-white px-3 py-1.5 rounded text-sm font-bold">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={handleAdd}
+              disabled={!form.name.trim() || !form.position.trim()}
+              className="bg-[#007bff] hover:bg-[#0069d9] text-white px-4 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm disabled:opacity-50 h-8"
+            >
+              <FiPlus /> Add
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="border border-slate-200 rounded bg-slate-50">
+        {personnel.length === 0 ? (
+          <div className="p-3 text-sm text-slate-400 bg-white">No personnel records found.</div>
+        ) : (
+          personnel.map((item: any, idx: number) => (
+            <div key={idx} className="border-b border-slate-200 last:border-0 bg-white p-3 flex justify-between items-center group">
+              <div>
+                <div className="font-bold text-slate-800 text-sm">{item.name}</div>
+                <div className="text-xs text-slate-500 flex gap-3 mt-1">
+                  <span><strong className="text-slate-600">Pos:</strong> {item.position}</span>
+                  {item.license_no && <span><strong className="text-slate-600">Lic:</strong> {item.license_no}</span>}
+                </div>
+              </div>
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={() => { setEditingIdx(idx); setForm({ ...item }); }}
+                  className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-50 rounded"
+                  title="Edit Personnel"
+                >
+                  <FiEdit2 />
+                </button>
+                <button 
+                  onClick={() => handleDelete(idx, item.name)}
+                  className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded"
+                  title="Delete Personnel"
+                >
+                  <FiTrash2 />
+                </button>
+              </div>
             </div>
           ))
         )}

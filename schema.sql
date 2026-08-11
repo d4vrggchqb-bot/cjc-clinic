@@ -133,6 +133,8 @@ CREATE TABLE IF NOT EXISTS `medcerts` (
   `profile_id` INT NOT NULL,
   `issued_to` VARCHAR(150) NOT NULL,
   `issued_by` VARCHAR(150) NOT NULL,
+  `issued_by_position` VARCHAR(150) DEFAULT NULL,
+  `issued_by_license` VARCHAR(100) DEFAULT NULL,
   `reason` TEXT NOT NULL,
   `valid_until` DATE NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
