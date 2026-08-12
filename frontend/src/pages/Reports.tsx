@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiDownload, FiCalendar, FiFilter, FiFileText, FiActivity, FiUsers, FiTrendingUp, FiX } from 'react-icons/fi';
+import { FiDownload, FiCalendar, FiFilter, FiFileText, FiActivity, FiUsers, FiTrendingUp, FiX, FiPrinter, FiEye, FiCheck } from 'react-icons/fi';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -47,6 +47,56 @@ const Reports: React.FC = () => {
     active_semester: '1st Semester'
   });
   
+  // PDF & Excel Modal State
+  const [pdfPreviewType, setPdfPreviewType] = useState<'consultations' | 'borrowings' | null>(null);
+
+  const handleOpenPdfPreview = (type: 'consultations' | 'borrowings') => {
+    if (type === 'consultations' && (!data || !data.export_data || data.export_data.length === 0)) {
+      alert("No consultation logbook data available for this date range and filters.");
+      return;
+    }
+    if (type === 'borrowings' && (!data || !data.borrowing_export_data || data.borrowing_export_data.length === 0)) {
+      alert("No borrowing logbook data available for this date range and filters.");
+      return;
+    }
+    setPdfPreviewType(type);
+  };
+
+  const handleExportExcel = (type: 'consultations' | 'borrowings') => {
+    const exportData = type === 'consultations' ? data?.export_data : data?.borrowing_export_data;
+    if (!exportData || exportData.length === 0) {
+      alert(`No ${type} data available to export.`);
+      return;
+    }
+
+    const headers = Object.keys(exportData[0]).join(',');
+    const rows = exportData.map((row: any) => {
+      return Object.values(row).map((val: any) => {
+        let cell = val === null ? '' : String(val);
+        if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+          cell = `"${cell.replace(/"/g, '""')}"`;
+        }
+        return cell;
+      }).join(',');
+    });
+
+    const csvContent = '\uFEFF' + [headers, ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `CJC_Clinic_${type === 'consultations' ? 'Consultations' : 'Borrowings'}_Report_${startDate}_to_${endDate}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintPdf = () => {
+    window.print();
+  };
+
   // Modal State
   const [showExportModal, setShowExportModal] = useState(false);
 
@@ -320,46 +370,47 @@ const Reports: React.FC = () => {
 
           {/* Action Export Buttons */}
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0 w-full 2xl:w-auto">
-            <button 
-              onClick={handleExportClick}
-              className="bg-slate-800 hover:bg-slate-900 text-white px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm flex-1 sm:flex-none cursor-pointer whitespace-nowrap"
-            >
-              <FiDownload className="w-4 h-4 shrink-0" /> Export Consultations
-            </button>
-            <button 
-              onClick={() => {
-                if (!data || !data.borrowing_export_data || data.borrowing_export_data.length === 0) {
-                  alert("No borrowing data available for this date range and filters.");
-                  return;
-                }
-                const exportData = data.borrowing_export_data;
-                const headers = Object.keys(exportData[0]).join(',');
-                const rows = exportData.map((row: any) => {
-                  return Object.values(row).map((val: any) => {
-                    let cell = val === null ? '' : String(val);
-                    if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
-                      cell = `"${cell.replace(/"/g, '""')}"`;
-                    }
-                    return cell;
-                  }).join(',');
-                });
+            {/* Consultations Export Options */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-700 px-1.5 uppercase tracking-wider">Consultations:</span>
+              <button 
+                type="button"
+                onClick={() => handleExportExcel('consultations')}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Export Consultations to Excel (.xlsx/.csv)"
+              >
+                <FiDownload className="w-3.5 h-3.5" /> Excel
+              </button>
+              <button 
+                type="button"
+                onClick={() => handleOpenPdfPreview('consultations')}
+                className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Preview & Export Consultations PDF"
+              >
+                <FiEye className="w-3.5 h-3.5 text-amber-400" /> PDF Preview
+              </button>
+            </div>
 
-                const csvContent = [headers, ...rows].join('\n');
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", `Clinic_Borrowings_${startDate}_to_${endDate}.csv`);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-              }}
-              className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm flex-1 sm:flex-none cursor-pointer whitespace-nowrap"
-            >
-              <FiDownload className="w-4 h-4 shrink-0" /> Export Borrowings
-            </button>
+            {/* Borrowings Export Options */}
+            <div className="flex items-center gap-1 bg-red-50 p-1.5 rounded-xl border border-red-200 shadow-2xs">
+              <span className="text-[11px] font-bold text-[#A5192D] px-1.5 uppercase tracking-wider">Borrowings:</span>
+              <button 
+                type="button"
+                onClick={() => handleExportExcel('borrowings')}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Export Borrowings to Excel (.xlsx/.csv)"
+              >
+                <FiDownload className="w-3.5 h-3.5" /> Excel
+              </button>
+              <button 
+                type="button"
+                onClick={() => handleOpenPdfPreview('borrowings')}
+                className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Preview & Export Borrowings PDF"
+              >
+                <FiEye className="w-3.5 h-3.5 text-amber-300" /> PDF Preview
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -642,6 +693,197 @@ const Reports: React.FC = () => {
               >
                 <FiDownload /> Download CSV
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* PDF Document Preview Modal */}
+      {pdfPreviewType && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex flex-col items-center justify-start z-50 overflow-y-auto p-4 sm:p-6 animate-in fade-in duration-200">
+          
+          {/* Modal Sticky Control Bar (hidden on print) */}
+          <div className="no-print bg-slate-900 text-white w-full max-w-4xl p-4 rounded-t-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 sticky top-0 z-10 border-b border-slate-700">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-[#A5192D] flex items-center justify-center text-white font-black text-sm">
+                PDF
+              </div>
+              <div>
+                <h3 className="text-sm font-bold tracking-wide">
+                  PDF Report Preview — {pdfPreviewType === 'consultations' ? 'Consultation Logbook' : 'Equipment Borrowings'}
+                </h3>
+                <p className="text-[11px] text-slate-400">Official Cor Jesu College Clinic Document Format</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button 
+                type="button"
+                onClick={handlePrintPdf}
+                className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+              >
+                <FiPrinter className="w-4 h-4" /> Print / Save as PDF
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => handleExportExcel(pdfPreviewType)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <FiDownload className="w-4 h-4" /> Excel (.xlsx)
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setPdfPreviewType(null)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2 rounded-xl text-xs font-bold transition-all cursor-pointer ml-1"
+                aria-label="Close preview"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Printable Document Paper Card */}
+          <div 
+            id="pdf-preview-document"
+            className="bg-white w-full max-w-4xl p-8 sm:p-10 rounded-b-2xl shadow-2xl border border-slate-200 space-y-6 text-slate-800 print:shadow-none print:border-none print:w-full print:max-w-none print:p-0"
+          >
+            {/* Header / Letterhead - Using Medcert Header Image */}
+            <div className="border-b-2 border-slate-800 pb-4">
+              <img src="/med_cert_header.png" alt="Cor Jesu College Clinic Header" className="w-full h-auto mb-2" />
+              <div className="flex justify-between items-center px-1">
+                <span className="text-[11px] font-bold text-[#A5192D] tracking-wider uppercase">
+                  CJC-Clinic+ Patient Records & Inventory System
+                </span>
+                <span className="text-[11px] text-slate-500 font-semibold">
+                  Official Export Report • Generated: {new Date().toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Document Title Banner */}
+            <div className="bg-slate-50 border-l-4 border-[#A5192D] p-4 rounded-r-xl">
+              <h2 className="text-base font-bold text-slate-900 uppercase tracking-wide">
+                {pdfPreviewType === 'consultations' ? 'Clinical Consultations & Health Logbook' : 'Equipment & Supplies Borrowing Logbook'}
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-xs text-slate-600">
+                <div><span className="font-bold text-slate-500">Period:</span> {startDate} to {endDate}</div>
+                <div><span className="font-bold text-slate-500">Branch:</span> {selectedBranch}</div>
+                <div><span className="font-bold text-slate-500">Department:</span> {department}</div>
+                <div><span className="font-bold text-slate-500">Program/Year:</span> {program} ({yearLevel})</div>
+              </div>
+            </div>
+
+            {/* PDF Summary Stats */}
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Records</p>
+                <p className="text-xl font-black text-[#A5192D]">
+                  {pdfPreviewType === 'consultations' ? data?.export_data?.length || 0 : data?.borrowing_export_data?.length || 0}
+                </p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Semester</p>
+                <p className="text-sm font-bold text-slate-800 mt-1">{semester}</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Filter Purpose</p>
+                <p className="text-sm font-bold text-slate-800 mt-1 truncate">{purpose}</p>
+              </div>
+            </div>
+
+            {/* Official Report Table */}
+            <div>
+              <table className="w-full text-left border-collapse border border-slate-300 text-xs">
+                <thead>
+                  <tr className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[11px]">
+                    <th className="p-2.5 border border-slate-700">Date</th>
+                    <th className="p-2.5 border border-slate-700">Patient / Borrower Name</th>
+                    <th className="p-2.5 border border-slate-700">Type / ID</th>
+                    <th className="p-2.5 border border-slate-700">
+                      {pdfPreviewType === 'consultations' ? 'Purpose' : 'Purpose / Use'}
+                    </th>
+                    <th className="p-2.5 border border-slate-700">
+                      {pdfPreviewType === 'consultations' ? 'Diagnosis / Findings' : 'Items & Quantity'}
+                    </th>
+                    <th className="p-2.5 border border-slate-700 text-right">
+                      {pdfPreviewType === 'consultations' ? 'Attended By' : 'Status / Attended'}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pdfPreviewType === 'consultations' ? (
+                    data?.export_data?.map((row: any, i: number) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
+                        <td className="p-2.5 border border-slate-200 font-mono text-slate-600 whitespace-nowrap">
+                          {new Date(row.Date).toLocaleDateString()}
+                        </td>
+                        <td className="p-2.5 border border-slate-200 font-bold text-slate-800">
+                          {row.Patient_Name}
+                        </td>
+                        <td className="p-2.5 border border-slate-200 text-slate-600">
+                          <div>{row.ID_Number || 'N/A'}</div>
+                          <div className="text-[10px] text-slate-400 uppercase font-semibold">{row.Type}</div>
+                        </td>
+                        <td className="p-2.5 border border-slate-200 font-semibold text-[#A5192D]">
+                          {row.Purpose}
+                        </td>
+                        <td className="p-2.5 border border-slate-200 text-slate-700">
+                          <div>{row.Diagnosis || 'N/A'}</div>
+                          {row.Dispensed_Medicines && (
+                            <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">Meds: {row.Dispensed_Medicines}</div>
+                          )}
+                        </td>
+                        <td className="p-2.5 border border-slate-200 text-right font-medium text-slate-600">
+                          {row.Attended_By}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    data?.borrowing_export_data?.map((row: any, i: number) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
+                        <td className="p-2.5 border border-slate-200 font-mono text-slate-600 whitespace-nowrap">
+                          {new Date(row.Date || row.created_at || Date.now()).toLocaleDateString()}
+                        </td>
+                        <td className="p-2.5 border border-slate-200 font-bold text-slate-800">
+                          {row.Borrower_Name || row.Patient_Name || 'Borrower'}
+                        </td>
+                        <td className="p-2.5 border border-slate-200 text-slate-600">
+                          {row.ID_Number || 'N/A'}
+                        </td>
+                        <td className="p-2.5 border border-slate-200 font-semibold text-[#A5192D]">
+                          {row.Purpose}
+                        </td>
+                        <td className="p-2.5 border border-slate-200 text-slate-700">
+                          {row.Items_Borrowed || row.Equipment || 'Equipment'}
+                        </td>
+                        <td className="p-2.5 border border-slate-200 text-right font-semibold text-emerald-700">
+                          {row.Status || 'Active'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Dynamic Signatures & Verification Footer */}
+            <div className="pt-8 border-t border-slate-300 flex justify-between items-end text-xs text-slate-600">
+              <div>
+                <p className="font-bold text-slate-500 mb-8 uppercase tracking-wider">PREPARED BY:</p>
+                <div className="border-b border-slate-800 w-64 mb-1"></div>
+                <p className="font-bold text-slate-900 text-sm uppercase">{data?.user_name || 'Clinic Staff / Admin'}</p>
+                <p className="text-xs text-[#A5192D] font-semibold">{data?.user_role || 'Staff'} • Cor Jesu College Clinic</p>
+              </div>
+
+              <div className="text-right">
+                <p className="text-[11px] text-slate-400">Document Generated On:</p>
+                <p className="font-mono text-xs text-slate-700 font-bold">{new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+            </div>
+
+            <div className="text-center pt-4 text-[10px] text-slate-400 italic">
+              *** End of Official Computer-Generated Clinical Logbook Report ***
             </div>
           </div>
         </div>

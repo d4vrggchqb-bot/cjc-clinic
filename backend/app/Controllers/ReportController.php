@@ -209,6 +209,7 @@ class ReportController {
 
         $this->jsonResponse([
             'user_role' => $userRole,
+            'user_name' => $_SESSION['cjc_user']['name'] ?? $_SESSION['cjc_user']['username'] ?? 'Clinic Staff',
             'current_branch' => $branch,
             'start_date' => $startDate,
             'end_date' => $endDate,

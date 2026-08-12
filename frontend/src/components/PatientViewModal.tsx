@@ -374,36 +374,42 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
                       try {
                         const parsed = JSON.parse(patient.health_history);
                         if (typeof parsed === 'object' && parsed !== null) {
-                          const labels: Record<string, string> = {
-                            Asthma: 'Asthma',
-                            ThyroidDisease: 'Thyroid Disease',
-                            HeartDisease: 'Heart Disease',
-                            HighBloodPressure: 'High Blood Pressure',
-                            EpilepsySeizures: 'Epilepsy/Seizures',
-                            Tuberculosis: 'Tuberculosis',
-                            HistoryOfFainting: 'History of Fainting',
-                            Allergies: 'Allergies (Food/Drug)',
-                            RheumaticHeartDisease: 'Rheumatic Heart Disease',
-                            LungDisease: 'Lung Disease'
-                          };
-                          const activeConditions = Object.entries(parsed)
-                            .filter(([k, v]) => v === true && labels[k])
-                            .map(([k]) => labels[k]);
+                          let activeConditions: string[] = [];
+                          if (Array.isArray(parsed.conditions)) {
+                            activeConditions = parsed.conditions;
+                          } else {
+                            const labels: Record<string, string> = {
+                              Asthma: 'Asthma',
+                              ThyroidDisease: 'Thyroid Disease',
+                              HeartDisease: 'Heart Disease',
+                              HighBloodPressure: 'High Blood Pressure',
+                              EpilepsySeizures: 'Epilepsy/Seizures',
+                              Tuberculosis: 'Tuberculosis',
+                              HistoryOfFainting: 'History of Fainting',
+                              Allergies: 'Allergies (Food/Drug)',
+                              RheumaticHeartDisease: 'Rheumatic Heart Disease',
+                              LungDisease: 'Lung Disease'
+                            };
+                            activeConditions = Object.entries(parsed)
+                              .filter(([k, v]) => v === true && labels[k])
+                              .map(([k]) => labels[k]);
+                          }
                           
                           return (
                             <div>
                               {activeConditions.length > 0 ? (
                                 <div className="flex flex-wrap gap-2 mb-3">
                                   {activeConditions.map((cond, idx) => (
-                                    <span key={idx} className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-100 rounded-md text-xs font-semibold">
+                                    <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800 text-white rounded-full text-xs font-semibold shadow-2xs border border-slate-700">
+                                      <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                                       {cond}
                                     </span>
                                   ))}
                                 </div>
                               ) : null}
                               {parsed.OthersText && (
-                                <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded border border-slate-100">
-                                  <span className="font-semibold text-slate-700">Others:</span> {parsed.OthersText}
+                                <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                  <span className="font-semibold text-slate-700">Additional Remarks:</span> {parsed.OthersText}
                                 </div>
                               )}
                               {activeConditions.length === 0 && !parsed.OthersText && (

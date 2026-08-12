@@ -36,6 +36,7 @@ export default function Settings() {
             college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
             cues: Array.isArray(res.settings.cues) ? res.settings.cues : [],
             common_conditions: Array.isArray(res.settings.common_conditions) ? res.settings.common_conditions : ['Febrile Illness', 'Tension Headache', 'Dysmenorrhea', 'Upper Respiratory Infection', 'Hyperacidity', 'Acute Gastroenteritis', 'Allergic Rhinitis'],
+            health_history_presets: Array.isArray(res.settings.health_history_presets) ? res.settings.health_history_presets : ['Asthma', 'Thyroid Disease', 'Heart Disease', 'High Blood Pressure', 'Epilepsy / Seizures', 'Tuberculosis', 'History of Fainting', 'Allergies (Food / Drug)', 'Rheumatic Heart Disease', 'Lung Disease', 'Diabetes', 'Kidney Disease'],
             medcert_personnel: Array.isArray(res.settings.medcert_personnel) ? res.settings.medcert_personnel : [],
           });
         }
@@ -104,19 +105,20 @@ export default function Settings() {
   }, [activeTab]);
 
   const handleAddUser = async () => {
-    if (!newUser.username) return alert('Email / Username is required');
+    if (!newUser.username.trim()) return alert('Email / Username is required');
     try {
       const res = await apiFetch('/api/index.php?route=auth&action=create_user', {
         method: 'POST',
         body: JSON.stringify(newUser)
       });
-      if (res.success) {
+      if (res && res.success) {
         setNewUser({ username: '', password: '', role: 'Staff', clinic_branch: 'College Clinic' });
         fetchUsers();
+        alert('User added successfully!');
       } else {
-        alert(res.error || res.message || 'Failed to add user');
+        alert((res && (res.message || res.error)) || 'Failed to add user. Username may already exist.');
       }
-    } catch (e) { alert('Failed to add user'); }
+    } catch (e: any) { alert(e?.message || 'Failed to add user.'); }
   };
 
   const handleDeleteUser = async (id: number) => {
@@ -337,6 +339,16 @@ export default function Settings() {
 
           {activeTab === 'clinical' && (
             <>
+              {/* Health History & Allergies Presets */}
+              <ConfigListEditor 
+                title="Health History & Allergies Presets" 
+                description="Pre-defined health conditions and allergies available in the Patient Registration dropdown (e.g. Asthma, High Blood Pressure, Food Allergies)."
+                items={settings.health_history_presets || []}
+                onAdd={(v: any) => handleArrayAdd('health_history_presets', v)}
+                onRemove={(v: any) => handleArrayRemove('health_history_presets', v)}
+                onEdit={(oldVal: any, newVal: any) => handleArrayEdit('health_history_presets', oldVal, newVal)}
+              />
+
               <ConfigListEditor 
                 title="Cues Presets" 
                 description="Cues nurses can select from when checking in a patient (e.g. Headache, Fever, Stomach Ache)."

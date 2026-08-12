@@ -208,6 +208,48 @@ class SscController {
             $this->jsonResponse(['found' => false, 'message' => 'Student record not found in SSC database.']);
         }
 
+        $rawDept = $matched['department'] ?? $matched['departmentId'] ?? '';
+        $rawProg = $matched['program'] ?? '';
+        $rawYear = $matched['yearLevel'] ?? '';
+
+        $mappedDept = 'College of Computing and Information Sciences (CCIS)';
+        $deptLower = strtolower($rawDept . ' ' . $rawProg);
+
+        if (str_contains($deptLower, 'ccis') || str_contains($deptLower, 'computer') || str_contains($deptLower, 'information')) {
+            $mappedDept = 'College of Computing and Information Sciences (CCIS)';
+        } else if (str_contains($deptLower, 'con') || str_contains($deptLower, 'nursing')) {
+            $mappedDept = 'College of Nursing (CON)';
+        } else if (str_contains($deptLower, 'cte') || str_contains($deptLower, 'education') || str_contains($deptLower, 'teacher')) {
+            $mappedDept = 'College of Teacher Education (CTE)';
+        } else if (str_contains($deptLower, 'cbe') || str_contains($deptLower, 'business') || str_contains($deptLower, 'accountancy')) {
+            $mappedDept = 'College of Business & Education (CBE)';
+        } else if (str_contains($deptLower, 'ccje') || str_contains($deptLower, 'criminology')) {
+            $mappedDept = 'College of Criminal Justice Education (CCJE)';
+        } else if (!empty($rawDept)) {
+            $mappedDept = $rawDept;
+        }
+
+        // Normalize Course/Program
+        $mappedCourse = $rawProg;
+        $progLower = strtolower($rawProg);
+        if (str_contains($progLower, 'computer science') || $progLower === 'bscs' || $progLower === 'cs') {
+            $mappedCourse = 'Bachelor of Science in Computer Science';
+        } else if (str_contains($progLower, 'information technology') || $progLower === 'bsit' || $progLower === 'it') {
+            $mappedCourse = 'Bachelor of Science in Information Technology';
+        } else if (str_contains($progLower, 'nursing') || $progLower === 'bsn') {
+            $mappedCourse = 'Bachelor of Science in Nursing';
+        } else if (str_contains($progLower, 'elementary education') || $progLower === 'beed') {
+            $mappedCourse = 'Bachelor of Elementary Education';
+        } else if (str_contains($progLower, 'secondary education') || $progLower === 'bsed') {
+            $mappedCourse = 'Bachelor of Secondary Education';
+        } else if (str_contains($progLower, 'business administration') || $progLower === 'bsba') {
+            $mappedCourse = 'Bachelor of Science in Business Administration';
+        } else if (str_contains($progLower, 'criminology') || $progLower === 'bscrim') {
+            $mappedCourse = 'Bachelor of Science in Criminology';
+        } else if (str_contains($progLower, 'accountancy') || $progLower === 'bsa') {
+            $mappedCourse = 'Bachelor of Science in Accountancy';
+        }
+
         // Map SSC fields to CJC Clinic profile fields
         $mapped = [
             'found' => true,
@@ -221,9 +263,9 @@ class SscController {
                 'birthdate' => $matched['dateOfBirth'] ?? '',
                 'gender' => $matched['sex'] ?? 'Male',
                 'sub_type' => 'College',
-                'college_dept' => $matched['department'] ?? 'CCIS',
-                'course' => $matched['program'] ?? '',
-                'year_level' => $matched['yearLevel'] ?? '',
+                'college_dept' => $mappedDept,
+                'course' => $mappedCourse,
+                'year_level' => $rawYear ?: '1st Year',
                 'contact' => $matched['contactNumber'] ?? '',
                 'email' => $matched['email'] ?? '',
                 'address' => ($matched['currentAddress'] ?? '') ?: ($matched['permanentAddress'] ?? ''),
