@@ -107,20 +107,19 @@ class SscController {
     }
 
     /**
-     * Attempts to query the live remote SSC API endpoint
+     * Attempts to query the live remote SSC API masterlist endpoint
      */
-    private function fetchFromRemoteSscApi($studentId, $query) {
-        $baseUrl = getenv('SSC_API_BASE_URL') ?: 'https://ent-load-august-scientists.trycloudflare.com';
+    private function fetchFromRemoteSscMasterlist() {
+        $baseUrl = getenv('SSC_API_BASE_URL') ?: 'https://candidates-stay-table-both.trycloudflare.com';
         $clientName = getenv('SSC_MASTERLIST_CLIENT_NAME') ?: 'clinic-system';
         $clientKey = getenv('SSC_MASTERLIST_CLIENT_KEY') ?: '326bcd86b8a63778f42289729eede712f47e356478fad0092fd47e975dc2ab7f';
 
-        $searchParam = !empty($studentId) ? $studentId : $query;
-        $url = rtrim($baseUrl, '/') . '/api/v1/integration/students?search=' . urlencode($searchParam);
+        $url = rtrim($baseUrl, '/') . '/api/v1/integration/masterlist';
 
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 6);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Accept: application/json',
@@ -136,10 +135,8 @@ class SscController {
 
         if ($httpCode === 200 && $response) {
             $data = json_decode($response, true);
-            if (!empty($data)) {
-                if (isset($data['studentId'])) return $data;
-                if (is_array($data) && isset($data[0]['studentId'])) return $data[0];
-                if (isset($data['data']) && is_array($data['data']) && count($data['data']) > 0) return $data['data'][0];
+            if (is_array($data) && count($data) > 0) {
+                return $data;
             }
         }
         return null;
@@ -159,24 +156,46 @@ class SscController {
             $this->jsonResponse(['found' => false, 'message' => 'Please provide a student ID or search query.'], 400);
         }
 
-        // 1. Try querying remote SSC API
-        $matched = $this->fetchFromRemoteSscApi($studentId, $query);
+        $matched = null;
 
-        // 2. Fallback to sample student database pool if remote API is offline
-        if (!$matched) {
-            $records = $this->getSampleSscDatabase();
-            foreach ($records as $item) {
-                if (!empty($studentId) && strtolower($item['studentId']) === strtolower($studentId)) {
+        // 1. Try querying remote SSC masterlist API
+        $remoteList = $this->fetchFromRemoteSscMasterlist();
+        if ($remoteList) {
+            foreach ($remoteList as $item) {
+                if (!empty($studentId) && strtolower($item['studentId'] ?? '') === strtolower($studentId)) {
                     $matched = $item;
                     break;
                 }
                 if (!empty($query)) {
                     $q = strtolower($query);
                     if (
-                        strtolower($item['studentId']) === $q ||
-                        str_contains(strtolower($item['fullName']), $q) ||
-                        str_contains(strtolower($item['givenName']), $q) ||
-                        str_contains(strtolower($item['familyName']), $q)
+                        strtolower($item['studentId'] ?? '') === $q ||
+                        str_contains(strtolower($item['fullName'] ?? ''), $q) ||
+                        str_contains(strtolower($item['givenName'] ?? ''), $q) ||
+                        str_contains(strtolower($item['familyName'] ?? ''), $q)
+                    ) {
+                        $matched = $item;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback to sample student database pool if remote API is offline
+        if (!$matched) {
+            $records = $this->getSampleSscDatabase();
+            foreach ($records as $item) {
+                if (!empty($studentId) && strtolower($item['studentId'] ?? '') === strtolower($studentId)) {
+                    $matched = $item;
+                    break;
+                }
+                if (!empty($query)) {
+                    $q = strtolower($query);
+                    if (
+                        strtolower($item['studentId'] ?? '') === $q ||
+                        str_contains(strtolower($item['fullName'] ?? ''), $q) ||
+                        str_contains(strtolower($item['givenName'] ?? ''), $q) ||
+                        str_contains(strtolower($item['familyName'] ?? ''), $q)
                     ) {
                         $matched = $item;
                         break;
@@ -195,21 +214,21 @@ class SscController {
             'ssc_data' => $matched,
             'clinic_profile' => [
                 'profile_type' => 'student',
-                'patient_id_number' => $matched['studentId'],
-                'first_name' => $matched['givenName'],
-                'last_name' => $matched['familyName'],
-                'middle_initial' => $matched['middleName'],
-                'birthdate' => $matched['dateOfBirth'],
-                'gender' => $matched['sex'],
+                'patient_id_number' => $matched['studentId'] ?? '',
+                'first_name' => $matched['givenName'] ?? '',
+                'last_name' => $matched['familyName'] ?? '',
+                'middle_initial' => $matched['middleName'] ?? '',
+                'birthdate' => $matched['dateOfBirth'] ?? '',
+                'gender' => $matched['sex'] ?? 'Male',
                 'sub_type' => 'College',
-                'college_dept' => $matched['department'],
-                'course' => $matched['program'],
-                'year_level' => $matched['yearLevel'],
-                'contact' => $matched['contactNumber'],
-                'email' => $matched['email'],
-                'address' => $matched['currentAddress'] ?: $matched['permanentAddress'],
-                'emergency_contact_name' => $matched['emergencyContactName'] ?: $matched['guardianName'],
-                'emergency_contact_number' => $matched['emergencyContactNumber'] ?: $matched['guardianContactNumber'],
+                'college_dept' => $matched['department'] ?? 'CCIS',
+                'course' => $matched['program'] ?? '',
+                'year_level' => $matched['yearLevel'] ?? '',
+                'contact' => $matched['contactNumber'] ?? '',
+                'email' => $matched['email'] ?? '',
+                'address' => ($matched['currentAddress'] ?? '') ?: ($matched['permanentAddress'] ?? ''),
+                'emergency_contact_name' => ($matched['emergencyContactName'] ?? '') ?: ($matched['guardianName'] ?? ''),
+                'emergency_contact_number' => ($matched['emergencyContactNumber'] ?? '') ?: ($matched['guardianContactNumber'] ?? ''),
                 'emergency_relation' => 'Guardian / Parent'
             ]
         ];
@@ -223,7 +242,11 @@ class SscController {
         }
         cjcRequireAuth();
 
-        $records = $this->getSampleSscDatabase();
+        $records = $this->fetchFromRemoteSscMasterlist();
+        if (!$records) {
+            $records = $this->getSampleSscDatabase();
+        }
+
         $this->jsonResponse([
             'success' => true, 
             'total' => count($records), 

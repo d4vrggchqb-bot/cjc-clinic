@@ -8,12 +8,15 @@ import PatientModal from '../components/PatientModal';
 
 interface Appointment {
   id: number;
+  appointment_code?: string;
   profile_id: number;
   patient_id_number: string;
   first_name: string;
   last_name: string;
   profile_type: string;
   college_dept: string;
+  course?: string | null;
+  year_level?: string | null;
   appointment_date: string;
   appointment_time: string;
   purpose: string;
@@ -172,6 +175,33 @@ const Appointments: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
+  const [listSearchQuery, setListSearchQuery] = useState('');
+
+  // Advanced Dropdown Filter States
+  const [filterPatientType, setFilterPatientType] = useState('all');
+  const [filterDepartment, setFilterDepartment] = useState('all');
+  const [filterProgram, setFilterProgram] = useState('all');
+  const [filterYearLevel, setFilterYearLevel] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showFiltersBar, setShowFiltersBar] = useState(false);
+
+  const resetAllFilters = () => {
+    setFilterPatientType('all');
+    setFilterDepartment('all');
+    setFilterProgram('all');
+    setFilterYearLevel('all');
+    setStartDate('');
+    setEndDate('');
+    setListSearchQuery('');
+  };
+
+  const activeFiltersCount = (filterPatientType !== 'all' ? 1 : 0) +
+    (filterDepartment !== 'all' ? 1 : 0) +
+    (filterProgram !== 'all' ? 1 : 0) +
+    (filterYearLevel !== 'all' ? 1 : 0) +
+    (startDate ? 1 : 0) +
+    (endDate ? 1 : 0);
 
   // New Appointment Form State
   const [search, setSearch] = useState('');
@@ -472,7 +502,8 @@ const Appointments: React.FC = () => {
           })
         });
         if (res.success) {
-          toast.success('Appointment scheduled successfully!', { id: toastId });
+          const codeMsg = res.appointment_code ? ` Code: ${res.appointment_code}` : '';
+          toast.success(`Appointment scheduled successfully!${codeMsg}`, { id: toastId });
           setIsModalOpen(false);
           resetForm();
           fetchAppointments();
@@ -535,23 +566,217 @@ const Appointments: React.FC = () => {
     return `${hours}:${m} ${ampm}`;
   };
 
-  // Filter appointments based on active tab
+  // Filter appointments based on active tab, search query, and advanced dropdown filters
   const filteredAppointments = appointments.filter(apt => {
-    if (activeTab === 'All') return true;
-    return apt.status === activeTab;
+    // 1. Status Tab Filter
+    if (activeTab !== 'All' && apt.status !== activeTab) return false;
+
+    // 2. Patient Type Filter
+    if (filterPatientType !== 'all' && apt.profile_type !== filterPatientType) return false;
+
+    // 3. Department Filter
+    if (filterDepartment !== 'all') {
+      const dept = (apt.college_dept || '').toLowerCase();
+      const targetDept = filterDepartment.toLowerCase();
+      if (!dept.includes(targetDept) && !targetDept.includes(dept)) return false;
+    }
+
+    // 4. Program Filter
+    if (filterProgram !== 'all') {
+      const prog = (apt.course || apt.group_name || '').toLowerCase();
+      if (!prog.includes(filterProgram.toLowerCase())) return false;
+    }
+
+    // 5. Year Level Filter
+    if (filterYearLevel !== 'all') {
+      const yl = (apt.year_level || apt.group_name || '').toLowerCase();
+      if (!yl.includes(filterYearLevel.toLowerCase())) return false;
+    }
+
+    // 6. Date Range Filter
+    if (startDate && apt.appointment_date < startDate) return false;
+    if (endDate && apt.appointment_date > endDate) return false;
+
+    // 7. Search Query Filter
+    if (listSearchQuery.trim()) {
+      const q = listSearchQuery.toLowerCase();
+      const codeMatch = (apt.appointment_code || `APT-${apt.id}`).toLowerCase().includes(q);
+      const nameMatch = `${apt.first_name} ${apt.last_name}`.toLowerCase().includes(q);
+      const idMatch = (apt.patient_id_number || '').toLowerCase().includes(q);
+      const purposeMatch = (apt.purpose || '').toLowerCase().includes(q);
+      const groupMatch = (apt.group_name || '').toLowerCase().includes(q);
+      if (!codeMatch && !nameMatch && !idMatch && !purposeMatch && !groupMatch) return false;
+    }
+
+    return true;
   });
 
   const tabs = ['All', 'Scheduled', 'Completed', 'Cancelled', 'No-Show'];
 
   return (
     <div className="px-5 py-5 w-full">
-      <div className="flex flex-col sm:flex-row justify-end sm:items-center gap-4 mb-6">
-        <button
-          onClick={() => { resetForm(); setIsModalOpen(true); }}
-          className="bg-[#A5192D] hover:bg-[#8A1525] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-[#A5192D]/20 w-full sm:w-auto text-xs sm:text-sm"
-        >
-          <FiPlus className="w-4 h-4" /> New Appointment
-        </button>
+      {/* Top Controls Bar */}
+      <div className="flex flex-col gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by ref code (e.g. APT-2026-00001), name, ID, or cue..."
+              value={listSearchQuery}
+              onChange={(e) => setListSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-[#A5192D] bg-white shadow-2xs"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFiltersBar(!showFiltersBar)}
+              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                showFiltersBar || activeFiltersCount > 0
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <FiFilter size={15} />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="bg-[#A5192D] text-white text-[10px] font-black px-1.5 py-0.5 rounded-full ml-1">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => { resetForm(); setIsModalOpen(true); }}
+              className="bg-[#A5192D] hover:bg-[#8A1525] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-[#A5192D]/20 text-xs sm:text-sm shrink-0"
+            >
+              <FiPlus className="w-4 h-4" /> New Appointment
+            </button>
+          </div>
+        </div>
+
+        {/* Dropdown Filters Panel */}
+        {showFiltersBar && (
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 animate-in fade-in duration-200 shadow-sm">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <FiFilter className="text-[#A5192D]" /> Filter Appointments By Criteria
+              </span>
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="text-xs text-rose-600 hover:text-rose-800 font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  <FiRefreshCw size={12} /> Clear All Filters
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+              {/* Date Range Start & End */}
+              <div className="space-y-1 sm:col-span-2 lg:col-span-1">
+                <label className="font-semibold text-slate-600 block">Date Range</label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                    title="Start Date"
+                  />
+                  <span className="text-slate-400 font-bold">-</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                    title="End Date"
+                  />
+                </div>
+              </div>
+
+              {/* Patient Type */}
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-600 block">Patient Type</label>
+                <select
+                  value={filterPatientType}
+                  onChange={(e) => setFilterPatientType(e.target.value)}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                >
+                  <option value="all">All Patient Types</option>
+                  <option value="student">Student</option>
+                  <option value="employee">Employee</option>
+                </select>
+              </div>
+
+              {/* Department */}
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-600 block">Department</label>
+                <select
+                  value={filterDepartment}
+                  onChange={(e) => setFilterDepartment(e.target.value)}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                >
+                  <option value="all">All Departments</option>
+                  <option value="CCIS">CCIS (Computer Studies)</option>
+                  <option value="CON">CON (Nursing)</option>
+                  <option value="CTE">CTE (Teacher Education)</option>
+                  <option value="CBE">CBE (Business & Education)</option>
+                  <option value="CCJE">CCJE (Criminology)</option>
+                  <option value="Basic Education">Basic Education (BED)</option>
+                </select>
+              </div>
+
+              {/* Program */}
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-600 block">Program / Course</label>
+                <select
+                  value={filterProgram}
+                  onChange={(e) => setFilterProgram(e.target.value)}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                >
+                  <option value="all">All Programs</option>
+                  <option value="BSIT">BSIT</option>
+                  <option value="BSCS">BSCS</option>
+                  <option value="BSN">BSN</option>
+                  <option value="BEED">BEED</option>
+                  <option value="BSED">BSED</option>
+                  <option value="BSBA">BSBA</option>
+                  <option value="BSA">BSA</option>
+                  <option value="BSCRIM">BSCRIM</option>
+                  <option value="Elementary">Elementary</option>
+                  <option value="Junior High School">Junior High School (JHS)</option>
+                  <option value="Senior High School">Senior High School (SHS)</option>
+                </select>
+              </div>
+
+              {/* Year Level */}
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-600 block">Year Level</label>
+                <select
+                  value={filterYearLevel}
+                  onChange={(e) => setFilterYearLevel(e.target.value)}
+                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                >
+                  <option value="all">All Year Levels</option>
+                  <option value="1st Year">1st Year</option>
+                  <option value="2nd Year">2nd Year</option>
+                  <option value="3rd Year">3rd Year</option>
+                  <option value="4th Year">4th Year</option>
+                  <option value="Grade 7">Grade 7</option>
+                  <option value="Grade 8">Grade 8</option>
+                  <option value="Grade 9">Grade 9</option>
+                  <option value="Grade 10">Grade 10</option>
+                  <option value="Grade 11">Grade 11</option>
+                  <option value="Grade 12">Grade 12</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
@@ -579,6 +804,7 @@ const Appointments: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-sm">
+                  <th className="p-4 py-3">Appt Code</th>
                   <th className="p-4 py-3">Patient</th>
                   <th className="p-4 py-3">Date & Time</th>
                   <th className="p-4 py-3">Cues</th>
@@ -610,6 +836,7 @@ const Appointments: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-sm">
+                  <th className="p-4 py-3">Appt Code</th>
                   <th className="p-4 py-3">Patient / Group</th>
                   <th className="p-4 py-3">Date & Time</th>
                   <th className="p-4 py-3">Cues</th>
@@ -636,6 +863,11 @@ const Appointments: React.FC = () => {
                         // Render Group Header
                         rows.push(
                           <tr key={`group-${groupKey}`} className="border-b border-slate-200 bg-blue-50/30 hover:bg-blue-50/50 transition-colors cursor-pointer" onClick={() => setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}>
+                            <td className="p-4 align-top">
+                              <span className="font-mono text-xs font-bold text-blue-700 bg-blue-100/80 border border-blue-200 px-2 py-1 rounded inline-block shadow-2xs">
+                                GROUP ({groupMembers.length})
+                              </span>
+                            </td>
                             <td className="p-4 align-top">
                               <div className="flex items-center gap-2">
                                 <span className={`transform transition-transform ${expandedGroups[groupKey] ? 'rotate-90' : ''}`}>
@@ -679,7 +911,12 @@ const Appointments: React.FC = () => {
                           groupMembers.forEach(member => {
                             rows.push(
                               <tr key={member.id} className="border-b border-slate-100 bg-white hover:bg-slate-50/50 transition-colors">
-                                <td className="p-4 align-top pl-12 border-l-2 border-blue-200">
+                                <td className="p-4 align-top pl-8 border-l-2 border-blue-200">
+                                  <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 border border-slate-200 px-2 py-1 rounded inline-block shadow-2xs">
+                                    {member.appointment_code || `APT-${member.id}`}
+                                  </span>
+                                </td>
+                                <td className="p-4 align-top">
                                   <div className="font-medium text-slate-800">{member.first_name} {member.last_name}</div>
                                   <div className="text-xs text-slate-500 mt-1">{member.patient_id_number || 'No ID'}</div>
                                   <span className="inline-block mt-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
@@ -716,8 +953,13 @@ const Appointments: React.FC = () => {
                       rows.push(
                         <tr key={apt.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                           <td className="p-4 align-top">
-                            <div className="font-medium text-slate-800">{apt.first_name} {apt.last_name}</div>
-                            <div className="text-xs text-slate-500 mt-1">{apt.patient_id_number}</div>
+                            <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded inline-block shadow-2xs">
+                              {apt.appointment_code || `APT-${apt.id}`}
+                            </span>
+                          </td>
+                          <td className="p-4 align-top">
+                            <div className="font-bold text-slate-800 text-sm">{apt.first_name} {apt.last_name}</div>
+                            <div className="text-xs text-slate-500 mt-0.5">{apt.patient_id_number}</div>
                             <span className="inline-block mt-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
                               {apt.profile_type}
                             </span>

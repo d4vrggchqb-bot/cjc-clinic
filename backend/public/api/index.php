@@ -101,6 +101,10 @@ switch ($route) {
             $controller->getNextBatchNumber();
         } elseif ($action === 'predictive_alerts') {
             $controller->predictive_alerts();
+        } elseif ($action === 'batch_details') {
+            $controller->getBatchDetails();
+        } elseif ($action === 'dispose_batch') {
+            $controller->disposeBatch();
         }
         break;
 

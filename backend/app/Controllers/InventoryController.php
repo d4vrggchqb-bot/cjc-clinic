@@ -11,9 +11,20 @@ class InventoryController {
         $pdo = cjcDatabaseConnection();
         
         $stmt = $pdo->query("
-            SELECT i.*, COALESCE(SUM(b.stock_remaining), 0) as total_stock 
+            SELECT i.*, 
+                   COALESCE(SUM(CASE WHEN b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as remaining_stock,
+                   COALESCE(SUM(CASE WHEN b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as total_stock,
+                   GREATEST(
+                     COALESCE(SUM(b.stock_remaining), 0),
+                     COALESCE(
+                       (SELECT SUM(l.quantity_changed) 
+                        FROM inventory_logs l 
+                        JOIN inventory_batches b2 ON l.batch_id = b2.id 
+                        WHERE b2.item_id = i.id AND l.action_type = 'restock'), 0
+                     )
+                   ) as overall_stock
             FROM inventory_items i
-            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.status = 'active'
+            LEFT JOIN inventory_batches b ON i.id = b.item_id
             GROUP BY i.id 
             ORDER BY i.generic_name ASC
         ");
@@ -145,27 +156,164 @@ class InventoryController {
         $pdo = cjcDatabaseConnection();
         
         $branch = $_GET['branch'] ?? 'all';
+        $includeAll = isset($_GET['include_all']) ? (int)$_GET['include_all'] : 1;
         $userRole = $_SESSION['cjc_user']['role'] ?? 'Staff';
         if (!in_array($userRole, ['Admin', 'Superadmin'])) {
             $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
         }
 
         $params = [];
-        $where = "WHERE b.stock_remaining > 0";
+        $whereClauses = [];
+        
+        if ($includeAll !== 1) {
+            $whereClauses[] = "b.stock_remaining > 0";
+        }
+        
         if ($branch !== 'all') {
-            $where .= " AND b.clinic_branch = :branch";
+            $whereClauses[] = "b.clinic_branch = :branch";
             $params['branch'] = $branch;
         }
 
+        $whereSql = count($whereClauses) > 0 ? "WHERE " . implode(" AND ", $whereClauses) : "";
+
         $stmt = $pdo->prepare("
-            SELECT b.*, i.generic_name, i.brand_name, i.category, i.dosage, i.formulation
+            SELECT b.*, i.generic_name, i.brand_name, i.category, i.dosage, i.formulation,
+                   COALESCE((SELECT SUM(ABS(l.quantity_changed)) FROM inventory_logs l WHERE l.batch_id = b.id AND l.action_type = 'dispense'), 0) as dispensed_qty,
+                   COALESCE((SELECT SUM(ABS(l.quantity_changed)) FROM inventory_logs l WHERE l.batch_id = b.id AND l.action_type = 'dispose'), 0) as disposed_qty,
+                   COALESCE((SELECT SUM(l.quantity_changed) FROM inventory_logs l WHERE l.batch_id = b.id AND l.action_type = 'restock'), b.stock_remaining) as initial_restock
             FROM inventory_batches b
             JOIN inventory_items i ON b.item_id = i.id
-            $where
-            ORDER BY b.expired_on ASC, b.date_arrived ASC
+            $whereSql
+            ORDER BY FIELD(b.status, 'active', 'expired', 'depleted'), b.expired_on ASC, b.date_arrived ASC
         ");
         $stmt->execute($params);
-        $this->jsonResponse(['batches' => $stmt->fetchAll()]);
+        $rawBatches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $batches = array_map(function($batch) {
+            $dispensed = (int)$batch['dispensed_qty'];
+            $disposed = (int)$batch['disposed_qty'];
+            $rem = (int)$batch['stock_remaining'];
+            $restock = (int)$batch['initial_restock'];
+            $initialStock = max($restock, $rem + $dispensed + $disposed);
+            
+            $batch['dispensed_qty'] = $dispensed;
+            $batch['disposed_qty'] = $disposed;
+            $batch['initial_stock'] = $initialStock;
+            return $batch;
+        }, $rawBatches);
+
+        $this->jsonResponse(['batches' => $batches]);
+    }
+
+    public function getBatchDetails() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        $pdo = cjcDatabaseConnection();
+
+        $batchId = (int)($_GET['batch_id'] ?? $_GET['id'] ?? 0);
+        if ($batchId <= 0) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid batch ID'], 400);
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT b.*, i.generic_name, i.brand_name, i.category, i.dosage, i.formulation, i.alert_threshold
+            FROM inventory_batches b
+            JOIN inventory_items i ON b.item_id = i.id
+            WHERE b.id = ?
+        ");
+        $stmt->execute([$batchId]);
+        $batch = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$batch) {
+            $this->jsonResponse(['success' => false, 'error' => 'Batch not found'], 404);
+        }
+
+        $logStmt = $pdo->prepare("
+            SELECT l.*, u.name as processor_name, CONCAT(p.first_name, ' ', p.last_name) as patient_name
+            FROM inventory_logs l
+            LEFT JOIN users u ON l.processed_by = u.id
+            LEFT JOIN profiles p ON l.profile_id = p.id
+            WHERE l.batch_id = ?
+            ORDER BY l.created_at DESC
+        ");
+        $logStmt->execute([$batchId]);
+        $logs = $logStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $dispensedQty = 0;
+        $disposedQty = 0;
+        $restockQty = 0;
+
+        foreach ($logs as $l) {
+            $qty = abs((int)$l['quantity_changed']);
+            if ($l['action_type'] === 'dispense') {
+                $dispensedQty += $qty;
+            } elseif ($l['action_type'] === 'dispose') {
+                $disposedQty += $qty;
+            } elseif ($l['action_type'] === 'restock') {
+                $restockQty += (int)$l['quantity_changed'];
+            }
+        }
+
+        $initialStock = max($restockQty, (int)$batch['stock_remaining'] + $dispensedQty + $disposedQty);
+
+        $this->jsonResponse([
+            'success' => true,
+            'batch' => $batch,
+            'summary' => [
+                'initial_stock' => $initialStock,
+                'dispensed_qty' => $dispensedQty,
+                'disposed_qty' => $disposedQty,
+                'remaining_stock' => (int)$batch['stock_remaining']
+            ],
+            'logs' => $logs
+        ]);
+    }
+
+    public function disposeBatch() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin', 'Doctor', 'Nurse', 'Staff']);
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $batchId = (int)($input['batch_id'] ?? 0);
+        $disposeQty = (int)($input['quantity'] ?? 0);
+        $reason = trim($input['reason'] ?? 'Expired / Unconsumed Disposal');
+        $disposedTo = trim($input['disposed_to'] ?? $reason);
+
+        if ($batchId <= 0 || $disposeQty <= 0) {
+            $this->jsonResponse(['success' => false, 'message' => 'Invalid parameters for disposal.'], 400);
+        }
+
+        $pdo = cjcDatabaseConnection();
+        try {
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("SELECT * FROM inventory_batches WHERE id = ?");
+            $stmt->execute([$batchId]);
+            $batch = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$batch) {
+                throw new Exception("Batch not found.");
+            }
+
+            $currentStock = (int)$batch['stock_remaining'];
+            if ($disposeQty > $currentStock) {
+                throw new Exception("Cannot dispose {$disposeQty} units. Available stock is only {$currentStock}.");
+            }
+
+            $newStock = $currentStock - $disposeQty;
+            $newStatus = ($newStock === 0) ? 'expired' : $batch['status'];
+
+            $upd = $pdo->prepare("UPDATE inventory_batches SET stock_remaining = ?, status = ? WHERE id = ?");
+            $upd->execute([$newStock, $newStatus, $batchId]);
+
+            $logStmt = $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, processed_by) VALUES (?, 'dispose', ?, ?, ?)");
+            $logStmt->execute([$batchId, -$disposeQty, $disposedTo, $_SESSION['cjc_user']['id']]);
+
+            $pdo->commit();
+            $this->jsonResponse(['success' => true, 'message' => "Successfully disposed {$disposeQty} unit(s)."]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 400);
+        }
     }
 
     public function addBatch() {

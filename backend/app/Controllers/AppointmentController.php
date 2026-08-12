@@ -19,7 +19,9 @@ class AppointmentController {
         }
 
         $stmt = $pdo->prepare("
-            SELECT a.*, p.patient_id_number, p.first_name, p.last_name, p.profile_type, p.college_dept
+            SELECT a.*, 
+                   COALESCE(a.appointment_code, CONCAT('APT-', YEAR(a.appointment_date), '-', LPAD(a.id, 5, '0'))) as appointment_code,
+                   p.patient_id_number, p.first_name, p.last_name, p.profile_type, p.college_dept, p.course, p.year_level
             FROM appointments a
             JOIN profiles p ON a.profile_id = p.id
             $branchFilter
@@ -40,7 +42,6 @@ class AppointmentController {
         $date = trim($input['appointment_date'] ?? '');
         $time = trim($input['appointment_time'] ?? '');
         $purpose = trim($input['purpose'] ?? '');
-        // Normalize and limit purpose length to avoid DB overflow
         if (mb_strlen($purpose) > 255) {
             $purpose = mb_substr($purpose, 0, 255);
         }
@@ -51,10 +52,23 @@ class AppointmentController {
         }
 
         try {
+            $pdo->beginTransaction();
             $stmt = $pdo->prepare("INSERT INTO appointments (profile_id, appointment_date, appointment_time, purpose, clinic_branch) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$profile_id, $date, $time, $purpose, $branch]);
-            $this->jsonResponse(['success' => true, 'id' => $pdo->lastInsertId()]);
+            $id = $pdo->lastInsertId();
+
+            $year = date('Y', strtotime($date)) ?: date('Y');
+            $code = sprintf('APT-%s-%05d', $year, $id);
+
+            try {
+                $upd = $pdo->prepare("UPDATE appointments SET appointment_code = ? WHERE id = ?");
+                $upd->execute([$code, $id]);
+            } catch (Exception $e) {}
+
+            $pdo->commit();
+            $this->jsonResponse(['success' => true, 'id' => $id, 'appointment_code' => $code]);
         } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
             $this->jsonResponse(['success' => false, 'message' => 'Failed to create appointment.'], 500);
         }
     }
@@ -85,18 +99,28 @@ class AppointmentController {
         try {
             $pdo->beginTransaction();
             $stmt = $pdo->prepare("INSERT INTO appointments (profile_id, appointment_date, appointment_time, purpose, clinic_branch, group_name) VALUES (?, ?, ?, ?, ?, ?)");
+            $upd = $pdo->prepare("UPDATE appointments SET appointment_code = ? WHERE id = ?");
             
+            $year = date('Y', strtotime($date)) ?: date('Y');
             $insertedCount = 0;
+            $createdCodes = [];
+
             foreach ($profile_ids as $pid) {
                 if ($pid > 0) {
                     $stmt->execute([$pid, $date, $time, $purpose, $branch, $group_name ?: null]);
+                    $id = $pdo->lastInsertId();
+                    $code = sprintf('APT-%s-%05d', $year, $id);
+                    try {
+                        $upd->execute([$code, $id]);
+                    } catch (Exception $e) {}
+                    $createdCodes[] = $code;
                     $insertedCount++;
                 }
             }
             $pdo->commit();
-            $this->jsonResponse(['success' => true, 'count' => $insertedCount]);
+            $this->jsonResponse(['success' => true, 'count' => $insertedCount, 'codes' => $createdCodes]);
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) $pdo->rollBack();
             $this->jsonResponse(['success' => false, 'message' => 'Failed to create appointments.'], 500);
         }
     }

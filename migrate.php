@@ -38,11 +38,11 @@ try {
     );
     ");
 
-    // Ensure height, weight, mother_name, father_name exist in profiles
     try { $pdo->exec("ALTER TABLE `profiles` ADD COLUMN `height` VARCHAR(20) DEFAULT NULL;"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE `profiles` ADD COLUMN `weight` VARCHAR(20) DEFAULT NULL;"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE `profiles` ADD COLUMN `mother_name` VARCHAR(100) DEFAULT NULL;"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE `profiles` ADD COLUMN `father_name` VARCHAR(100) DEFAULT NULL;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `appointments` ADD COLUMN `appointment_code` VARCHAR(50) DEFAULT NULL AFTER `id`;"); } catch (Exception $e) {}
 
     // Patient profile attachments (used by the Patient View modal)
     $pdo->exec("
