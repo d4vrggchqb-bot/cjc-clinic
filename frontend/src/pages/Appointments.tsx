@@ -94,7 +94,7 @@ const DEFAULT_DEPARTMENT_HIERARCHY: DepartmentCategory[] = [
   }
 ];
 
-function buildDynamicHierarchy(settings: any): DepartmentCategory[] {
+function buildDynamicHierarchy(settings: any, currentUser: any): DepartmentCategory[] {
   if (!settings) return DEFAULT_DEPARTMENT_HIERARCHY;
 
   const collegeYears = Array.isArray(settings?.college_year_levels) && settings.college_year_levels.length > 0
@@ -102,86 +102,82 @@ function buildDynamicHierarchy(settings: any): DepartmentCategory[] {
     : ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', 'All Year Levels'];
 
   const hierarchy: DepartmentCategory[] = [];
+  const branch = currentUser?.clinic_branch || 'All Branches';
+  const isSuperadmin = currentUser?.role === 'Superadmin';
 
   // 1. College Departments
-  if (Array.isArray(settings?.departments_hierarchy) && settings.departments_hierarchy.length > 0) {
-    settings.departments_hierarchy.forEach((deptObj: any) => {
-      const deptName = deptObj.department || deptObj.name || 'Department';
-      const progs = Array.isArray(deptObj.programs) ? deptObj.programs : [];
-      const programs: ProgramItem[] = progs.map((prog: string) => ({
-        label: prog,
-        value: prog,
-        years: collegeYears
-      }));
-      programs.push({
-        label: `All Programs in ${deptName}`,
-        value: 'All',
-        years: collegeYears
-      });
+  if (isSuperadmin || branch === 'College Clinic' || branch === 'All Branches') {
+    if (Array.isArray(settings?.departments_hierarchy) && settings.departments_hierarchy.length > 0) {
+      settings.departments_hierarchy.forEach((deptObj: any) => {
+        const deptName = deptObj.department || deptObj.name || 'Department';
+        const progs = Array.isArray(deptObj.programs) ? deptObj.programs : [];
+        const programs: ProgramItem[] = progs.map((prog: string) => ({
+          label: prog,
+          value: prog,
+          years: collegeYears
+        }));
+        programs.push({
+          label: `All Programs in ${deptName}`,
+          value: 'All',
+          years: collegeYears
+        });
 
-      hierarchy.push({
-        id: deptName,
-        name: deptName,
-        programs: programs
+        hierarchy.push({
+          id: deptName,
+          name: deptName,
+          programs: programs
+        });
       });
-    });
+    }
+
+    // Post Graduate
+    if (Array.isArray(settings?.post_graduate_hierarchy) && settings.post_graduate_hierarchy.length > 0) {
+      settings.post_graduate_hierarchy.forEach((pgObj: any) => {
+        const schoolName = pgObj.school || 'Post Graduate';
+        const progs = Array.isArray(pgObj.programs) ? pgObj.programs : [];
+        const programs: ProgramItem[] = progs.map((prog: string) => ({
+          label: prog,
+          value: prog,
+          years: collegeYears
+        }));
+        programs.push({
+          label: `All Programs in ${schoolName}`,
+          value: 'All',
+          years: collegeYears
+        });
+        hierarchy.push({
+          id: schoolName,
+          name: schoolName,
+          programs: programs
+        });
+      });
+    }
   }
 
-  // 2. BED (Basic Education)
-  if (Array.isArray(settings?.bed_hierarchy) && settings.bed_hierarchy.length > 0) {
-    const bedPrograms: ProgramItem[] = [];
-    const allBedYearsSet = new Set<string>();
-
-    settings.bed_hierarchy.forEach((bedObj: any) => {
-      const progName = bedObj.program || 'Program';
-      const yrs = Array.isArray(bedObj.year_levels) ? bedObj.year_levels : [];
-      yrs.forEach((y: string) => allBedYearsSet.add(y));
-      
-      bedPrograms.push({
-        label: progName,
-        value: progName,
-        years: yrs.length > 0 ? [...yrs, 'All Levels'] : ['All Levels']
+  // 2. BED (Basic Education) - Each program (Junior High, Senior High) becomes a top-level department
+  if (isSuperadmin || branch === 'BED Clinic' || branch === 'All Branches') {
+    if (Array.isArray(settings?.bed_hierarchy) && settings.bed_hierarchy.length > 0) {
+      settings.bed_hierarchy.forEach((bedObj: any) => {
+        const deptName = bedObj.program || 'Program';
+        const yrs = Array.isArray(bedObj.year_levels) ? bedObj.year_levels : [];
+        const yearsWithAll = yrs.length > 0 ? [...yrs, 'All Levels'] : ['All Levels'];
+        
+        hierarchy.push({
+          id: deptName,
+          name: deptName,
+          programs: [
+            {
+              label: 'All Programs',
+              value: 'All',
+              years: yearsWithAll
+            }
+          ]
+        });
       });
-    });
-
-    const allBedYears = Array.from(allBedYearsSet);
-    bedPrograms.push({
-      label: 'All Basic Education Programs',
-      value: 'All',
-      years: allBedYears.length > 0 ? [...allBedYears, 'All BED Levels'] : ['All BED Levels']
-    });
-
-    hierarchy.push({
-      id: 'Basic Education',
-      name: 'Basic Education Department (BED)',
-      programs: bedPrograms
-    });
+    }
   }
 
-  // 3. Post Graduate
-  if (Array.isArray(settings?.post_graduate_hierarchy) && settings.post_graduate_hierarchy.length > 0) {
-    settings.post_graduate_hierarchy.forEach((pgObj: any) => {
-      const schoolName = pgObj.school || 'Post Graduate';
-      const progs = Array.isArray(pgObj.programs) ? pgObj.programs : [];
-      const programs: ProgramItem[] = progs.map((prog: string) => ({
-        label: prog,
-        value: prog,
-        years: collegeYears
-      }));
-      programs.push({
-        label: `All Programs in ${schoolName}`,
-        value: 'All',
-        years: collegeYears
-      });
-      hierarchy.push({
-        id: schoolName,
-        name: schoolName,
-        programs: programs
-      });
-    });
-  }
-
-  // 4. Custom Categories
+  // 3. Custom Categories
   if (Array.isArray(settings?.custom_categories_hierarchy) && settings.custom_categories_hierarchy.length > 0) {
     settings.custom_categories_hierarchy.forEach((catObj: any) => {
       const catName = catObj.category || 'Category';
@@ -410,10 +406,17 @@ const Appointments: React.FC = () => {
 
   useEffect(() => {
     fetchAppointments();
-    // Fetch cues and department hierarchy from settings
+    // Fetch cues, session, and department hierarchy from settings
     (async () => {
       try {
-        const res = await apiFetch('/api/index.php?route=settings&action=get');
+        const [sessionRes, settingsRes] = await Promise.all([
+          apiFetch('/api/index.php?action=check_session').catch(() => ({})),
+          apiFetch('/api/index.php?route=settings&action=get').catch(() => ({}))
+        ]);
+
+        const user = sessionRes?.success && sessionRes?.user ? sessionRes.user : null;
+        const res = settingsRes;
+
         if (res.settings) {
           if (Array.isArray(res.settings.cues) && res.settings.cues.length > 0) {
             setCues(res.settings.cues);
@@ -423,7 +426,7 @@ const Appointments: React.FC = () => {
             setPurposeType(DEFAULT_CUES[0]);
           }
 
-          const dynamicHier = buildDynamicHierarchy(res.settings);
+          const dynamicHier = buildDynamicHierarchy(res.settings, user);
           setDepartmentHierarchy(dynamicHier);
           if (dynamicHier.length > 0) {
             const firstDept = dynamicHier[0];

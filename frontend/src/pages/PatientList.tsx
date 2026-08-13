@@ -86,17 +86,30 @@ const PatientList: React.FC = () => {
 
   const allDepartments = React.useMemo(() => {
     const depts = new Set<string>();
-    depts.add('Basic Education');
-    if (Array.isArray(globalSettings?.departments_hierarchy)) {
-      globalSettings.departments_hierarchy.forEach((d: any) => {
-        if (d && d.department) depts.add(d.department);
-      });
+    const branch = currentUser?.clinic_branch || 'All Branches';
+    const isSuperadmin = currentUser?.role === 'Superadmin';
+
+    if (isSuperadmin || branch === 'BED Clinic' || branch === 'All Branches') {
+      if (Array.isArray(globalSettings?.bed_hierarchy)) {
+        globalSettings.bed_hierarchy.forEach((b: any) => {
+          if (b && b.program) depts.add(b.program);
+        });
+      }
     }
-    if (Array.isArray(globalSettings?.post_graduate_hierarchy)) {
-      globalSettings.post_graduate_hierarchy.forEach((s: any) => {
-        if (s && s.school) depts.add(s.school);
-      });
+
+    if (isSuperadmin || branch === 'College Clinic' || branch === 'All Branches') {
+      if (Array.isArray(globalSettings?.departments_hierarchy)) {
+        globalSettings.departments_hierarchy.forEach((d: any) => {
+          if (d && d.department) depts.add(d.department);
+        });
+      }
+      if (Array.isArray(globalSettings?.post_graduate_hierarchy)) {
+        globalSettings.post_graduate_hierarchy.forEach((s: any) => {
+          if (s && s.school) depts.add(s.school);
+        });
+      }
     }
+
     if (Array.isArray(globalSettings?.custom_categories_hierarchy)) {
       globalSettings.custom_categories_hierarchy.forEach((c: any) => {
         if (c && Array.isArray(c.programs)) {
@@ -105,7 +118,7 @@ const PatientList: React.FC = () => {
       });
     }
     return Array.from(depts).sort();
-  }, [globalSettings]);
+  }, [globalSettings, currentUser]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
