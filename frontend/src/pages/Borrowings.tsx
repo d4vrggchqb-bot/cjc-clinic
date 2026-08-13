@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import {
   FiCheckCircle, FiPackage, FiUser, FiBox, FiBriefcase, FiSearch,
   FiPrinter, FiClock, FiAlertTriangle, FiChevronRight, FiX, FiRotateCcw,
-  FiCalendar, FiInfo
+  FiCalendar, FiInfo, FiEye
 } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
@@ -232,13 +232,13 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
     apiFetch(`/api/index.php?route=borrowings&action=detail&borrowing_id=${borrowingId}`)
       .then(res => {
         setDetail(res.borrowing);
-        // Default: equipment items → all returned, supplies → all consumed
+        // Default: return all items (equipment + supplies)
         const init: Record<number, { returned: number; consumed: number }> = {};
         (res.borrowing?.items || []).forEach((item: BorrowedItemDetail) => {
           if (item.status === 'borrowed') {
             init[item.borrowed_item_id] = {
-              returned: item.item_type === 'equipment' ? item.quantity : 0,
-              consumed: item.item_type === 'supply' ? item.quantity : 0
+              returned: item.quantity,
+              consumed: 0
             };
           }
         });
@@ -247,6 +247,18 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
       .catch(() => toast.error('Failed to load borrowing details'))
       .finally(() => setLoading(false));
   }, [borrowingId]);
+
+  const handleReturnedChange = (biId: number, maxQty: number, val: number) => {
+    const ret = Math.max(0, Math.min(maxQty, isNaN(val) ? 0 : val));
+    const cons = maxQty - ret;
+    setReconcile(prev => ({ ...prev, [biId]: { returned: ret, consumed: cons } }));
+  };
+
+  const handleConsumedChange = (biId: number, maxQty: number, val: number) => {
+    const cons = Math.max(0, Math.min(maxQty, isNaN(val) ? 0 : val));
+    const ret = maxQty - cons;
+    setReconcile(prev => ({ ...prev, [biId]: { returned: ret, consumed: cons } }));
+  };
 
   const handleSubmit = async () => {
     if (!detail) return;
@@ -265,7 +277,7 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
         body: JSON.stringify({ borrowing_id: detail.borrowing_id, notes, items })
       });
       if (res.fully_returned) {
-        toast.success('All items returned — borrowing closed!');
+        toast.success('All items processed — returned stock added back to inventory!');
       } else {
         toast.success('Partial return processed successfully.');
       }
@@ -288,7 +300,7 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
           <div>
             <div className="flex items-center gap-2">
               <FiRotateCcw className="text-[#A5192D]" size={18} />
-              <h2 className="text-lg font-bold text-slate-800">Process Return</h2>
+              <h2 className="text-lg font-bold text-slate-800">Process Return &amp; Inventory Sync</h2>
               {detail && (
                 <span className="font-mono text-xs font-extrabold bg-[#A5192D] text-white px-2 py-0.5 rounded">
                   {detail.booking_code}
@@ -315,7 +327,7 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
             </span>
             <span className={`flex items-center gap-1 font-semibold ${detail.is_overdue ? 'text-red-600' : 'text-slate-600'}`}>
               <FiClock size={12} />
-              <span>Due: <strong>{fmtDate(detail.expected_return_date)}</strong></span>
+              <span>Expected Return: <strong>{fmtDate(detail.expected_return_date)}</strong></span>
               {detail.is_overdue && <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide ml-1">Overdue</span>}
             </span>
             <span className="flex items-center gap-1 text-slate-600">
@@ -331,27 +343,32 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
             <div className="text-center text-slate-500 py-8">Loading details...</div>
           ) : detail ? (
             <div className="space-y-3">
-              {/* Legend */}
-              <div className="flex items-center gap-2 text-xs text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                <FiInfo size={13} className="text-blue-500 shrink-0" />
-                <span>Enter how many of each item were <strong>returned</strong> (goes back to inventory) and how many were <strong>consumed/lost</strong>.</span>
+              {/* Info Banner */}
+              <div className="flex items-start gap-2.5 text-xs text-slate-700 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <FiInfo size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-emerald-900">Inventory Auto-Restock Verification</p>
+                  <p className="mt-0.5 text-emerald-800 leading-relaxed">
+                    Specify the actual quantity <strong>returned</strong> (unused items will be automatically restocked into inventory) versus <strong>consumed</strong> (medicines/supplies used or lost).
+                  </p>
+                </div>
               </div>
 
               {/* Header row */}
               <div className="grid grid-cols-12 gap-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <div className="col-span-5">Item</div>
                 <div className="col-span-2 text-center">Borrowed</div>
-                <div className="col-span-2 text-center">Returned</div>
+                <div className="col-span-2 text-center">Returned (Restock)</div>
                 <div className="col-span-2 text-center">Consumed</div>
                 <div className="col-span-1"></div>
               </div>
 
               {detail.items.map(item => {
                 const isSettled = item.status !== 'borrowed';
-                const r = reconcile[item.borrowed_item_id] ?? { returned: 0, consumed: 0 };
+                const r = reconcile[item.borrowed_item_id] ?? { returned: item.quantity, consumed: 0 };
                 const isSupply = item.item_type === 'supply';
                 const total = r.returned + r.consumed;
-                const overAllocated = total > item.quantity;
+                const overAllocated = total !== item.quantity;
 
                 return (
                   <div key={item.borrowed_item_id} className={`grid grid-cols-12 gap-2 items-center px-3 py-3 rounded-lg border transition-colors ${isSettled ? 'bg-slate-50 border-slate-100 opacity-60' : overAllocated ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
@@ -362,7 +379,7 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
                       </p>
                       <div className="flex items-center gap-1.5 mt-1">
                         <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${isSupply ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {isSupply ? 'Supply' : 'Equipment'}
+                          {isSupply ? 'Consumable Supply' : 'Equipment'}
                         </span>
                         {isSettled && <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">Settled</span>}
                       </div>
@@ -373,38 +390,30 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
                       <span className="text-sm font-bold text-slate-700">{item.quantity}</span>
                     </div>
 
-                    {/* Qty returned (equipment only) */}
+                    {/* Qty returned */}
                     <div className="col-span-2 text-center">
-                      {isSupply ? (
-                        <span className="text-xs text-slate-400 italic">N/A</span>
-                      ) : isSettled ? (
+                      {isSettled ? (
                         <span className="text-sm font-bold text-emerald-600">{item.quantity_returned ?? '—'}</span>
                       ) : (
                         <input
                           type="number" min={0} max={item.quantity}
                           value={r.returned}
-                          onChange={e => setReconcile(prev => ({ ...prev, [item.borrowed_item_id]: { ...r, returned: Math.max(0, Math.min(item.quantity, +e.target.value)) } }))}
-                          className="w-16 mx-auto block text-center border border-slate-200 rounded-md p-1 text-sm font-bold focus:outline-none focus:border-emerald-500"
+                          onChange={e => handleReturnedChange(item.borrowed_item_id, item.quantity, parseInt(e.target.value))}
+                          className="w-16 mx-auto block text-center border border-slate-300 rounded-md p-1 text-sm font-bold text-emerald-700 bg-emerald-50 focus:outline-none focus:border-emerald-500"
                         />
                       )}
                     </div>
 
-                    {/* Qty consumed/lost */}
+                    {/* Qty consumed */}
                     <div className="col-span-2 text-center">
-                      {isSupply ? (
-                        isSettled ? (
-                          <span className="text-sm font-bold text-amber-600">{item.quantity}</span>
-                        ) : (
-                          <span className="text-sm font-bold text-amber-600">{item.quantity}</span>
-                        )
-                      ) : isSettled ? (
+                      {isSettled ? (
                         <span className="text-sm font-bold text-amber-600">{item.quantity_consumed ?? '—'}</span>
                       ) : (
                         <input
                           type="number" min={0} max={item.quantity}
                           value={r.consumed}
-                          onChange={e => setReconcile(prev => ({ ...prev, [item.borrowed_item_id]: { ...r, consumed: Math.max(0, Math.min(item.quantity, +e.target.value)) } }))}
-                          className="w-16 mx-auto block text-center border border-slate-200 rounded-md p-1 text-sm font-bold focus:outline-none focus:border-amber-500"
+                          onChange={e => handleConsumedChange(item.borrowed_item_id, item.quantity, parseInt(e.target.value))}
+                          className="w-16 mx-auto block text-center border border-slate-300 rounded-md p-1 text-sm font-bold text-amber-700 bg-amber-50 focus:outline-none focus:border-amber-500"
                         />
                       )}
                     </div>
@@ -412,7 +421,7 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
                     {/* Over-allocated warning */}
                     <div className="col-span-1 flex justify-center">
                       {overAllocated && (
-                        <FiAlertTriangle className="text-red-500" size={16} title={`Total (${total}) exceeds borrowed qty (${item.quantity})`} />
+                        <FiAlertTriangle className="text-red-500" size={16} title={`Total (${total}) must equal borrowed qty (${item.quantity})`} />
                       )}
                     </div>
                   </div>
@@ -421,12 +430,12 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
 
               {/* Notes */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 mt-2">Notes (optional)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1 mt-2">Return Remarks / Notes (optional)</label>
                 <textarea
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   rows={2}
-                  placeholder="e.g. Wheel chair returned with minor scratch..."
+                  placeholder="e.g. 3 Paracetamol returned unused, 2 consumed during medical emergency..."
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-[#A5192D] resize-none transition-colors"
                 />
               </div>
@@ -453,7 +462,7 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
               className="bg-[#A5192D] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#8B1424] transition-colors shadow-sm disabled:opacity-60 flex items-center gap-2"
             >
               <FiCheckCircle size={15} />
-              {submitting ? 'Processing...' : 'Process Return'}
+              {submitting ? 'Processing...' : 'Confirm Return & Sync Inventory'}
             </button>
           </div>
         </div>
@@ -952,11 +961,149 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
 };
 
 /* ─────────────────────────────────────────────────────────────────
+   History Detail Modal
+───────────────────────────────────────────────────────────────── */
+interface HistoryDetailModalProps {
+  record: any | null;
+  onClose: () => void;
+}
+
+const HistoryDetailModal: React.FC<HistoryDetailModalProps> = ({ record, onClose }) => {
+  if (!record) return null;
+
+  const isReturned = record.borrowing_status === 'returned';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div>
+            <div className="flex items-center gap-2">
+              <FiBox className="text-[#A5192D]" size={18} />
+              <h2 className="text-lg font-bold text-slate-800">Transaction Details</h2>
+              <span className="font-mono text-xs font-extrabold bg-[#A5192D] text-white px-2 py-0.5 rounded">
+                {record.booking_code}
+              </span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase ${isReturned ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                {isReturned ? 'Returned' : 'Active'}
+              </span>
+            </div>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {record.first_name} {record.last_name} · {record.course || record.department} {record.year_level}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors p-1">
+            <FiX size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {/* Info grid */}
+          <div className="grid grid-cols-2 gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs">
+            <div>
+              <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Borrower</span>
+              <span className="font-bold text-slate-800 text-sm">{record.first_name} {record.last_name}</span>
+              <span className="text-slate-500 block uppercase font-semibold text-[10px]">{record.profile_type}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Purpose</span>
+              <span className="font-bold text-slate-800 text-sm">{record.purpose}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Date Borrowed</span>
+              <span className="font-semibold text-slate-700">{fmtDate(record.created_at)}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Expected Return Date</span>
+              <span className="font-semibold text-slate-700">{fmtDate(record.expected_return_date)}</span>
+            </div>
+            {record.returned_at && (
+              <div className="col-span-2">
+                <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Actual Date Returned</span>
+                <span className="font-semibold text-emerald-700">{fmtDate(record.returned_at)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Items breakdown */}
+          <div>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Item Breakdown &amp; Inventory Reconciliation</h3>
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-100 text-slate-600 font-bold">
+                  <tr>
+                    <th className="p-2.5 text-left">Item Name</th>
+                    <th className="p-2.5 text-center">Type</th>
+                    <th className="p-2.5 text-center">Borrowed</th>
+                    <th className="p-2.5 text-center">Returned (Restocked)</th>
+                    <th className="p-2.5 text-center">Consumed / Lost</th>
+                    <th className="p-2.5 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {record.items.map((item: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="p-2.5 font-bold text-slate-800">
+                        {item.brand_name ? `${item.brand_name}` : ''}{item.brand_name && item.generic_name ? ' — ' : ''}{item.generic_name}
+                      </td>
+                      <td className="p-2.5 text-center uppercase text-[10px] font-bold text-slate-500">
+                        {item.item_type}
+                      </td>
+                      <td className="p-2.5 text-center font-bold text-slate-800">{item.quantity}</td>
+                      <td className="p-2.5 text-center">
+                        {item.quantity_returned !== null ? (
+                          <span className="font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">
+                            {item.quantity_returned} restocked
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-center">
+                        {item.quantity_consumed !== null ? (
+                          <span className="font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded">
+                            {item.quantity_consumed} consumed
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-center">
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${item.status === 'returned' ? 'bg-emerald-100 text-emerald-700' : item.status === 'dispensed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between shrink-0 bg-slate-50 rounded-b-2xl">
+          <button onClick={() => printBorrowingSlip(record)} className="flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-100 transition-colors">
+            <FiPrinter size={15} /> Print Borrowing Slip
+          </button>
+          <button onClick={onClose} className="bg-slate-800 text-white px-5 py-2 rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────
    Booking History List (compact)
 ───────────────────────────────────────────────────────────────── */
 const BookingHistoryList: React.FC = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
 
   useEffect(() => {
     apiFetch('/api/index.php?route=borrowings&action=recent_history')
@@ -1008,10 +1155,19 @@ const BookingHistoryList: React.FC = () => {
                     </div>
                   </div>
 
-                  <button onClick={() => printBorrowingSlip(record)} title="Print borrowing slip"
-                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0">
-                    <FiPrinter size={16} />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => setSelectedRecord(record)}
+                      className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                      title="View transaction details"
+                    >
+                      <FiEye size={14} /> View Details
+                    </button>
+                    <button onClick={() => printBorrowingSlip(record)} title="Print borrowing slip"
+                      className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                      <FiPrinter size={16} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Items pills */}
@@ -1019,6 +1175,7 @@ const BookingHistoryList: React.FC = () => {
                   {record.items.map((item: any, i: number) => (
                     <span key={i} className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${item.status === 'returned' ? 'bg-emerald-50 text-emerald-700' : item.status === 'dispensed' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
                       {item.generic_name} ×{item.quantity}
+                      {item.quantity_returned !== null && ` (${item.quantity_returned} returned)`}
                     </span>
                   ))}
                 </div>
@@ -1028,6 +1185,10 @@ const BookingHistoryList: React.FC = () => {
         </div>
       )}
 
+      {/* History detail modal */}
+      {selectedRecord && (
+        <HistoryDetailModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
+      )}
     </div>
   );
 };

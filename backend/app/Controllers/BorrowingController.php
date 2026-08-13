@@ -337,13 +337,13 @@ class BorrowingController {
                 $inventoryId  = $bi['inventory_item_id'];
                 $profileId    = $bi['profile_id'];
 
-                // For equipment: restore the returned quantity to inventory (LIFO batch — add to most recent non-depleted batch)
-                if ($itemType === 'equipment' && $qtyReturned > 0) {
-                    // Find best batch to restore to (most recent active, or create a restock log entry)
+                // Restore ANY returned quantity (equipment or supply) to inventory batch
+                if ($qtyReturned > 0) {
+                    // Find best batch to restore to (most recent active or non-expired batch)
                     $batchStmt = $pdo->prepare("
                         SELECT id FROM inventory_batches
-                        WHERE item_id = ? AND clinic_branch = ? AND status != 'expired'
-                        ORDER BY date_arrived DESC, id DESC LIMIT 1
+                        WHERE item_id = ? AND clinic_branch = ?
+                        ORDER BY status = 'active' DESC, date_arrived DESC, id DESC LIMIT 1
                     ");
                     $batchStmt->execute([$inventoryId, $branch]);
                     $restoreBatch = $batchStmt->fetch(PDO::FETCH_ASSOC);
@@ -352,8 +352,9 @@ class BorrowingController {
                         $pdo->prepare("UPDATE inventory_batches SET stock_remaining = stock_remaining + ?, status = 'active' WHERE id = ?")
                             ->execute([$qtyReturned, $restoreBatch['id']]);
 
+                        $logMsg = ucfirst($itemType) . " Returned from Borrowing (Returned: {$qtyReturned}, Consumed: {$qtyConsumed})";
                         $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'restock', ?, ?, ?, ?)")
-                            ->execute([$restoreBatch['id'], $qtyReturned, 'Equipment Returned from Borrowing', $profileId, $userId]);
+                            ->execute([$restoreBatch['id'], $qtyReturned, $logMsg, $profileId, $userId]);
                     }
                 }
 
@@ -398,13 +399,15 @@ class BorrowingController {
         $stmt = $pdo->query("
             SELECT b.id AS borrowing_id, b.booking_code, b.purpose, b.created_at, b.status AS borrowing_status,
                    b.expected_return_date, b.returned_at,
-                   p.first_name, p.last_name, p.course, p.year_level, p.profile_type,
-                   bi.item_type, bi.status, bi.quantity,
-                   i.generic_name, i.brand_name, i.category
+                   p.first_name, p.last_name, p.course, p.year_level, p.profile_type, p.college_dept AS department,
+                   bi.id AS borrowed_item_id, bi.item_type, bi.status AS item_status, bi.quantity,
+                   i.generic_name, i.brand_name, i.category,
+                   bir.quantity_returned, bir.quantity_consumed, bir.returned_at AS item_returned_at
             FROM borrowings b
             JOIN profiles p ON b.profile_id = p.id
             JOIN borrowed_items bi ON bi.borrowing_id = b.id
             JOIN inventory_items i ON bi.inventory_item_id = i.id
+            LEFT JOIN borrowed_item_returns bir ON bir.borrowed_item_id = bi.id
             ORDER BY b.created_at DESC
             LIMIT 200
         ");
@@ -415,6 +418,7 @@ class BorrowingController {
             if (!isset($history[$bId])) {
                 $history[$bId] = [
                     'id'                   => $bId,
+                    'borrowing_id'         => $bId,
                     'booking_code'         => $row['booking_code'] ?: ('EQ-' . date('Y') . '-' . str_pad($bId, 5, '0', STR_PAD_LEFT)),
                     'purpose'              => $row['purpose'],
                     'created_at'           => $row['created_at'],
@@ -426,16 +430,21 @@ class BorrowingController {
                     'profile_type'         => $row['profile_type'],
                     'course'               => $row['course'],
                     'year_level'           => $row['year_level'],
+                    'department'           => $row['department'],
                     'items'                => []
                 ];
             }
             $history[$bId]['items'][] = [
-                'generic_name' => $row['generic_name'],
-                'brand_name'   => $row['brand_name'],
-                'category'     => $row['category'],
-                'quantity'     => $row['quantity'],
-                'item_type'    => $row['item_type'],
-                'status'       => $row['status']
+                'borrowed_item_id'  => $row['borrowed_item_id'],
+                'generic_name'      => $row['generic_name'],
+                'brand_name'        => $row['brand_name'],
+                'category'          => $row['category'],
+                'quantity'          => (int)$row['quantity'],
+                'item_type'         => $row['item_type'],
+                'status'            => $row['item_status'],
+                'quantity_returned' => $row['quantity_returned'] !== null ? (int)$row['quantity_returned'] : null,
+                'quantity_consumed' => $row['quantity_consumed'] !== null ? (int)$row['quantity_consumed'] : null,
+                'item_returned_at'  => $row['item_returned_at']
             ];
         }
 
