@@ -9,8 +9,9 @@ class InventoryController {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
         cjcRequireAuth();
         $pdo = cjcDatabaseConnection();
+        $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
         
-        $stmt = $pdo->query("
+        $stmt = $pdo->prepare("
             SELECT i.*, 
                    COALESCE(SUM(CASE WHEN b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as remaining_stock,
                    COALESCE(SUM(CASE WHEN b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as total_stock,
@@ -20,7 +21,7 @@ class InventoryController {
                        (SELECT SUM(l.quantity_changed) 
                         FROM inventory_logs l 
                         JOIN inventory_batches b2 ON l.batch_id = b2.id 
-                        WHERE b2.item_id = i.id AND l.action_type = 'restock'), 0
+                        WHERE b2.item_id = i.id AND l.action_type = 'restock' AND b2.clinic_branch = ?), 0
                      )
                    ) as overall_stock,
                    (SELECT file_url FROM equipment_calibrations WHERE item_id = i.id AND file_url IS NOT NULL ORDER BY id DESC LIMIT 1) as latest_cert_url,
@@ -29,10 +30,11 @@ class InventoryController {
                    (SELECT calibrated_by FROM equipment_calibrations WHERE item_id = i.id ORDER BY id DESC LIMIT 1) as latest_calibrated_by,
                    (SELECT COUNT(*) FROM equipment_calibrations WHERE item_id = i.id) as cert_count
             FROM inventory_items i
-            LEFT JOIN inventory_batches b ON i.id = b.item_id
+            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.clinic_branch = ?
             GROUP BY i.id 
             ORDER BY i.generic_name ASC
         ");
+        $stmt->execute([$branch, $branch]);
 
         $items = $stmt->fetchAll();
         $this->jsonResponse(['items' => $items]);
