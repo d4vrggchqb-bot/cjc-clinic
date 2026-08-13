@@ -34,6 +34,7 @@ export default function Settings() {
             post_graduate_hierarchy: Array.isArray(res.settings.post_graduate_hierarchy) ? res.settings.post_graduate_hierarchy : [],
             custom_categories_hierarchy: Array.isArray(res.settings.custom_categories_hierarchy) ? res.settings.custom_categories_hierarchy : [],
             college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
+            employee_departments: Array.isArray(res.settings.employee_departments) ? res.settings.employee_departments : [],
             cues: Array.isArray(res.settings.cues) ? res.settings.cues : [],
             common_conditions: Array.isArray(res.settings.common_conditions) ? res.settings.common_conditions : ['Febrile Illness', 'Tension Headache', 'Dysmenorrhea', 'Upper Respiratory Infection', 'Hyperacidity', 'Acute Gastroenteritis', 'Allergic Rhinitis'],
             health_history_presets: Array.isArray(res.settings.health_history_presets) ? res.settings.health_history_presets : ['Asthma', 'Thyroid Disease', 'Heart Disease', 'High Blood Pressure', 'Epilepsy / Seizures', 'Tuberculosis', 'History of Fainting', 'Allergies (Food / Drug)', 'Rheumatic Heart Disease', 'Lung Disease', 'Diabetes', 'Kidney Disease'],
@@ -274,6 +275,15 @@ export default function Settings() {
                 childKey="programs"
                 childLabel="Program"
                 onSave={(newHierarchy: any) => handleHierarchySave('departments_hierarchy', newHierarchy)}
+              />
+
+              <ConfigListEditor 
+                title="Employee Offices / Departments" 
+                description="Offices or departments shown when registering Employee patients (e.g., HR, Finance)."
+                items={settings.employee_departments || []}
+                onAdd={(v: any) => handleArrayAdd('employee_departments', v)}
+                onRemove={(v: any) => handleArrayRemove('employee_departments', v)}
+                onEdit={(oldVal: any, newVal: any) => handleArrayEdit('employee_departments', oldVal, newVal)}
               />
 
               {/* College Year Levels - Flat Array */}

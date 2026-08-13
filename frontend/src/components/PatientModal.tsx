@@ -514,6 +514,9 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
   const collegeDepartments = Array.isArray(globalSettings?.departments_hierarchy) 
     ? globalSettings.departments_hierarchy.map((d: any) => d?.department).filter(Boolean) 
     : [];
+  const employeeDepartments = Array.isArray(globalSettings?.employee_departments)
+    ? globalSettings.employee_departments
+    : [];
   const selectedCollegeDept = Array.isArray(globalSettings?.departments_hierarchy) 
     ? globalSettings.departments_hierarchy.find((d: any) => d?.department === formData.college_dept) 
     : null;
@@ -891,10 +894,9 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                       <label className={labelClass}>Department / Office <span className="text-red-500">*</span></label>
                       <select name="college_dept" value={formData.college_dept} onChange={handleChange} className={inputClass}>
                         <option value="">Select Department</option>
-                        {collegeDepartments.map((dept: string, idx: number) => (
+                        {employeeDepartments.map((dept: string, idx: number) => (
                           <option key={idx} value={dept}>{dept}</option>
                         ))}
-                        <option value="Basic Education">Basic Education</option>
                       </select>
                     </div>
                   </div>

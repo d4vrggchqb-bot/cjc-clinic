@@ -136,6 +136,14 @@ const PatientList: React.FC = () => {
 
   const allDepartments = React.useMemo(() => {
     const depts = new Set<string>();
+
+    if (type === 'employee') {
+      if (Array.isArray(globalSettings?.employee_departments)) {
+        globalSettings.employee_departments.forEach((d: string) => depts.add(d));
+      }
+      return Array.from(depts).sort();
+    }
+
     const branch = currentUser?.clinic_branch || 'All Branches';
     const isSuperadmin = currentUser?.role === 'Superadmin';
 
