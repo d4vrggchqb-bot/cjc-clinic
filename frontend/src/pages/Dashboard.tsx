@@ -361,18 +361,22 @@ const Dashboard: React.FC = () => {
           >
             <FiPieChart className="w-4 h-4" /> Go to Reports
           </button>
-          <button
-            onClick={() => setShowQuickAdmit(true)}
-            className="col-span-1 sm:col-span-1 order-2 sm:order-3 w-full sm:w-auto flex justify-center items-center gap-2 bg-[#C01D38] hover:bg-[#A5192D] text-white px-4 py-2 rounded-lg text-[13px] font-normal tracking-wide transition-all duration-200 shadow-sm hover:shadow-md"
-          >
-            <FiPlus className="w-4 h-4" strokeWidth={2.5} /> Quick Admit
-          </button>
-          <button
-            onClick={() => setShowQuickDispense(true)}
-            className="col-span-1 sm:col-span-1 order-3 sm:order-4 w-full sm:w-auto flex justify-center items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-[13px] font-normal tracking-wide transition-all duration-200 shadow-sm hover:shadow-md"
-          >
-            Quick Dispense
-          </button>
+          {userRole !== 'Superadmin' && (
+            <>
+              <button
+                onClick={() => setShowQuickAdmit(true)}
+                className="col-span-1 sm:col-span-1 order-2 sm:order-3 w-full sm:w-auto flex justify-center items-center gap-2 bg-[#C01D38] hover:bg-[#A5192D] text-white px-4 py-2 rounded-lg text-[13px] font-normal tracking-wide transition-all duration-200 shadow-sm hover:shadow-md"
+              >
+                <FiPlus className="w-4 h-4" strokeWidth={2.5} /> Quick Admit
+              </button>
+              <button
+                onClick={() => setShowQuickDispense(true)}
+                className="col-span-1 sm:col-span-1 order-3 sm:order-4 w-full sm:w-auto flex justify-center items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-[13px] font-normal tracking-wide transition-all duration-200 shadow-sm hover:shadow-md"
+              >
+                Quick Dispense
+              </button>
+            </>
+          )}
         </div>
       </div>
 
