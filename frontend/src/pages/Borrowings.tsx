@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import toast from 'react-hot-toast';
 import {
@@ -607,8 +607,6 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
   const [filteredProfiles, setFilteredProfiles] = useState<any[]>([]);
   const [printData, setPrintData] = useState<any | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState<{ booking_code: string; borrowing_id: number } | null>(null);
-  const printRef = useRef<HTMLDivElement>(null);
-  const triggerPrint = usePrint(printRef);
 
   const handleSelectProfile = (profile: any) => {
     setSelectedProfile(profile.id);
@@ -959,19 +957,12 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
 const BookingHistoryList: React.FC = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const printRef = useRef<HTMLDivElement>(null);
-  const triggerPrint = usePrint(printRef);
 
   useEffect(() => {
     apiFetch('/api/index.php?route=borrowings&action=recent_history')
       .then(res => { setHistory(res.history || []); setLoading(false); })
       .catch(() => { toast.error('Failed to load history'); setLoading(false); });
   }, []);
-
-  const handlePrint = (record: any) => {
-    setPrintBorrowing(record);
-    setTimeout(() => triggerPrint(), 100);
-  };
 
   if (loading) return <div className="p-8 text-center text-slate-500">Loading history...</div>;
 
