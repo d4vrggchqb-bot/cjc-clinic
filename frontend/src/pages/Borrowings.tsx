@@ -77,160 +77,99 @@ function fmtDateShort(d: string | null) {
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   Print Slip Component
+   Print Slip — window.open approach (reliable, no ref timing issues)
 ───────────────────────────────────────────────────────────────── */
-interface PrintSlipProps {
-  borrowing: BorrowingDetail | CheckedOutRow | null;
-  printRef: React.RefObject<HTMLDivElement | null>;
-}
+function printBorrowingSlip(b: any) {
+  if (!b) return;
+  const itemRows = (b.items || []).map((item: any, idx: number) => `
+    <tr style="background:${idx % 2 === 0 ? '#fff' : '#fafafa'};border-bottom:1px solid #eee">
+      <td style="padding:6px 10px">${idx + 1}</td>
+      <td style="padding:6px 10px;font-weight:600">${item.brand_name ? item.brand_name + (item.generic_name ? ' — ' + item.generic_name : '') : item.generic_name}</td>
+      <td style="padding:6px 10px;text-align:center;text-transform:capitalize">${item.category || item.item_type}</td>
+      <td style="padding:6px 10px;text-align:center">
+        <span style="background:${item.item_type === 'equipment' ? '#dbeafe' : '#dcfce7'};color:${item.item_type === 'equipment' ? '#1d4ed8' : '#15803d'};padding:1px 8px;border-radius:4px;font-size:11px;font-weight:700">
+          ${item.item_type === 'equipment' ? 'To Return' : 'Consumable'}
+        </span>
+      </td>
+      <td style="padding:6px 10px;text-align:center;font-weight:700">${item.quantity}</td>
+    </tr>
+  `).join('');
 
-const PrintSlip: React.FC<PrintSlipProps> = ({ borrowing, printRef }) => {
-  if (!borrowing) return null;
-  const b = borrowing as any;
-  return (
-    <div ref={printRef} className="print-slip-area hidden print:block" style={{ display: 'none' }}>
-      <style>{`
-        @media print {
-          body > *:not(.print-root) { display: none !important; }
-          .print-slip-area { display: block !important; font-family: Arial, sans-serif; color: #000; }
-          .print-slip-area * { box-sizing: border-box; }
-        }
-      `}</style>
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '24px', border: '2px solid #333', borderRadius: 8 }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', borderBottom: '2px solid #A5192D', paddingBottom: 12, marginBottom: 16 }}>
-          <div style={{ fontSize: 11, color: '#A5192D', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>CJC Clinic Management System</div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: '#A5192D', marginTop: 2 }}>EQUIPMENT BORROWING SLIP</div>
-          <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>College Clinic</div>
-        </div>
-
-        {/* Booking Reference */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Booking Reference</div>
-            <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: '#A5192D', fontFamily: 'monospace', marginTop: 2 }}>{b.booking_code}</div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Date Borrowed</div>
-            <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{fmtDate(b.created_at)}</div>
-            {b.expected_return_date && (
-              <>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginTop: 8 }}>Expected Return</div>
-                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2, color: b.is_overdue ? '#c00' : '#000' }}>{fmtDate(b.expected_return_date)}</div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Borrower info */}
-        <div style={{ background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 6, padding: 12, marginBottom: 16 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Borrower Information</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 13 }}>
-            <div><strong>Name:</strong> {b.first_name} {b.last_name}</div>
-            <div><strong>Type:</strong> {b.profile_type?.charAt(0).toUpperCase() + b.profile_type?.slice(1)}</div>
-            {b.course && <div><strong>Course:</strong> {b.course} {b.year_level}</div>}
-            {b.department && <div><strong>Department:</strong> {b.department}</div>}
-            <div style={{ gridColumn: '1 / -1' }}><strong>Purpose:</strong> {b.purpose}</div>
-          </div>
-        </div>
-
-        {/* Items table */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Items Borrowed</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: '#A5192D', color: '#fff' }}>
-                <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700 }}>#</th>
-                <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700 }}>Item Name</th>
-                <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700 }}>Category</th>
-                <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700 }}>Type</th>
-                <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700 }}>Qty</th>
-              </tr>
-            </thead>
-            <tbody>
-              {b.items.map((item: any, idx: number) => (
-                <tr key={item.borrowed_item_id || idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '6px 10px' }}>{idx + 1}</td>
-                  <td style={{ padding: '6px 10px', fontWeight: 600 }}>
-                    {item.brand_name ? `${item.brand_name}` : ''}{item.brand_name && item.generic_name ? ' — ' : ''}{item.generic_name}
-                  </td>
-                  <td style={{ padding: '6px 10px', textAlign: 'center', textTransform: 'capitalize' }}>{item.category}</td>
-                  <td style={{ padding: '6px 10px', textAlign: 'center' }}>
-                    <span style={{ background: item.item_type === 'equipment' ? '#dbeafe' : '#dcfce7', color: item.item_type === 'equipment' ? '#1d4ed8' : '#15803d', padding: '1px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
-                      {item.item_type === 'equipment' ? 'To Return' : 'Consumable'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700 }}>{item.quantity}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Acknowledgment */}
-        <div style={{ border: '1px solid #ddd', borderRadius: 6, padding: 14, marginBottom: 12 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Acknowledgment & Signatures</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, fontSize: 13 }}>
-            <div>
-              <div style={{ borderBottom: '1.5px solid #333', minHeight: 28, marginBottom: 4 }}></div>
-              <div style={{ fontSize: 11, color: '#555' }}>Released by (Staff) + Date</div>
-            </div>
-            <div>
-              <div style={{ borderBottom: '1.5px solid #333', minHeight: 28, marginBottom: 4 }}></div>
-              <div style={{ fontSize: 11, color: '#555' }}>Received by (Borrower) + Date</div>
-            </div>
-            <div>
-              <div style={{ borderBottom: '1.5px solid #333', minHeight: 28, marginBottom: 4 }}></div>
-              <div style={{ fontSize: 11, color: '#555' }}>Returned to (Staff) + Date</div>
-            </div>
-            <div>
-              <div style={{ borderBottom: '1.5px solid #333', minHeight: 28, marginBottom: 4 }}></div>
-              <div style={{ fontSize: 11, color: '#555' }}>Borrower's Signature + Date</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Terms */}
-        <div style={{ fontSize: 10, color: '#888', lineHeight: 1.5, borderTop: '1px solid #eee', paddingTop: 10 }}>
-          <strong>Terms & Conditions:</strong> The borrower is responsible for returning all equipment in the same condition as when borrowed. Any equipment that is lost or damaged must be replaced or the cost of repair/replacement must be reimbursed to the clinic. Consumable supplies are permanently dispensed and non-returnable. This slip must be presented upon return.
-        </div>
-        <div style={{ textAlign: 'center', fontSize: 10, color: '#aaa', marginTop: 10 }}>
-          CJC Clinic Patient Records System • {new Date().toLocaleString()}
-        </div>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Borrowing Slip — ${b.booking_code}</title>
+  <style>
+    body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#000}
+    *{box-sizing:border-box}
+    @page{margin:12mm}
+    @media print{body{padding:0}}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{background:#A5192D;color:#fff;padding:6px 10px;text-align:left;font-weight:700}
+    .label{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+    .section{border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:14px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:13px}
+    .sigline{border-bottom:1.5px solid #333;min-height:28px;margin-bottom:4px}
+    .siglabel{font-size:11px;color:#555}
+  </style>
+  </head><body>
+  <div style="max-width:680px;margin:0 auto;border:2px solid #333;border-radius:8px;padding:24px">
+    <div style="text-align:center;border-bottom:2px solid #A5192D;padding-bottom:12px;margin-bottom:16px">
+      <div style="font-size:11px;color:#A5192D;font-weight:700;letter-spacing:2px;text-transform:uppercase">CJC Clinic Management System</div>
+      <div style="font-size:22px;font-weight:900;color:#A5192D;margin-top:2px">EQUIPMENT BORROWING SLIP</div>
+      <div style="font-size:12px;color:#555;margin-top:2px">College Clinic</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:16px;gap:12px">
+      <div>
+        <div class="label">Booking Reference</div>
+        <div style="font-size:20px;font-weight:900;letter-spacing:2px;color:#A5192D;font-family:monospace">${b.booking_code}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="label">Date Borrowed</div>
+        <div style="font-size:13px;font-weight:600">${fmtDate(b.created_at)}</div>
+        ${b.expected_return_date ? `<div class="label" style="margin-top:8px">Expected Return</div><div style="font-size:13px;font-weight:600;color:${b.is_overdue ? '#c00' : '#000'}">${fmtDate(b.expected_return_date)}</div>` : ''}
       </div>
     </div>
-  );
-};
+    <div class="section">
+      <div class="label">Borrower Information</div>
+      <div class="grid2">
+        <div><strong>Name:</strong> ${b.first_name} ${b.last_name}</div>
+        <div><strong>Type:</strong> ${b.profile_type ? b.profile_type.charAt(0).toUpperCase() + b.profile_type.slice(1) : ''}</div>
+        ${b.course ? `<div><strong>Course:</strong> ${b.course} ${b.year_level || ''}</div>` : ''}
+        ${b.department ? `<div><strong>Department:</strong> ${b.department}</div>` : ''}
+        <div style="grid-column:1/-1"><strong>Purpose:</strong> ${b.purpose}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div class="label">Items Borrowed</div>
+      <table><thead><tr><th>#</th><th>Item Name</th><th style="text-align:center">Category</th><th style="text-align:center">Type</th><th style="text-align:center">Qty</th></tr></thead>
+      <tbody>${itemRows}</tbody></table>
+    </div>
+    <div class="section">
+      <div class="label">Acknowledgment &amp; Signatures</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:13px">
+        <div><div class="sigline"></div><div class="siglabel">Released by (Staff) + Date</div></div>
+        <div><div class="sigline"></div><div class="siglabel">Received by (Borrower) + Date</div></div>
+        <div><div class="sigline"></div><div class="siglabel">Returned to (Staff) + Date</div></div>
+        <div><div class="sigline"></div><div class="siglabel">Borrower's Signature + Date</div></div>
+      </div>
+    </div>
+    <div style="font-size:10px;color:#888;line-height:1.5;border-top:1px solid #eee;padding-top:10px">
+      <strong>Terms &amp; Conditions:</strong> The borrower is responsible for returning all equipment in the same condition as when borrowed. Any equipment that is lost or damaged must be replaced or the cost of repair/replacement reimbursed to the clinic. Consumable supplies are permanently dispensed and non-returnable. This slip must be presented upon return.
+    </div>
+    <div style="text-align:center;font-size:10px;color:#aaa;margin-top:10px">CJC Clinic Patient Records System • ${new Date().toLocaleString()}</div>
+  </div>
+  <script>window.onload=function(){window.print();}<\/script>
+  </body></html>`;
 
-/* ─────────────────────────────────────────────────────────────────
-   usePrint hook
-───────────────────────────────────────────────────────────────── */
-function usePrint(printRef: React.RefObject<HTMLDivElement | null>) {
-  return useCallback(() => {
-    const el = printRef.current;
-    if (!el) return;
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.top = '-9999px';
-    iframe.style.left = '-9999px';
-    iframe.style.width = '800px';
-    iframe.style.height = '600px';
-    document.body.appendChild(iframe);
-    const doc = iframe.contentDocument!;
-    doc.open();
-    doc.write(`<html><head><style>
-      body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #000; }
-      * { box-sizing: border-box; }
-      @page { margin: 10mm; }
-    </style></head><body>${el.innerHTML}</body></html>`);
-    doc.close();
-    iframe.contentWindow!.focus();
-    setTimeout(() => {
-      iframe.contentWindow!.print();
-      document.body.removeChild(iframe);
-    }, 250);
-  }, [printRef]);
+  const win = window.open('', '_blank', 'width=860,height=720');
+  if (!win) { toast.error('Please allow popups to enable printing.'); return; }
+  win.document.write(html);
+  win.document.close();
 }
+
+
+
+
+
 
 /* ─────────────────────────────────────────────────────────────────
    Return Reconciliation Modal
@@ -247,8 +186,6 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
   const [submitting, setSubmitting] = useState(false);
   const [notes, setNotes] = useState('');
   const [reconcile, setReconcile] = useState<Record<number, { returned: number; consumed: number }>>({});
-  const printRef = useRef<HTMLDivElement>(null);
-  const triggerPrint = usePrint(printRef);
 
   useEffect(() => {
     if (!borrowingId) return;
@@ -461,7 +398,7 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
         {/* Modal footer */}
         <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0 bg-slate-50/50 rounded-b-2xl">
           <button
-            onClick={() => { if (detail) { (printRef.current as any)?.__borrowing && triggerPrint(); } triggerPrint(); }}
+            onClick={() => detail && printBorrowingSlip(detail)}
             className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg px-3 py-2 hover:bg-slate-100 transition-colors"
           >
             <FiPrinter size={15} />
@@ -496,9 +433,6 @@ const CheckedOutList: React.FC = () => {
   const [items, setItems] = useState<CheckedOutRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBorrowingId, setSelectedBorrowingId] = useState<number | null>(null);
-  const [printBorrowing, setPrintBorrowing] = useState<CheckedOutRow | null>(null);
-  const printRef = useRef<HTMLDivElement>(null);
-  const triggerPrint = usePrint(printRef);
 
   const fetchCheckedOut = async () => {
     setLoading(true);
@@ -513,11 +447,6 @@ const CheckedOutList: React.FC = () => {
   };
 
   useEffect(() => { fetchCheckedOut(); }, []);
-
-  const handlePrint = (row: CheckedOutRow) => {
-    setPrintBorrowing(row);
-    setTimeout(() => triggerPrint(), 100);
-  };
 
   if (loading) return <div className="p-8 text-center text-slate-500">Loading...</div>;
 
@@ -584,7 +513,7 @@ const CheckedOutList: React.FC = () => {
                 {/* Actions */}
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => handlePrint(row)}
+                    onClick={() => printBorrowingSlip(row)}
                     title="Print borrowing slip"
                     className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                   >
@@ -620,9 +549,6 @@ const CheckedOutList: React.FC = () => {
           onSuccess={fetchCheckedOut}
         />
       )}
-
-      {/* Hidden print slip */}
-      {printBorrowing && <PrintSlip borrowing={printBorrowing} printRef={printRef} />}
     </div>
   );
 };
@@ -796,7 +722,7 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-center">
           <button
-            onClick={() => { triggerPrint(); }}
+            onClick={() => printBorrowingSlip(printData)}
             className="flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-slate-700 transition-colors shadow-sm"
           >
             <FiPrinter size={16} /> Print Borrowing Slip
@@ -808,8 +734,6 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
             View Checked Out <FiChevronRight size={15} />
           </button>
         </div>
-        {/* Hidden print slip */}
-        {printData && <PrintSlip borrowing={printData} printRef={printRef} />}
       </div>
     );
   }
@@ -999,7 +923,6 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
 const BookingHistoryList: React.FC = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [printBorrowing, setPrintBorrowing] = useState<any | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const triggerPrint = usePrint(printRef);
 
@@ -1058,7 +981,7 @@ const BookingHistoryList: React.FC = () => {
                     </div>
                   </div>
 
-                  <button onClick={() => handlePrint(record)} title="Print borrowing slip"
+                  <button onClick={() => printBorrowingSlip(record)} title="Print borrowing slip"
                     className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0">
                     <FiPrinter size={16} />
                   </button>
@@ -1078,8 +1001,6 @@ const BookingHistoryList: React.FC = () => {
         </div>
       )}
 
-      {/* Hidden print slip */}
-      {printBorrowing && <PrintSlip borrowing={printBorrowing} printRef={printRef} />}
     </div>
   );
 };
