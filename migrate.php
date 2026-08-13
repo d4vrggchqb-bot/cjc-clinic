@@ -117,6 +117,34 @@ try {
     }
 
     try {
+        $pdo->exec("ALTER TABLE `borrowings` ADD COLUMN `expected_return_date` DATETIME DEFAULT NULL AFTER `purpose`");
+    } catch (PDOException $e) {
+        // Ignore error
+    }
+
+    // borrowed_items: track whether equipment stock was reserved
+    try {
+        $pdo->exec("ALTER TABLE `borrowed_items` ADD COLUMN `stock_reserved` TINYINT(1) NOT NULL DEFAULT 0 AFTER `status`");
+    } catch (PDOException $e) {
+        // Ignore error
+    }
+
+    // Return reconciliation table — tracks per-item return details
+    $pdo->exec("
+    CREATE TABLE IF NOT EXISTS `borrowed_item_returns` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `borrowed_item_id` INT NOT NULL,
+      `quantity_returned` INT NOT NULL DEFAULT 0,
+      `quantity_consumed` INT NOT NULL DEFAULT 0,
+      `notes` TEXT DEFAULT NULL,
+      `processed_by` INT DEFAULT NULL,
+      `returned_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (`borrowed_item_id`) REFERENCES `borrowed_items`(`id`) ON DELETE CASCADE,
+      FOREIGN KEY (`processed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
+    );
+    ");
+
+    try {
         $pdo->exec("ALTER TABLE `inventory_items` 
             ADD COLUMN `date_acquired` DATE DEFAULT NULL,
             ADD COLUMN `date_purchased` DATE DEFAULT NULL,

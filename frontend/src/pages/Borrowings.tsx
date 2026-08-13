@@ -1,57 +1,504 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiFetch } from '../utils/api';
 import toast from 'react-hot-toast';
-import { FiCheckCircle, FiPackage, FiUser, FiPlus, FiBox, FiBriefcase, FiSearch } from 'react-icons/fi';
+import {
+  FiCheckCircle, FiPackage, FiUser, FiBox, FiBriefcase, FiSearch,
+  FiPrinter, FiClock, FiAlertTriangle, FiChevronRight, FiX, FiRotateCcw,
+  FiCalendar, FiInfo
+} from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
-const Borrowings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'checkedOut' | 'newBooking' | 'history'>('checkedOut');
-  
-  return (
-    <div className="px-5 py-5 w-full h-full flex flex-col">
-      <div className="mb-6 flex flex-col xl:flex-row xl:items-center justify-end gap-4">
-        
-        <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-full w-full xl:w-auto">
-          <button
-            onClick={() => setActiveTab('checkedOut')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap ${
-              activeTab === 'checkedOut' ? 'bg-white text-[#A5192D] shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Checked Out Equipment
-          </button>
-          <button
-            onClick={() => setActiveTab('newBooking')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap ${
-              activeTab === 'newBooking' ? 'bg-white text-[#A5192D] shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            New Booking Form
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap ${
-              activeTab === 'history' ? 'bg-white text-[#A5192D] shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Booking History
-          </button>
-        </div>
-      </div>
+/* ─────────────────────────────────────────────────────────────────
+   Types
+───────────────────────────────────────────────────────────────── */
+interface BorrowedItemDetail {
+  borrowed_item_id: number;
+  inventory_item_id: number;
+  generic_name: string;
+  brand_name: string;
+  category: string;
+  quantity: number;
+  item_type: 'equipment' | 'supply';
+  status: 'borrowed' | 'returned' | 'dispensed';
+  stock_reserved: boolean;
+  quantity_returned: number | null;
+  quantity_consumed: number | null;
+  item_returned_at: string | null;
+}
 
-      <div className="flex-1 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {activeTab === 'checkedOut' && <CheckedOutList />}
-        {activeTab === 'newBooking' && <NewBookingForm onSuccess={() => setActiveTab('checkedOut')} />}
-        {activeTab === 'history' && <BookingHistoryList />}
+interface BorrowingDetail {
+  borrowing_id: number;
+  booking_code: string;
+  purpose: string;
+  borrowing_status: 'active' | 'returned';
+  expected_return_date: string | null;
+  created_at: string;
+  returned_at: string | null;
+  is_overdue: boolean;
+  first_name: string;
+  last_name: string;
+  course: string;
+  year_level: string;
+  profile_type: string;
+  department: string;
+  items: BorrowedItemDetail[];
+}
+
+interface CheckedOutRow {
+  borrowing_id: number;
+  booking_code: string;
+  purpose: string;
+  expected_return_date: string | null;
+  created_at: string;
+  is_overdue: boolean;
+  is_due_soon: boolean;
+  first_name: string;
+  last_name: string;
+  course: string;
+  year_level: string;
+  profile_type: string;
+  department: string;
+  items: BorrowedItemDetail[];
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Utility helpers
+───────────────────────────────────────────────────────────────── */
+function fmtDate(d: string | null) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString('en-PH', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true
+  });
+}
+function fmtDateShort(d: string | null) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Print Slip Component
+───────────────────────────────────────────────────────────────── */
+interface PrintSlipProps {
+  borrowing: BorrowingDetail | CheckedOutRow | null;
+  printRef: React.RefObject<HTMLDivElement | null>;
+}
+
+const PrintSlip: React.FC<PrintSlipProps> = ({ borrowing, printRef }) => {
+  if (!borrowing) return null;
+  const b = borrowing as any;
+  return (
+    <div ref={printRef} className="print-slip-area hidden print:block" style={{ display: 'none' }}>
+      <style>{`
+        @media print {
+          body > *:not(.print-root) { display: none !important; }
+          .print-slip-area { display: block !important; font-family: Arial, sans-serif; color: #000; }
+          .print-slip-area * { box-sizing: border-box; }
+        }
+      `}</style>
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '24px', border: '2px solid #333', borderRadius: 8 }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', borderBottom: '2px solid #A5192D', paddingBottom: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: '#A5192D', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>CJC Clinic Management System</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#A5192D', marginTop: 2 }}>EQUIPMENT BORROWING SLIP</div>
+          <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>College Clinic</div>
+        </div>
+
+        {/* Booking Reference */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Booking Reference</div>
+            <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: '#A5192D', fontFamily: 'monospace', marginTop: 2 }}>{b.booking_code}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Date Borrowed</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{fmtDate(b.created_at)}</div>
+            {b.expected_return_date && (
+              <>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginTop: 8 }}>Expected Return</div>
+                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2, color: b.is_overdue ? '#c00' : '#000' }}>{fmtDate(b.expected_return_date)}</div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Borrower info */}
+        <div style={{ background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 6, padding: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Borrower Information</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 13 }}>
+            <div><strong>Name:</strong> {b.first_name} {b.last_name}</div>
+            <div><strong>Type:</strong> {b.profile_type?.charAt(0).toUpperCase() + b.profile_type?.slice(1)}</div>
+            {b.course && <div><strong>Course:</strong> {b.course} {b.year_level}</div>}
+            {b.department && <div><strong>Department:</strong> {b.department}</div>}
+            <div style={{ gridColumn: '1 / -1' }}><strong>Purpose:</strong> {b.purpose}</div>
+          </div>
+        </div>
+
+        {/* Items table */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Items Borrowed</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: '#A5192D', color: '#fff' }}>
+                <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700 }}>#</th>
+                <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700 }}>Item Name</th>
+                <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700 }}>Category</th>
+                <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700 }}>Type</th>
+                <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700 }}>Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              {b.items.map((item: any, idx: number) => (
+                <tr key={item.borrowed_item_id || idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '6px 10px' }}>{idx + 1}</td>
+                  <td style={{ padding: '6px 10px', fontWeight: 600 }}>
+                    {item.brand_name ? `${item.brand_name}` : ''}{item.brand_name && item.generic_name ? ' — ' : ''}{item.generic_name}
+                  </td>
+                  <td style={{ padding: '6px 10px', textAlign: 'center', textTransform: 'capitalize' }}>{item.category}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                    <span style={{ background: item.item_type === 'equipment' ? '#dbeafe' : '#dcfce7', color: item.item_type === 'equipment' ? '#1d4ed8' : '#15803d', padding: '1px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                      {item.item_type === 'equipment' ? 'To Return' : 'Consumable'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700 }}>{item.quantity}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Acknowledgment */}
+        <div style={{ border: '1px solid #ddd', borderRadius: 6, padding: 14, marginBottom: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Acknowledgment & Signatures</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, fontSize: 13 }}>
+            <div>
+              <div style={{ borderBottom: '1.5px solid #333', minHeight: 28, marginBottom: 4 }}></div>
+              <div style={{ fontSize: 11, color: '#555' }}>Released by (Staff) + Date</div>
+            </div>
+            <div>
+              <div style={{ borderBottom: '1.5px solid #333', minHeight: 28, marginBottom: 4 }}></div>
+              <div style={{ fontSize: 11, color: '#555' }}>Received by (Borrower) + Date</div>
+            </div>
+            <div>
+              <div style={{ borderBottom: '1.5px solid #333', minHeight: 28, marginBottom: 4 }}></div>
+              <div style={{ fontSize: 11, color: '#555' }}>Returned to (Staff) + Date</div>
+            </div>
+            <div>
+              <div style={{ borderBottom: '1.5px solid #333', minHeight: 28, marginBottom: 4 }}></div>
+              <div style={{ fontSize: 11, color: '#555' }}>Borrower's Signature + Date</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Terms */}
+        <div style={{ fontSize: 10, color: '#888', lineHeight: 1.5, borderTop: '1px solid #eee', paddingTop: 10 }}>
+          <strong>Terms & Conditions:</strong> The borrower is responsible for returning all equipment in the same condition as when borrowed. Any equipment that is lost or damaged must be replaced or the cost of repair/replacement must be reimbursed to the clinic. Consumable supplies are permanently dispensed and non-returnable. This slip must be presented upon return.
+        </div>
+        <div style={{ textAlign: 'center', fontSize: 10, color: '#aaa', marginTop: 10 }}>
+          CJC Clinic Patient Records System • {new Date().toLocaleString()}
+        </div>
       </div>
     </div>
   );
 };
 
-const CheckedOutList: React.FC = () => {
-  const [items, setItems] = useState<any[]>([]);
+/* ─────────────────────────────────────────────────────────────────
+   usePrint hook
+───────────────────────────────────────────────────────────────── */
+function usePrint(printRef: React.RefObject<HTMLDivElement | null>) {
+  return useCallback(() => {
+    const el = printRef.current;
+    if (!el) return;
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '800px';
+    iframe.style.height = '600px';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument!;
+    doc.open();
+    doc.write(`<html><head><style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #000; }
+      * { box-sizing: border-box; }
+      @page { margin: 10mm; }
+    </style></head><body>${el.innerHTML}</body></html>`);
+    doc.close();
+    iframe.contentWindow!.focus();
+    setTimeout(() => {
+      iframe.contentWindow!.print();
+      document.body.removeChild(iframe);
+    }, 250);
+  }, [printRef]);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Return Reconciliation Modal
+───────────────────────────────────────────────────────────────── */
+interface ReconcileModalProps {
+  borrowingId: number | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, onSuccess }) => {
+  const [detail, setDetail] = useState<BorrowingDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const { confirm } = useConfirm();
+  const [submitting, setSubmitting] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [reconcile, setReconcile] = useState<Record<number, { returned: number; consumed: number }>>({});
+  const printRef = useRef<HTMLDivElement>(null);
+  const triggerPrint = usePrint(printRef);
+
+  useEffect(() => {
+    if (!borrowingId) return;
+    setLoading(true);
+    apiFetch(`/api/index.php?route=borrowings&action=detail&borrowing_id=${borrowingId}`)
+      .then(res => {
+        setDetail(res.borrowing);
+        // Default: equipment items → all returned, supplies → all consumed
+        const init: Record<number, { returned: number; consumed: number }> = {};
+        (res.borrowing?.items || []).forEach((item: BorrowedItemDetail) => {
+          if (item.status === 'borrowed') {
+            init[item.borrowed_item_id] = {
+              returned: item.item_type === 'equipment' ? item.quantity : 0,
+              consumed: item.item_type === 'supply' ? item.quantity : 0
+            };
+          }
+        });
+        setReconcile(init);
+      })
+      .catch(() => toast.error('Failed to load borrowing details'))
+      .finally(() => setLoading(false));
+  }, [borrowingId]);
+
+  const handleSubmit = async () => {
+    if (!detail) return;
+    const items = detail.items
+      .filter(i => i.status === 'borrowed')
+      .map(i => ({
+        borrowed_item_id: i.borrowed_item_id,
+        quantity_returned: reconcile[i.borrowed_item_id]?.returned ?? 0,
+        quantity_consumed: reconcile[i.borrowed_item_id]?.consumed ?? 0,
+      }));
+
+    setSubmitting(true);
+    try {
+      const res = await apiFetch('/api/index.php?route=borrowings&action=return_borrowing', {
+        method: 'POST',
+        body: JSON.stringify({ borrowing_id: detail.borrowing_id, notes, items })
+      });
+      if (res.fully_returned) {
+        toast.success('All items returned — borrowing closed!');
+      } else {
+        toast.success('Partial return processed successfully.');
+      }
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to process return');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!borrowingId) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div>
+            <div className="flex items-center gap-2">
+              <FiRotateCcw className="text-[#A5192D]" size={18} />
+              <h2 className="text-lg font-bold text-slate-800">Process Return</h2>
+              {detail && (
+                <span className="font-mono text-xs font-extrabold bg-[#A5192D] text-white px-2 py-0.5 rounded">
+                  {detail.booking_code}
+                </span>
+              )}
+            </div>
+            {detail && (
+              <p className="text-sm text-slate-500 mt-0.5">
+                {detail.first_name} {detail.last_name} · {detail.course || detail.department} {detail.year_level}
+              </p>
+            )}
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors p-1">
+            <FiX size={20} />
+          </button>
+        </div>
+
+        {/* Borrowing meta */}
+        {detail && (
+          <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center gap-4 text-xs shrink-0">
+            <span className="flex items-center gap-1 text-slate-600">
+              <FiCalendar size={12} />
+              <span>Borrowed: <strong>{fmtDate(detail.created_at)}</strong></span>
+            </span>
+            <span className={`flex items-center gap-1 font-semibold ${detail.is_overdue ? 'text-red-600' : 'text-slate-600'}`}>
+              <FiClock size={12} />
+              <span>Due: <strong>{fmtDate(detail.expected_return_date)}</strong></span>
+              {detail.is_overdue && <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide ml-1">Overdue</span>}
+            </span>
+            <span className="flex items-center gap-1 text-slate-600">
+              <FiBox size={12} />
+              <span>Purpose: <strong>{detail.purpose}</strong></span>
+            </span>
+          </div>
+        )}
+
+        {/* Items reconciliation */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {loading ? (
+            <div className="text-center text-slate-500 py-8">Loading details...</div>
+          ) : detail ? (
+            <div className="space-y-3">
+              {/* Legend */}
+              <div className="flex items-center gap-2 text-xs text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                <FiInfo size={13} className="text-blue-500 shrink-0" />
+                <span>Enter how many of each item were <strong>returned</strong> (goes back to inventory) and how many were <strong>consumed/lost</strong>.</span>
+              </div>
+
+              {/* Header row */}
+              <div className="grid grid-cols-12 gap-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="col-span-5">Item</div>
+                <div className="col-span-2 text-center">Borrowed</div>
+                <div className="col-span-2 text-center">Returned</div>
+                <div className="col-span-2 text-center">Consumed</div>
+                <div className="col-span-1"></div>
+              </div>
+
+              {detail.items.map(item => {
+                const isSettled = item.status !== 'borrowed';
+                const r = reconcile[item.borrowed_item_id] ?? { returned: 0, consumed: 0 };
+                const isSupply = item.item_type === 'supply';
+                const total = r.returned + r.consumed;
+                const overAllocated = total > item.quantity;
+
+                return (
+                  <div key={item.borrowed_item_id} className={`grid grid-cols-12 gap-2 items-center px-3 py-3 rounded-lg border transition-colors ${isSettled ? 'bg-slate-50 border-slate-100 opacity-60' : overAllocated ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
+                    {/* Item name */}
+                    <div className="col-span-5">
+                      <p className="font-semibold text-slate-800 text-sm leading-tight">
+                        {item.brand_name || item.generic_name}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${isSupply ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {isSupply ? 'Supply' : 'Equipment'}
+                        </span>
+                        {isSettled && <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">Settled</span>}
+                      </div>
+                    </div>
+
+                    {/* Qty borrowed */}
+                    <div className="col-span-2 text-center">
+                      <span className="text-sm font-bold text-slate-700">{item.quantity}</span>
+                    </div>
+
+                    {/* Qty returned (equipment only) */}
+                    <div className="col-span-2 text-center">
+                      {isSupply ? (
+                        <span className="text-xs text-slate-400 italic">N/A</span>
+                      ) : isSettled ? (
+                        <span className="text-sm font-bold text-emerald-600">{item.quantity_returned ?? '—'}</span>
+                      ) : (
+                        <input
+                          type="number" min={0} max={item.quantity}
+                          value={r.returned}
+                          onChange={e => setReconcile(prev => ({ ...prev, [item.borrowed_item_id]: { ...r, returned: Math.max(0, Math.min(item.quantity, +e.target.value)) } }))}
+                          className="w-16 mx-auto block text-center border border-slate-200 rounded-md p-1 text-sm font-bold focus:outline-none focus:border-emerald-500"
+                        />
+                      )}
+                    </div>
+
+                    {/* Qty consumed/lost */}
+                    <div className="col-span-2 text-center">
+                      {isSupply ? (
+                        isSettled ? (
+                          <span className="text-sm font-bold text-amber-600">{item.quantity}</span>
+                        ) : (
+                          <span className="text-sm font-bold text-amber-600">{item.quantity}</span>
+                        )
+                      ) : isSettled ? (
+                        <span className="text-sm font-bold text-amber-600">{item.quantity_consumed ?? '—'}</span>
+                      ) : (
+                        <input
+                          type="number" min={0} max={item.quantity}
+                          value={r.consumed}
+                          onChange={e => setReconcile(prev => ({ ...prev, [item.borrowed_item_id]: { ...r, consumed: Math.max(0, Math.min(item.quantity, +e.target.value)) } }))}
+                          className="w-16 mx-auto block text-center border border-slate-200 rounded-md p-1 text-sm font-bold focus:outline-none focus:border-amber-500"
+                        />
+                      )}
+                    </div>
+
+                    {/* Over-allocated warning */}
+                    <div className="col-span-1 flex justify-center">
+                      {overAllocated && (
+                        <FiAlertTriangle className="text-red-500" size={16} title={`Total (${total}) exceeds borrowed qty (${item.quantity})`} />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1 mt-2">Notes (optional)</label>
+                <textarea
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Wheel chair returned with minor scratch..."
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-[#A5192D] resize-none transition-colors"
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Modal footer */}
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0 bg-slate-50/50 rounded-b-2xl">
+          <button
+            onClick={() => { if (detail) { (printRef.current as any)?.__borrowing && triggerPrint(); } triggerPrint(); }}
+            className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg px-3 py-2 hover:bg-slate-100 transition-colors"
+          >
+            <FiPrinter size={15} />
+            Print Slip
+          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors">
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || loading}
+              className="bg-[#A5192D] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#8B1424] transition-colors shadow-sm disabled:opacity-60 flex items-center gap-2"
+            >
+              <FiCheckCircle size={15} />
+              {submitting ? 'Processing...' : 'Process Return'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Hidden print slip */}
+      {detail && <PrintSlip borrowing={detail} printRef={printRef} />}
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────
+   Checked Out List (compact, grouped by borrowing)
+───────────────────────────────────────────────────────────────── */
+const CheckedOutList: React.FC = () => {
+  const [items, setItems] = useState<CheckedOutRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedBorrowingId, setSelectedBorrowingId] = useState<number | null>(null);
+  const [printBorrowing, setPrintBorrowing] = useState<CheckedOutRow | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+  const triggerPrint = usePrint(printRef);
 
   const fetchCheckedOut = async () => {
     setLoading(true);
@@ -65,93 +512,141 @@ const CheckedOutList: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    fetchCheckedOut();
-  }, []);
+  useEffect(() => { fetchCheckedOut(); }, []);
 
-  const handleReturn = async (borrowedItemId: number) => {
-    const isConfirmed = await confirm({
-      title: 'Return Equipment',
-      message: 'Mark this equipment as returned?',
-      type: 'info'
-    });
-    
-    if (!isConfirmed) return;
-    
-    try {
-      await apiFetch('/api/index.php?route=borrowings&action=return_item', {
-        method: 'POST',
-        body: JSON.stringify({ borrowed_item_id: borrowedItemId })
-      });
-      toast.success('Equipment returned successfully');
-      fetchCheckedOut();
-    } catch (e) {
-      toast.error('Failed to return item');
-    }
+  const handlePrint = (row: CheckedOutRow) => {
+    setPrintBorrowing(row);
+    setTimeout(() => triggerPrint(), 100);
   };
 
   if (loading) return <div className="p-8 text-center text-slate-500">Loading...</div>;
 
   return (
-    <div className="p-6 h-full overflow-y-auto">
+    <div className="p-5 h-full overflow-y-auto">
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-slate-400 pb-20">
-          <FiPackage size={48} className="mb-4 opacity-50" />
-          <h3 className="text-xl font-semibold text-slate-700">No equipment currently checked out</h3>
+          <FiPackage size={48} className="mb-4 opacity-40" />
+          <h3 className="text-xl font-semibold text-slate-600">No equipment currently checked out</h3>
+          <p className="text-sm mt-1">All borrowings have been returned.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item) => (
-            <div key={item.borrowed_item_id} className="border border-slate-200 rounded-lg p-5 flex flex-col hover:border-slate-300 transition-colors bg-slate-50/50">
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-2 text-[#A5192D] font-bold">
-                  <FiBox />
-                  <span>{item.brand_name ? `${item.brand_name} (${item.generic_name})` : item.generic_name}</span>
+        <div className="space-y-2">
+          {/* Summary bar */}
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{items.length} Active Borrowing{items.length !== 1 ? 's' : ''}</span>
+            {items.filter(i => i.is_overdue).length > 0 && (
+              <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                <FiAlertTriangle size={11} /> {items.filter(i => i.is_overdue).length} Overdue
+              </span>
+            )}
+          </div>
+
+          {items.map(row => (
+            <div
+              key={row.borrowing_id}
+              className={`border rounded-xl bg-white hover:shadow-md transition-all ${row.is_overdue ? 'border-red-300 bg-red-50/30' : row.is_due_soon ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200'}`}
+            >
+              <div className="flex items-center gap-3 px-4 py-3">
+                {/* Booking code */}
+                <span className="font-mono text-xs font-extrabold bg-[#A5192D] text-white px-2 py-1 rounded shrink-0">
+                  {row.booking_code}
+                </span>
+
+                {/* Borrower + purpose */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-800 text-sm">{row.first_name} {row.last_name}</span>
+                    <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-semibold uppercase">{row.profile_type}</span>
+                    {(row.course || row.year_level) && (
+                      <span className="text-xs text-slate-500">{row.course} {row.year_level}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                    <span className="text-xs text-slate-500 truncate">{row.purpose}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0">•</span>
+                    <span className="text-[10px] font-bold text-slate-500 shrink-0">{row.items.length} item{row.items.length !== 1 ? 's' : ''}</span>
+                  </div>
                 </div>
-                <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-bold">Qty: {item.quantity}</span>
+
+                {/* Due date */}
+                <div className="text-right shrink-0 hidden sm:block">
+                  {row.expected_return_date ? (
+                    <div className={`flex items-center gap-1.5 text-xs font-semibold ${row.is_overdue ? 'text-red-600' : row.is_due_soon ? 'text-amber-600' : 'text-slate-500'}`}>
+                      {row.is_overdue ? <FiAlertTriangle size={12} /> : <FiClock size={12} />}
+                      <span>{row.is_overdue ? 'Overdue · ' : row.is_due_soon ? 'Due Soon · ' : 'Due · '}{fmtDateShort(row.expected_return_date)}</span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-400">No due date</span>
+                  )}
+                  <div className="text-[10px] text-slate-400 mt-0.5">Since {fmtDateShort(row.created_at)}</div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handlePrint(row)}
+                    title="Print borrowing slip"
+                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    <FiPrinter size={16} />
+                  </button>
+                  <button
+                    onClick={() => setSelectedBorrowingId(row.borrowing_id)}
+                    className="flex items-center gap-1.5 bg-[#A5192D] text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-[#8B1424] transition-colors shadow-sm"
+                  >
+                    View & Return <FiChevronRight size={13} />
+                  </button>
+                </div>
               </div>
-              
-              <div className="text-sm text-slate-600 space-y-1 mb-4 flex-1">
-                <div className="flex items-center gap-2">
-                  <FiUser className="text-slate-400" />
-                  <span className="font-medium text-slate-800">{item.first_name} {item.last_name}</span>
-                </div>
-                <p className="pl-6 text-xs text-slate-500">{item.course} {item.year_level}</p>
-                
-                <div className="mt-3 pt-3 border-t border-slate-200">
-                  <p><span className="font-semibold">Purpose:</span> {item.purpose}</p>
-                  <p className="text-xs text-slate-400 mt-1">Borrowed: {new Date(item.item_created).toLocaleString()}</p>
-                </div>
+
+              {/* Items preview (collapsed sub-row) */}
+              <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                {row.items.map(item => (
+                  <span key={item.borrowed_item_id} className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
+                    {item.brand_name || item.generic_name} ×{item.quantity}
+                  </span>
+                ))}
               </div>
-              
-              <button
-                onClick={() => handleReturn(item.borrowed_item_id)}
-                className="w-full py-2 bg-white border-2 border-[#A5192D] text-[#A5192D] hover:bg-[#A5192D] hover:text-white rounded-md font-bold transition-colors flex items-center justify-center gap-2"
-              >
-                <FiCheckCircle /> Mark as Returned
-              </button>
             </div>
           ))}
         </div>
       )}
+
+      {/* Reconciliation modal */}
+      {selectedBorrowingId && (
+        <ReconcileModal
+          borrowingId={selectedBorrowingId}
+          onClose={() => setSelectedBorrowingId(null)}
+          onSuccess={fetchCheckedOut}
+        />
+      )}
+
+      {/* Hidden print slip */}
+      {printBorrowing && <PrintSlip borrowing={printBorrowing} printRef={printRef} />}
     </div>
   );
 };
 
+/* ─────────────────────────────────────────────────────────────────
+   New Booking Form
+───────────────────────────────────────────────────────────────── */
 const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
   const { confirm } = useConfirm();
-  const [profiles, setProfiles] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState('');
   const [purpose, setPurpose] = useState('');
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
-  const [selectedItems, setSelectedItems] = useState<{item_id: number, quantity: number, type: string}[]>([]);
+  const [selectedItems, setSelectedItems] = useState<{ item_id: number; quantity: number; type: string }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [catalogSearchTerm, setCatalogSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredProfiles, setFilteredProfiles] = useState<any[]>([]);
+  const [printData, setPrintData] = useState<any | null>(null);
+  const [bookingSuccess, setBookingSuccess] = useState<{ booking_code: string; borrowing_id: number } | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+  const triggerPrint = usePrint(printRef);
 
   const handleSelectProfile = (profile: any) => {
     setSelectedProfile(profile.id);
@@ -159,101 +654,64 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
     setShowDropdown(false);
   };
 
-  // Initial load for inventory only, profiles load dynamically
   useEffect(() => {
     apiFetch('/api/index.php?route=inventory&action=items')
-      .then(res => {
-        setInventory(res.items || []);
-        setLoading(false);
-      })
-      .catch(() => {
-        toast.error('Failed to load inventory');
-        setLoading(false);
-      });
+      .then(res => { setInventory(res.items || []); setLoading(false); })
+      .catch(() => { toast.error('Failed to load inventory'); setLoading(false); });
   }, []);
 
-  // Debounced search for profiles
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchTerm.length >= 1 && !selectedProfile) {
         apiFetch(`/api/index.php?route=patients&action=list&search=${encodeURIComponent(searchTerm)}&per_page=20`)
-          .then(res => {
-            setFilteredProfiles(res.profiles || []);
-          })
+          .then(res => setFilteredProfiles(res.profiles || []))
           .catch(console.error);
       } else if (searchTerm.length === 0) {
         setFilteredProfiles([]);
       }
     }, 300);
-
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm, selectedProfile]);
 
   const handleAddItem = (item: any) => {
     if (selectedItems.some(i => i.item_id === item.id)) return;
     if (item.total_stock <= 0) {
-      confirm({
-        title: 'Out of Stock',
-        message: `${item.brand_name || item.generic_name} is currently out of stock.`,
-        type: 'danger',
-        confirmText: 'Okay',
-        hideCancel: true
-      });
+      confirm({ title: 'Out of Stock', message: `${item.brand_name || item.generic_name} is currently out of stock.`, type: 'danger', confirmText: 'Okay', hideCancel: true });
       return;
     }
-    setSelectedItems(prev => [...prev, {
-      item_id: item.id,
-      quantity: 1,
-      type: item.category === 'equipment' ? 'equipment' : 'supply'
-    }]);
+    setSelectedItems(prev => [...prev, { item_id: item.id, quantity: 1, type: item.category === 'equipment' ? 'equipment' : 'supply' }]);
   };
 
   const handleQuickAddMedicalKit = () => {
-    // Defines common keywords for items that would belong in a Medical Kit
-    const medKitKeywords = ['alcohol', 'betadine', 'cotton', 'bandage', 'thermometer', 'first aid', 'kit'];
+    const medKitKeywords = ['alcohol', 'betadine', 'cotton', 'bandage', 'thermometer', 'first aid', 'kit', 'gauze', 'scissors', 'gloves'];
     const itemsToAdd: any[] = [];
-    
     inventory.forEach(item => {
       const name = (item.generic_name + ' ' + item.brand_name).toLowerCase();
       if (medKitKeywords.some(kw => name.includes(kw)) && item.total_stock > 0) {
         if (!selectedItems.some(i => i.item_id === item.id) && !itemsToAdd.some(i => i.item_id === item.id)) {
-           itemsToAdd.push({
-             item_id: item.id,
-             quantity: 1,
-             type: item.category === 'equipment' ? 'equipment' : 'supply'
-           });
+          itemsToAdd.push({ item_id: item.id, quantity: 1, type: item.category === 'equipment' ? 'equipment' : 'supply' });
         }
       }
     });
-
     if (itemsToAdd.length > 0) {
       setSelectedItems(prev => [...prev, ...itemsToAdd]);
-      toast.success(`Added ${itemsToAdd.length} Medical Kit items to cart!`);
+      toast.success(`Added ${itemsToAdd.length} Medical Kit items!`);
       if (!purpose) setPurpose('Intramurals / Sports Event');
     } else {
       toast.error('No available Medical Kit items found in inventory.');
     }
   };
 
-  const handleRemoveItem = (id: number) => {
-    setSelectedItems(selectedItems.filter(i => i.item_id !== id));
-  };
+  const handleRemoveItem = (id: number) => setSelectedItems(selectedItems.filter(i => i.item_id !== id));
 
   const handleQuantityChange = (id: number, delta: number) => {
     const itemData = inventory.find(i => i.id === id);
     if (!itemData) return;
-    
     setSelectedItems(selectedItems.map(i => {
       if (i.item_id === id) {
         let newQ = Math.max(1, i.quantity + delta);
         if (newQ > itemData.total_stock) {
-          confirm({
-            title: 'Stock Limit Reached',
-            message: `You cannot add more. We only have ${itemData.total_stock} of ${itemData.brand_name || itemData.generic_name} in stock!`,
-            type: 'warning',
-            confirmText: 'Okay',
-            hideCancel: true
-          });
+          confirm({ title: 'Stock Limit', message: `Only ${itemData.total_stock} of ${itemData.brand_name || itemData.generic_name} available.`, type: 'warning', confirmText: 'Okay', hideCancel: true });
           newQ = itemData.total_stock;
         }
         return { ...i, quantity: newQ };
@@ -267,24 +725,54 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
     if (!selectedProfile) return toast.error('Please select a borrower');
     if (!purpose.trim()) return toast.error('Please enter the purpose');
     if (selectedItems.length === 0) return toast.error('Please select at least one item');
-    
+
     setSubmitting(true);
     try {
-      await apiFetch('/api/index.php?route=borrowings&action=submit', {
+      const res = await apiFetch('/api/index.php?route=borrowings&action=submit', {
         method: 'POST',
         body: JSON.stringify({
           profile_id: selectedProfile,
           purpose,
           expected_return_date: expectedReturnDate || null,
-          items: selectedItems.map(i => ({
-            inventory_item_id: i.item_id,
-            quantity: i.quantity,
-            item_type: i.type
-          }))
+          items: selectedItems.map(i => ({ inventory_item_id: i.item_id, quantity: i.quantity, item_type: i.type }))
         })
       });
-      toast.success('Borrowing request submitted successfully');
-      onSuccess();
+      setBookingSuccess({ booking_code: res.booking_code, borrowing_id: res.borrowing_id });
+
+      // Build print-ready data
+      const profileParts = searchTerm.split(' ');
+      const course = filteredProfiles.length > 0 ? filteredProfiles[0]?.course : '';
+      const year = filteredProfiles.length > 0 ? filteredProfiles[0]?.year_level : '';
+      setPrintData({
+        booking_code: res.booking_code,
+        borrowing_id: res.borrowing_id,
+        created_at: new Date().toISOString(),
+        expected_return_date: expectedReturnDate || null,
+        is_overdue: false,
+        first_name: profileParts[0] || '',
+        last_name: profileParts.slice(1).join(' ') || '',
+        course, year_level: year, profile_type: 'student', department: '',
+        purpose,
+        items: selectedItems.map(si => {
+          const inv = inventory.find(i => i.id === si.item_id);
+          return {
+            borrowed_item_id: si.item_id,
+            inventory_item_id: si.item_id,
+            generic_name: inv?.generic_name || '',
+            brand_name: inv?.brand_name || '',
+            category: inv?.category || '',
+            quantity: si.quantity,
+            item_type: si.type,
+            status: 'borrowed',
+            stock_reserved: si.type === 'equipment',
+            quantity_returned: null,
+            quantity_consumed: null,
+            item_returned_at: null
+          };
+        })
+      });
+
+      toast.success('Borrowing submitted successfully!');
     } catch (err: any) {
       toast.error(err.message || 'Submission failed');
     } finally {
@@ -292,12 +780,45 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
     }
   };
 
+  // Success screen
+  if (bookingSuccess) {
+    return (
+      <div className="p-12 h-full flex flex-col items-center justify-center gap-6">
+        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+          <FiCheckCircle size={36} className="text-emerald-500" />
+        </div>
+        <div className="text-center">
+          <h3 className="text-2xl font-bold text-slate-800">Booking Submitted!</h3>
+          <p className="text-slate-500 mt-1">Equipment has been checked out successfully.</p>
+          <div className="mt-4 font-mono text-2xl font-black tracking-widest text-[#A5192D] bg-red-50 border-2 border-[#A5192D] px-6 py-3 rounded-xl inline-block">
+            {bookingSuccess.booking_code}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap justify-center">
+          <button
+            onClick={() => { triggerPrint(); }}
+            className="flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-slate-700 transition-colors shadow-sm"
+          >
+            <FiPrinter size={16} /> Print Borrowing Slip
+          </button>
+          <button
+            onClick={() => onSuccess()}
+            className="flex items-center gap-2 bg-[#A5192D] text-white px-5 py-2.5 rounded-lg font-bold hover:bg-[#8B1424] transition-colors shadow-sm"
+          >
+            View Checked Out <FiChevronRight size={15} />
+          </button>
+        </div>
+        {/* Hidden print slip */}
+        {printData && <PrintSlip borrowing={printData} printRef={printRef} />}
+      </div>
+    );
+  }
+
   if (loading) return <div className="p-8 text-center text-slate-500">Loading form...</div>;
 
   return (
     <form onSubmit={handleSubmit} className="p-8 h-full overflow-y-auto bg-slate-50/30">
       <div className="max-w-4xl mx-auto space-y-8">
-        
         {/* Section 1: Borrower Information */}
         <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">1. Borrower Details</h2>
@@ -309,22 +830,13 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
                 placeholder="Type a name to search..."
                 className="w-full border border-slate-300 p-2.5 rounded-md focus:outline-none focus:border-[#A5192D] transition-colors"
                 value={searchTerm}
-                onChange={e => {
-                  setSearchTerm(e.target.value);
-                  setSelectedProfile('');
-                  setShowDropdown(true);
-                }}
+                onChange={e => { setSearchTerm(e.target.value); setSelectedProfile(''); setShowDropdown(true); }}
                 onFocus={() => setShowDropdown(true)}
               />
-              
               {showDropdown && filteredProfiles.length > 0 && !selectedProfile && (
                 <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
                   {filteredProfiles.map(p => (
-                    <div
-                      key={p.id}
-                      className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 transition-colors"
-                      onClick={() => handleSelectProfile(p)}
-                    >
+                    <div key={p.id} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 transition-colors" onClick={() => handleSelectProfile(p)}>
                       <div className="font-semibold text-slate-800">{p.first_name} {p.last_name}</div>
                       <div className="text-xs text-slate-500 flex items-center gap-2">
                         <span className="uppercase font-bold tracking-wider">{p.profile_type}</span>
@@ -347,20 +859,14 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose of Borrowing</label>
                 <div className="flex flex-col gap-2">
                   <input
-                    type="text"
-                    placeholder="e.g. Intramurals, First Aid, Class Demo"
-                    required
+                    type="text" placeholder="e.g. Intramurals, First Aid, Class Demo" required
                     className="w-full border border-slate-300 p-2.5 rounded-md focus:outline-none focus:border-[#A5192D] transition-colors"
-                    value={purpose}
-                    onChange={e => setPurpose(e.target.value)}
+                    value={purpose} onChange={e => setPurpose(e.target.value)}
                   />
                   <div className="flex flex-wrap gap-1.5">
-                    {['Intramurals', 'Field Trip', 'Class Activity', 'PE Class'].map(preset => (
-                      <button 
-                        key={preset} type="button" 
-                        onClick={() => setPurpose(preset)} 
-                        className={`text-[10px] px-2 py-1 rounded-md border font-bold transition-colors ${purpose === preset ? 'bg-[#A5192D] text-white border-[#A5192D]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
-                      >
+                    {['Intramurals', 'Field Trip', 'Class Activity', 'PE Class', 'Coastal Clean Up'].map(preset => (
+                      <button key={preset} type="button" onClick={() => setPurpose(preset)}
+                        className={`text-[10px] px-2 py-1 rounded-md border font-bold transition-colors ${purpose === preset ? 'bg-[#A5192D] text-white border-[#A5192D]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
                         {preset}
                       </button>
                     ))}
@@ -368,12 +874,11 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Expected Return Date</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Expected Return Date & Time</label>
                 <input
                   type="datetime-local"
                   className="w-full border border-slate-300 p-2.5 rounded-md focus:outline-none focus:border-[#A5192D] transition-colors text-sm"
-                  value={expectedReturnDate}
-                  onChange={e => setExpectedReturnDate(e.target.value)}
+                  value={expectedReturnDate} onChange={e => setExpectedReturnDate(e.target.value)}
                 />
               </div>
             </div>
@@ -384,73 +889,46 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
         <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 border-b pb-2 gap-4">
             <h2 className="text-xl font-bold text-slate-800">2. Equipment & Supplies</h2>
-            <button
-              type="button"
-              onClick={handleQuickAddMedicalKit}
-              className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-sm"
-            >
-              <FiBriefcase className="w-4 h-4" />
-              + Quick Add Medical Kit
+            <button type="button" onClick={handleQuickAddMedicalKit}
+              className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-sm">
+              <FiBriefcase className="w-4 h-4" /> + Quick Add Medical Kit
             </button>
           </div>
-          
+
           <div className="flex flex-col lg:flex-row gap-8">
-            {/* Catalog list */}
+            {/* Catalog */}
             <div className="lg:w-1/2 flex flex-col">
               <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Available Catalog</h3>
               <div className="mb-3 relative">
                 <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input 
-                  type="text"
-                  placeholder="Search available items..."
+                <input type="text" placeholder="Search available items..."
                   className="w-full border border-slate-300 pl-9 p-2 rounded-md focus:outline-none focus:border-[#A5192D] transition-colors text-sm"
-                  value={catalogSearchTerm}
-                  onChange={e => setCatalogSearchTerm(e.target.value)}
-                />
+                  value={catalogSearchTerm} onChange={e => setCatalogSearchTerm(e.target.value)} />
               </div>
               <div className="border border-slate-200 rounded-md h-[300px] overflow-y-auto flex-1">
-                {inventory
-                  .filter(item => {
-                    if (!catalogSearchTerm) return true;
-                    const matchStr = `${item.generic_name} ${item.brand_name} ${item.category}`.toLowerCase();
-                    return matchStr.includes(catalogSearchTerm.toLowerCase());
-                  })
-                  .map(item => {
+                {inventory.filter(item => {
+                  if (!catalogSearchTerm) return true;
+                  return `${item.generic_name} ${item.brand_name} ${item.category}`.toLowerCase().includes(catalogSearchTerm.toLowerCase());
+                }).map(item => {
                   const isSelected = selectedItems.some(i => i.item_id === item.id);
                   const isOutOfStock = Number(item.total_stock) <= 0;
                   return (
-                    <div key={item.id} className={`flex items-center justify-between p-3 border-b border-slate-100 hover:bg-slate-50 transition-colors ${isOutOfStock ? 'bg-slate-50/50' : ''}`}>
+                    <div key={item.id} className={`flex items-center justify-between p-3 border-b border-slate-100 hover:bg-slate-50 transition-colors ${isOutOfStock ? 'opacity-60' : ''}`}>
                       <div>
                         <p className="font-bold text-slate-800 text-sm flex items-center gap-2">
                           {item.brand_name || item.generic_name}
-                          <span className="text-[9px] uppercase tracking-wider font-bold bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">
-                            {item.category}
-                          </span>
+                          <span className="text-[9px] uppercase tracking-wider font-bold bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">{item.category}</span>
                         </p>
-                        <div className="mt-1.5">
+                        <div className="mt-1">
                           {isOutOfStock ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded uppercase tracking-wide">
-                              Out of Stock
-                            </span>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded uppercase">Out of Stock</span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded uppercase tracking-wide">
-                              {Number(item.total_stock)} In Stock
-                            </span>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded uppercase">{Number(item.total_stock)} In Stock</span>
                           )}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAddItem(item)}
-                        disabled={isSelected || isOutOfStock}
-                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                          isSelected 
-                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                            : isOutOfStock
-                              ? 'bg-slate-100 text-slate-300 cursor-not-allowed opacity-50'
-                              : 'bg-[#A5192D] text-white hover:bg-[#8B1424] shadow-sm active:scale-95'
-                        }`}
-                      >
+                      <button type="button" onClick={() => handleAddItem(item)} disabled={isSelected || isOutOfStock}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${isSelected ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : isOutOfStock ? 'bg-slate-100 text-slate-300 cursor-not-allowed opacity-50' : 'bg-[#A5192D] text-white hover:bg-[#8B1424] shadow-sm active:scale-95'}`}>
                         {isSelected ? 'Added' : isOutOfStock ? 'Empty' : 'Select'}
                       </button>
                     </div>
@@ -458,13 +936,14 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
                 })}
               </div>
             </div>
-            
+
             {/* Selected items */}
             <div className="lg:w-1/2">
               <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Selected Items</h3>
               {selectedItems.length === 0 ? (
-                <div className="h-[300px] border-2 border-dashed border-slate-200 rounded-md flex items-center justify-center text-slate-400">
-                  Select items from the catalog
+                <div className="h-[300px] border-2 border-dashed border-slate-200 rounded-md flex items-center justify-center text-slate-400 flex-col gap-2">
+                  <FiBox size={28} className="opacity-40" />
+                  <span className="text-sm">Select items from the catalog</span>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -474,7 +953,7 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
                       <div key={sItem.item_id} className="bg-slate-50 border border-slate-200 p-3 rounded-md flex items-center justify-between">
                         <div>
                           <p className="font-bold text-slate-800 text-sm">{itemData?.brand_name || itemData?.generic_name}</p>
-                          <p className="text-[10px] uppercase font-bold text-slate-400">{sItem.type === 'equipment' ? 'To be returned' : 'Consumable'}</p>
+                          <p className="text-[10px] uppercase font-bold text-slate-400">{sItem.type === 'equipment' ? 'Equipment — To be returned' : 'Supply — Consumable'}</p>
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="flex items-center bg-white border border-slate-200 rounded-md">
@@ -482,9 +961,7 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
                             <span className="w-8 text-center font-bold text-sm">{sItem.quantity}</span>
                             <button type="button" onClick={() => handleQuantityChange(sItem.item_id, 1)} className="px-2 py-1 text-slate-500 hover:text-slate-800">+</button>
                           </div>
-                          <button type="button" onClick={() => handleRemoveItem(sItem.item_id)} className="text-red-500 hover:text-red-700 font-bold text-sm">
-                            Remove
-                          </button>
+                          <button type="button" onClick={() => handleRemoveItem(sItem.item_id)} className="text-red-500 hover:text-red-700 font-bold text-sm">Remove</button>
                         </div>
                       </div>
                     );
@@ -500,96 +977,137 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
           <label className="flex items-start gap-3 cursor-pointer">
             <input type="checkbox" required className="mt-1 w-5 h-5 accent-[#A5192D]" />
             <span className="text-sm text-slate-700 leading-relaxed">
-              <strong>I agree to the terms and conditions.</strong> The borrower is responsible for returning all equipment in the same condition as when borrowed. Any equipment that is lost or damaged while in your possession must be replaced or the cost of repair/replacement must be reimbursed to the clinic. Consumable supplies will be permanently dispensed.
+              <strong>I agree to the terms and conditions.</strong> The borrower is responsible for returning all equipment in the same condition as when borrowed. Equipment that is lost or damaged must be replaced or the cost reimbursed. Consumable supplies are permanently dispensed. Equipment stock is reserved from inventory upon checkout.
             </span>
           </label>
         </section>
 
         <div className="flex justify-end pt-4 pb-12">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="bg-[#A5192D] text-white px-8 py-3 rounded-md font-bold text-lg hover:bg-[#8B1424] transition-colors shadow-md disabled:opacity-70 flex items-center gap-2"
-          >
+          <button type="submit" disabled={submitting}
+            className="bg-[#A5192D] text-white px-8 py-3 rounded-md font-bold text-lg hover:bg-[#8B1424] transition-colors shadow-md disabled:opacity-70 flex items-center gap-2">
             {submitting ? 'Submitting...' : 'Submit Booking Request'}
           </button>
         </div>
-
       </div>
     </form>
   );
 };
 
+/* ─────────────────────────────────────────────────────────────────
+   Booking History List (compact)
+───────────────────────────────────────────────────────────────── */
 const BookingHistoryList: React.FC = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [printBorrowing, setPrintBorrowing] = useState<any | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+  const triggerPrint = usePrint(printRef);
 
   useEffect(() => {
     apiFetch('/api/index.php?route=borrowings&action=recent_history')
-      .then(res => {
-        setHistory(res.history || []);
-        setLoading(false);
-      })
-      .catch(e => {
-        toast.error('Failed to load borrowing history');
-        setLoading(false);
-      });
+      .then(res => { setHistory(res.history || []); setLoading(false); })
+      .catch(() => { toast.error('Failed to load history'); setLoading(false); });
   }, []);
+
+  const handlePrint = (record: any) => {
+    setPrintBorrowing(record);
+    setTimeout(() => triggerPrint(), 100);
+  };
 
   if (loading) return <div className="p-8 text-center text-slate-500">Loading history...</div>;
 
   return (
-    <div className="p-6 h-full overflow-y-auto">
+    <div className="p-5 h-full overflow-y-auto">
       {history.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-slate-400 pb-20">
-          <FiBox size={48} className="mb-4 opacity-50" />
-          <h3 className="text-xl font-semibold text-slate-700">No booking history available</h3>
+          <FiBox size={48} className="mb-4 opacity-40" />
+          <h3 className="text-xl font-semibold text-slate-600">No booking history available</h3>
         </div>
       ) : (
-        <div className="space-y-4">
-          {history.map((record, idx) => (
-            <div key={idx} className="border border-slate-200 rounded-lg p-5 flex flex-col md:flex-row md:items-start gap-4 hover:border-slate-300 transition-colors bg-slate-50/50">
-              <div className="flex-1">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <span className="font-mono text-xs font-extrabold bg-[#8c1526] text-white px-2.5 py-1 rounded-md shadow-2xs tracking-wide">
-                    {record.booking_code || `EQ-${new Date(record.created_at).getFullYear()}-${String(record.id).padStart(5, '0')}`}
+        <div className="space-y-2">
+          {history.map((record) => {
+            const isReturned = record.borrowing_status === 'returned';
+            return (
+              <div key={record.id} className="border border-slate-200 rounded-xl bg-white hover:shadow-sm transition-all">
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <span className="font-mono text-xs font-extrabold bg-[#8c1526] text-white px-2 py-1 rounded shrink-0">
+                    {record.booking_code}
                   </span>
-                  <FiUser className="text-slate-400 ml-1" />
-                  <span className="font-bold text-slate-800">{record.first_name} {record.last_name}</span>
-                  <span className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-semibold uppercase">
-                    {record.profile_type}
-                  </span>
-                </div>
-                {record.course && (
-                  <p className="text-sm text-slate-500 ml-6">{record.course}</p>
-                )}
-                <div className="mt-3 ml-6">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Purpose</p>
-                  <p className="text-sm text-slate-600 bg-white p-2 border border-slate-100 rounded-md inline-block min-w-[200px]">{record.purpose}</p>
-                </div>
-              </div>
-              
-              <div className="flex-1">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Items Borrowed / Dispensed</p>
-                <div className="space-y-2">
-                  {record.items.map((item: any, i: number) => (
-                    <div key={i} className="flex justify-between items-center text-sm bg-white p-2 border border-slate-100 rounded-md shadow-sm">
-                      <span className="font-medium text-slate-700">{item.generic_name} <span className="text-slate-400 text-xs">x{item.quantity}</span></span>
-                      {item.status === 'borrowed' && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">ACTIVE</span>}
-                      {item.status === 'returned' && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">RETURNED</span>}
-                      {item.status === 'dispensed' && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-200">DISPENSED</span>}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-800 text-sm">{record.first_name} {record.last_name}</span>
+                      <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-semibold uppercase">{record.profile_type}</span>
+                      {isReturned
+                        ? <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase">Returned</span>
+                        : <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase">Active</span>
+                      }
                     </div>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="text-xs text-slate-500">{record.purpose}</span>
+                      <span className="text-[10px] text-slate-300">•</span>
+                      <span className="text-[10px] font-bold text-slate-500">{record.items.length} item{record.items.length !== 1 ? 's' : ''}</span>
+                      <span className="text-[10px] text-slate-300">•</span>
+                      <span className="text-[10px] text-slate-400">{fmtDateShort(record.created_at)}</span>
+                      {record.returned_at && (
+                        <>
+                          <span className="text-[10px] text-slate-300">→</span>
+                          <span className="text-[10px] text-slate-400">Returned {fmtDateShort(record.returned_at)}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <button onClick={() => handlePrint(record)} title="Print borrowing slip"
+                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0">
+                    <FiPrinter size={16} />
+                  </button>
+                </div>
+
+                {/* Items pills */}
+                <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                  {record.items.map((item: any, i: number) => (
+                    <span key={i} className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${item.status === 'returned' ? 'bg-emerald-50 text-emerald-700' : item.status === 'dispensed' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {item.generic_name} ×{item.quantity}
+                    </span>
                   ))}
                 </div>
               </div>
-
-              <div className="text-right text-xs text-slate-400 font-medium ml-auto whitespace-nowrap">
-                {new Date(record.created_at).toLocaleString()}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* Hidden print slip */}
+      {printBorrowing && <PrintSlip borrowing={printBorrowing} printRef={printRef} />}
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────
+   Main Borrowings Page
+───────────────────────────────────────────────────────────────── */
+const Borrowings: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'checkedOut' | 'newBooking' | 'history'>('checkedOut');
+
+  return (
+    <div className="px-5 py-5 w-full h-full flex flex-col">
+      <div className="mb-6 flex flex-col xl:flex-row xl:items-center justify-end gap-4">
+        <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-full w-full xl:w-auto">
+          {(['checkedOut', 'newBooking', 'history'] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap ${activeTab === tab ? 'bg-white text-[#A5192D] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>
+              {tab === 'checkedOut' ? 'Checked Out Equipment' : tab === 'newBooking' ? 'New Booking Form' : 'Booking History'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        {activeTab === 'checkedOut' && <CheckedOutList />}
+        {activeTab === 'newBooking' && <NewBookingForm onSuccess={() => setActiveTab('checkedOut')} />}
+        {activeTab === 'history' && <BookingHistoryList />}
+      </div>
     </div>
   );
 };

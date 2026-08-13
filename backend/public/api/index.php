@@ -201,8 +201,10 @@ switch ($route) {
             $controller->getCheckedOutEquipment();
         } elseif ($action === 'recent_history') {
             $controller->getRecentHistory();
-        } elseif ($action === 'return_item') {
-            $controller->returnEquipment();
+        } elseif ($action === 'detail') {
+            $controller->getBorrowingDetail();
+        } elseif ($action === 'return_borrowing') {
+            $controller->returnBorrowing();
         }
         break;
 
