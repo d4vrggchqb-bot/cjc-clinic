@@ -201,16 +201,25 @@ CREATE TABLE IF NOT EXISTS `borrowings` (
   FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
 );
 
--- 10.1 Borrowed Items Table
-CREATE TABLE IF NOT EXISTS `borrowed_items` (
+-- 11. Equipment Calibrations Table
+CREATE TABLE IF NOT EXISTS `equipment_calibrations` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `borrowing_id` INT NOT NULL,
-  `inventory_item_id` INT NOT NULL,
-  `quantity` INT NOT NULL DEFAULT 1,
-  `item_type` ENUM('equipment', 'supply') NOT NULL,
-  `status` ENUM('borrowed', 'returned', 'dispensed') NOT NULL,
-  FOREIGN KEY (`borrowing_id`) REFERENCES `borrowings`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`inventory_item_id`) REFERENCES `inventory_items`(`id`) ON DELETE CASCADE
+  `item_id` INT NOT NULL,
+  `batch_id` INT DEFAULT NULL,
+  `cert_type` ENUM('external_upload', 'internal_generated') NOT NULL DEFAULT 'external_upload',
+  `calibrated_by` VARCHAR(150) DEFAULT NULL,
+  `cert_number` VARCHAR(100) DEFAULT NULL,
+  `calibration_date` DATE DEFAULT NULL,
+  `due_date` DATE DEFAULT NULL,
+  `file_url` VARCHAR(500) DEFAULT NULL,
+  `filename` VARCHAR(255) DEFAULT NULL,
+  `uploaded_by` VARCHAR(100) DEFAULT NULL,
+  `notes` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`item_id`) REFERENCES `inventory_items`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`) REFERENCES `inventory_batches`(`id`) ON DELETE SET NULL
 );
 
+
 #php -S localhost:8000 -t backend/public
+

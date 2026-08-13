@@ -22,12 +22,18 @@ class InventoryController {
                         JOIN inventory_batches b2 ON l.batch_id = b2.id 
                         WHERE b2.item_id = i.id AND l.action_type = 'restock'), 0
                      )
-                   ) as overall_stock
+                   ) as overall_stock,
+                   (SELECT file_url FROM equipment_calibrations WHERE item_id = i.id AND file_url IS NOT NULL ORDER BY id DESC LIMIT 1) as latest_cert_url,
+                   (SELECT filename FROM equipment_calibrations WHERE item_id = i.id AND file_url IS NOT NULL ORDER BY id DESC LIMIT 1) as latest_cert_filename,
+                   (SELECT cert_type FROM equipment_calibrations WHERE item_id = i.id ORDER BY id DESC LIMIT 1) as latest_cert_type,
+                   (SELECT calibrated_by FROM equipment_calibrations WHERE item_id = i.id ORDER BY id DESC LIMIT 1) as latest_calibrated_by,
+                   (SELECT COUNT(*) FROM equipment_calibrations WHERE item_id = i.id) as cert_count
             FROM inventory_items i
             LEFT JOIN inventory_batches b ON i.id = b.item_id
             GROUP BY i.id 
             ORDER BY i.generic_name ASC
         ");
+
         $items = $stmt->fetchAll();
         $this->jsonResponse(['items' => $items]);
     }
@@ -325,15 +331,23 @@ class InventoryController {
         
         try {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("INSERT INTO inventory_batches (item_id, clinic_branch, batch_number, stock_remaining, date_arrived, expired_on) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("
+                INSERT INTO inventory_batches 
+                (item_id, clinic_branch, batch_number, stock_remaining, date_arrived, expired_on, last_calibrated, calibration_due, calibration_notes) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
             $stmt->execute([
                 $input['item_id'],
                 $input['clinic_branch'],
                 $input['batch_number'] ?? null,
                 $input['stock_remaining'],
                 $input['date_arrived'] ?? date('Y-m-d'),
-                $input['expired_on'] ?? null
+                $input['expired_on'] ?? null,
+                !empty($input['last_calibrated']) ? $input['last_calibrated'] : null,
+                !empty($input['calibration_due']) ? $input['calibration_due'] : null,
+                $input['calibration_notes'] ?? null
             ]);
+
             $batchId = $pdo->lastInsertId();
 
             $logStmt = $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, processed_by) VALUES (?, 'restock', ?, ?)");
@@ -569,15 +583,25 @@ class InventoryController {
             $diff = $newStock - (int)$oldBatch['stock_remaining'];
             
             // Update batch
-            $upd = $pdo->prepare("UPDATE inventory_batches SET batch_number = ?, date_arrived = ?, expired_on = ?, stock_remaining = ?, status = IF(?=0, 'depleted', 'active') WHERE id = ?");
+            $upd = $pdo->prepare("
+                UPDATE inventory_batches 
+                SET batch_number = ?, date_arrived = ?, expired_on = ?, stock_remaining = ?, 
+                    last_calibrated = ?, calibration_due = ?, calibration_notes = ?,
+                    status = IF(?=0, 'depleted', 'active') 
+                WHERE id = ?
+            ");
             $upd->execute([
                 $input['batch_number'], 
                 $input['date_arrived'], 
                 $input['expired_on'] ?: null, 
                 $newStock, 
+                !empty($input['last_calibrated']) ? $input['last_calibrated'] : null,
+                !empty($input['calibration_due']) ? $input['calibration_due'] : null,
+                $input['calibration_notes'] ?? null,
                 $newStock,
                 $input['batch_id']
             ]);
+
             
             // Log if stock changed
             if ($diff !== 0) {
@@ -697,6 +721,224 @@ class InventoryController {
         }
     }
 
+    // --- EQUIPMENT CALIBRATION CERTIFICATES ---
+    public function getCalibrations() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        $itemId = (int)($_GET['item_id'] ?? 0);
+        if ($itemId <= 0) $this->jsonResponse(['success' => false, 'error' => 'Invalid item ID'], 400);
+
+        $pdo = cjcDatabaseConnection();
+        $stmt = $pdo->prepare("
+            SELECT c.*, b.batch_number, b.clinic_branch 
+            FROM equipment_calibrations c
+            LEFT JOIN inventory_batches b ON c.batch_id = b.id
+            WHERE c.item_id = ? 
+            ORDER BY c.id DESC
+        ");
+        $stmt->execute([$itemId]);
+        $calibrations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $this->jsonResponse(['success' => true, 'calibrations' => $calibrations]);
+    }
+
+    public function uploadCalibration() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin', 'Doctor', 'Nurse', 'Staff']);
+
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        $batchId = !empty($_POST['batch_id']) ? (int)$_POST['batch_id'] : null;
+        $calibratedBy = trim($_POST['calibrated_by'] ?? '');
+        $certNumber = trim($_POST['cert_number'] ?? '');
+        $calibrationDate = trim($_POST['calibration_date'] ?? date('Y-m-d'));
+        $dueDate = !empty($_POST['due_date']) ? trim($_POST['due_date']) : null;
+        $notes = trim($_POST['notes'] ?? '');
+
+        if ($itemId <= 0) {
+            $this->jsonResponse(['success' => false, 'message' => 'Invalid equipment item ID.'], 400);
+        }
+
+        if (!isset($_FILES['cert_file']) || $_FILES['cert_file']['error'] !== UPLOAD_ERR_OK) {
+            $this->jsonResponse(['success' => false, 'message' => 'Valid calibration certificate file is required.'], 400);
+        }
+
+        $file = $_FILES['cert_file'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
+        if (!in_array($ext, $allowedExts)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Invalid file format. Allowed: PDF, JPG, PNG, DOC.'], 400);
+        }
+
+        $uploadDir = realpath(CJC_UPLOAD_DIR);
+        if ($uploadDir === false || !is_dir($uploadDir)) {
+            @mkdir(CJC_UPLOAD_DIR, 0777, true);
+            $uploadDir = realpath(CJC_UPLOAD_DIR);
+        }
+
+        $storedFilename = 'calib_' . $itemId . '_' . time() . '_' . substr(md5(uniqid()), 0, 6) . '.' . $ext;
+        $targetPath = $uploadDir . DIRECTORY_SEPARATOR . $storedFilename;
+
+        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Failed to store uploaded file.'], 500);
+        }
+
+        $fileUrl = 'api/download.php?file=' . urlencode($storedFilename);
+        $currentUser = cjcCurrentUser();
+
+        $pdo = cjcDatabaseConnection();
+        try {
+            $pdo->beginTransaction();
+
+            $stmt = $pdo->prepare("
+                INSERT INTO equipment_calibrations 
+                (item_id, batch_id, cert_type, calibrated_by, cert_number, calibration_date, due_date, file_url, filename, uploaded_by, notes)
+                VALUES (?, ?, 'external_upload', ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $itemId,
+                $batchId,
+                $calibratedBy ?: 'External Calibrator',
+                $certNumber ?: null,
+                $calibrationDate,
+                $dueDate,
+                $fileUrl,
+                $file['name'],
+                $currentUser['name'] ?? 'Staff',
+                $notes
+            ]);
+            $calibId = $pdo->lastInsertId();
+
+            if ($batchId) {
+                $updBatch = $pdo->prepare("
+                    UPDATE inventory_batches 
+                    SET last_calibrated = ?, calibration_due = ?, calibration_notes = ?
+                    WHERE id = ?
+                ");
+                $updBatch->execute([$calibrationDate, $dueDate, $notes, $batchId]);
+            }
+
+            $updItem = $pdo->prepare("
+                UPDATE inventory_items 
+                SET last_calibrated = ?, calibration_due = ?, calibration_notes = ?
+                WHERE id = ?
+            ");
+            $updItem->execute([
+                $calibrationDate,
+                $dueDate,
+                $notes ?: ("Uploaded cert: " . ($certNumber ? "#$certNumber" : $file['name'])),
+                $itemId
+            ]);
+
+            $pdo->commit();
+            $this->jsonResponse(['success' => true, 'message' => 'Calibration certificate uploaded successfully.', 'id' => $calibId, 'file_url' => $fileUrl]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $this->jsonResponse(['success' => false, 'message' => 'Database error: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function recordCalibration() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin', 'Doctor', 'Nurse', 'Staff']);
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $itemId = (int)($input['item_id'] ?? 0);
+        $batchId = !empty($input['batch_id']) ? (int)$input['batch_id'] : null;
+        $calibratedBy = trim($input['calibrated_by'] ?? '');
+        $certNumber = trim($input['cert_number'] ?? '');
+        $calibrationDate = trim($input['calibration_date'] ?? date('Y-m-d'));
+        $dueDate = !empty($input['due_date']) ? trim($input['due_date']) : null;
+        $notes = trim($input['notes'] ?? '');
+
+        if ($itemId <= 0) {
+            $this->jsonResponse(['success' => false, 'message' => 'Invalid equipment item ID.'], 400);
+        }
+
+        $currentUser = cjcCurrentUser();
+        $pdo = cjcDatabaseConnection();
+        try {
+            $pdo->beginTransaction();
+
+            $stmt = $pdo->prepare("
+                INSERT INTO equipment_calibrations 
+                (item_id, batch_id, cert_type, calibrated_by, cert_number, calibration_date, due_date, file_url, filename, uploaded_by, notes)
+                VALUES (?, ?, 'internal_generated', ?, ?, ?, ?, NULL, NULL, ?, ?)
+            ");
+            $stmt->execute([
+                $itemId,
+                $batchId,
+                $calibratedBy ?: ($currentUser['name'] ?? 'CJC Clinic Staff'),
+                $certNumber ?: ('CAL-' . date('Y') . '-' . str_pad($itemId, 5, '0', STR_PAD_LEFT)),
+                $calibrationDate,
+                $dueDate,
+                $currentUser['name'] ?? 'Staff',
+                $notes
+            ]);
+            $calibId = $pdo->lastInsertId();
+
+            if ($batchId) {
+                $updBatch = $pdo->prepare("
+                    UPDATE inventory_batches 
+                    SET last_calibrated = ?, calibration_due = ?, calibration_notes = ?
+                    WHERE id = ?
+                ");
+                $updBatch->execute([$calibrationDate, $dueDate, $notes, $batchId]);
+            }
+
+            $updItem = $pdo->prepare("
+                UPDATE inventory_items 
+                SET last_calibrated = ?, calibration_due = ?, calibration_notes = ?
+                WHERE id = ?
+            ");
+            $updItem->execute([
+                $calibrationDate,
+                $dueDate,
+                $notes,
+                $itemId
+            ]);
+
+
+            $pdo->commit();
+            $this->jsonResponse(['success' => true, 'message' => 'CJC Calibration certificate recorded successfully.', 'id' => $calibId]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $this->jsonResponse(['success' => false, 'message' => 'Database error: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteCalibration() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin', 'Staff']);
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $id = (int)($input['id'] ?? 0);
+        if ($id <= 0) $this->jsonResponse(['success' => false, 'message' => 'Invalid calibration ID.'], 400);
+
+        $pdo = cjcDatabaseConnection();
+        $stmt = $pdo->prepare("SELECT * FROM equipment_calibrations WHERE id = ?");
+        $stmt->execute([$id]);
+        $calib = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$calib) {
+            $this->jsonResponse(['success' => false, 'message' => 'Calibration record not found.'], 404);
+        }
+
+        if (!empty($calib['file_url'])) {
+            parse_str(parse_url($calib['file_url'], PHP_URL_QUERY) ?? '', $query);
+            $storedFile = basename($query['file'] ?? '');
+            if (!empty($storedFile)) {
+                $filePath = realpath(CJC_UPLOAD_DIR . DIRECTORY_SEPARATOR . $storedFile);
+                if ($filePath && file_exists($filePath)) {
+                    @unlink($filePath);
+                }
+            }
+        }
+
+        $del = $pdo->prepare("DELETE FROM equipment_calibrations WHERE id = ?");
+        $del->execute([$id]);
+
+        $this->jsonResponse(['success' => true, 'message' => 'Calibration record deleted successfully.']);
+    }
+
     private function jsonResponse(array $data, int $status = 200) {
         http_response_code($status);
         header('Content-Type: application/json');
@@ -704,3 +946,4 @@ class InventoryController {
         exit;
     }
 }
+
