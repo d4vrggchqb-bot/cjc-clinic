@@ -307,10 +307,10 @@ const PatientList: React.FC = () => {
       )}
 
       {/* Control Bar */}
-      <div className="bg-white rounded-t-md border-t border-l border-r border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div className="bg-white rounded-t-md border-t border-l border-r border-slate-200 p-4 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         
         {/* Search & Filter */}
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full xl:w-auto xl:flex-1">
           <div className="relative w-full sm:w-80">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <FiSearch className="h-4 w-4 text-slate-400" />
