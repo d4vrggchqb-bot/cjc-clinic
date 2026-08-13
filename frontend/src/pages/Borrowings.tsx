@@ -222,7 +222,7 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-top:4px">
         <div>
           <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
-            ${b.released_by_name || 'Clinic Staff'} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.created_at)}</span>
+            ${b.released_by_name || 'College Admin'} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.created_at)}</span>
           </div>
           <div class="siglabel" style="margin-top:3px">Released by (Staff) + Date</div>
         </div>
@@ -234,7 +234,7 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
         </div>
         <div>
           <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
-            ${b.returned_to_name ? `${b.returned_to_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.returned_at)}</span>` : (b.returned_at ? `Clinic Staff &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.returned_at)}</span>` : '&nbsp;')}
+            ${b.returned_to_name ? `${b.returned_to_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.returned_at)}</span>` : (b.returned_at ? `College Admin &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.returned_at)}</span>` : '&nbsp;')}
           </div>
           <div class="siglabel" style="margin-top:3px">Returned to (Staff) + Date</div>
         </div>

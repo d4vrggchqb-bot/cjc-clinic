@@ -408,6 +408,8 @@ class BorrowingController {
             SELECT b.id AS borrowing_id, b.booking_code, b.purpose, b.created_at, b.status AS borrowing_status,
                    b.expected_return_date, b.returned_at,
                    p.first_name, p.last_name, p.course, p.year_level, p.profile_type, p.college_dept AS department,
+                   COALESCE(u_rel.name, u_rel.username) AS released_by_name,
+                   COALESCE(u_ret.name, u_ret.username) AS returned_to_name,
                    bi.id AS borrowed_item_id, bi.item_type, bi.status AS item_status, bi.quantity,
                    i.generic_name, i.brand_name, i.category,
                    bir.quantity_returned, bir.quantity_consumed, bir.returned_at AS item_returned_at
@@ -415,7 +417,9 @@ class BorrowingController {
             JOIN profiles p ON b.profile_id = p.id
             JOIN borrowed_items bi ON bi.borrowing_id = b.id
             JOIN inventory_items i ON bi.inventory_item_id = i.id
+            LEFT JOIN users u_rel ON b.released_by = u_rel.id
             LEFT JOIN borrowed_item_returns bir ON bir.borrowed_item_id = bi.id
+            LEFT JOIN users u_ret ON bir.processed_by = u_ret.id
             ORDER BY b.created_at DESC
             LIMIT 200
         ");
@@ -439,6 +443,8 @@ class BorrowingController {
                     'course'               => $row['course'],
                     'year_level'           => $row['year_level'],
                     'department'           => $row['department'],
+                    'released_by_name'     => $row['released_by_name'],
+                    'returned_to_name'     => $row['returned_to_name'],
                     'items'                => []
                 ];
             }
