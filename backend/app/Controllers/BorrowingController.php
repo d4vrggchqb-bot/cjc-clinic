@@ -45,17 +45,18 @@ class BorrowingController {
                 $type     = $item['item_type']; // 'equipment' or 'supply'
                 $itemBranch = $item['branch'] ?? $branch;
 
-                // Both supplies AND equipment now deduct stock on checkout
-                $status = ($type === 'supply') ? 'dispensed' : 'borrowed';
-                $stockReserved = 0;
+                // ALL items in a borrowing session start as 'borrowed' until returned/reconciled
+                $status = 'borrowed';
+                $stockReserved = ($type === 'equipment') ? 1 : 0;
 
                 // FEFO stock deduction for BOTH equipment and supply
+                // Prefers current clinic branch first, then fallbacks to any active non-depleted batch
                 $batchStmt = $pdo->prepare("
                     SELECT id, stock_remaining
                     FROM inventory_batches
-                    WHERE item_id = :item_id AND clinic_branch = :branch AND stock_remaining > 0
+                    WHERE item_id = :item_id AND stock_remaining > 0
                       AND (expired_on >= CURDATE() OR expired_on IS NULL)
-                    ORDER BY expired_on ASC, date_arrived ASC
+                    ORDER BY (clinic_branch = :branch) DESC, expired_on ASC, date_arrived ASC
                 ");
                 $batchStmt->execute(['item_id' => $itemId, 'branch' => $itemBranch]);
                 $batches = $batchStmt->fetchAll();
@@ -72,21 +73,18 @@ class BorrowingController {
                         ->execute(['stock' => $newStock, 'stock2' => $newStock, 'id' => $batch['id']]);
 
                     // Log the deduction
-                    $logAction = ($type === 'supply') ? 'dispense' : 'dispense';
-                    $logNote   = ($type === 'supply') ? 'Student/Employee Borrowing (Supply)' : 'Equipment Checked Out — Reserved';
-                    $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, ?, ?, ?, ?, ?)")
-                        ->execute([$batch['id'], $logAction, -$consumed, $logNote, $profileId, $_SESSION['cjc_user']['id']]);
+                    $logNote = ($type === 'supply') ? 'Supply Checked Out for Borrowing' : 'Equipment Checked Out — Reserved';
+                    $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'dispense', ?, ?, ?, ?)")
+                        ->execute([$batch['id'], -$consumed, $logNote, $profileId, $_SESSION['cjc_user']['id']]);
 
                     $remainingToDeduct -= $consumed;
                 }
 
                 if ($remainingToDeduct > 0) {
-                    throw new Exception("Insufficient stock for item ID $itemId in $itemBranch.");
+                    throw new Exception("Insufficient stock available for this item.");
                 }
 
-                $stockReserved = ($type === 'equipment') ? 1 : 0;
-
-                // Insert into borrowed_items
+                // Insert into borrowed_items as 'borrowed'
                 $pdo->prepare("INSERT INTO borrowed_items (borrowing_id, inventory_item_id, quantity, item_type, status, stock_reserved) VALUES (?, ?, ?, ?, ?, ?)")
                     ->execute([$borrowingId, $itemId, $quantity, $type, $status, $stockReserved]);
             }
@@ -142,7 +140,7 @@ class BorrowingController {
             JOIN inventory_items i ON bi.inventory_item_id = i.id
             WHERE b.status = 'active'
               AND bi.status = 'borrowed'
-            ORDER BY b.created_at ASC
+            ORDER BY b.created_at DESC
         ");
 
         // Group by borrowing
