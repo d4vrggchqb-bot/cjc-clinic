@@ -24,6 +24,8 @@ class PatientController {
         $offset  = ($page - 1) * $perPage;
         $search  = trim($_GET['search'] ?? '');
         $filterDept = trim($_GET['dept'] ?? '');
+        $filterProgram = trim($_GET['program'] ?? '');
+        $filterYearLevel = trim($_GET['year'] ?? '');
 
         $conditions = [];
         $params     = [];
@@ -40,6 +42,14 @@ class PatientController {
         if ($filterDept !== '') {
             $conditions[]    = 'college_dept = :dept';
             $params['dept']  = $filterDept;
+        }
+        if ($filterProgram !== '') {
+            $conditions[]    = 'course = :program';
+            $params['program'] = $filterProgram;
+        }
+        if ($filterYearLevel !== '') {
+            $conditions[]    = 'year_level = :year_level';
+            $params['year_level'] = $filterYearLevel;
         }
 
         // Apply role and branch filters
