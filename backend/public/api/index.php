@@ -105,8 +105,17 @@ switch ($route) {
             $controller->getBatchDetails();
         } elseif ($action === 'dispose_batch') {
             $controller->disposeBatch();
+        } elseif ($action === 'get_calibrations') {
+            $controller->getCalibrations();
+        } elseif ($action === 'upload_calibration') {
+            $controller->uploadCalibration();
+        } elseif ($action === 'record_calibration') {
+            $controller->recordCalibration();
+        } elseif ($action === 'delete_calibration') {
+            $controller->deleteCalibration();
         }
         break;
+
 
     case 'consultations':
         $controller = new ConsultationController();
@@ -192,8 +201,10 @@ switch ($route) {
             $controller->getCheckedOutEquipment();
         } elseif ($action === 'recent_history') {
             $controller->getRecentHistory();
-        } elseif ($action === 'return_item') {
-            $controller->returnEquipment();
+        } elseif ($action === 'detail') {
+            $controller->getBorrowingDetail();
+        } elseif ($action === 'return_borrowing') {
+            $controller->returnBorrowing();
         }
         break;
 

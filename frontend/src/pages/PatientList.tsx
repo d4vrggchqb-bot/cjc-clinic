@@ -87,15 +87,21 @@ const PatientList: React.FC = () => {
   const allDepartments = React.useMemo(() => {
     const depts = new Set<string>();
     depts.add('Basic Education');
-    if (Array.isArray(globalSettings.departments_hierarchy)) {
-      globalSettings.departments_hierarchy.forEach((d: any) => depts.add(d.department));
+    if (Array.isArray(globalSettings?.departments_hierarchy)) {
+      globalSettings.departments_hierarchy.forEach((d: any) => {
+        if (d && d.department) depts.add(d.department);
+      });
     }
-    if (Array.isArray(globalSettings.post_graduate_hierarchy)) {
-      globalSettings.post_graduate_hierarchy.forEach((s: any) => depts.add(s.school));
+    if (Array.isArray(globalSettings?.post_graduate_hierarchy)) {
+      globalSettings.post_graduate_hierarchy.forEach((s: any) => {
+        if (s && s.school) depts.add(s.school);
+      });
     }
-    if (Array.isArray(globalSettings.custom_categories_hierarchy)) {
+    if (Array.isArray(globalSettings?.custom_categories_hierarchy)) {
       globalSettings.custom_categories_hierarchy.forEach((c: any) => {
-        if (Array.isArray(c.programs)) c.programs.forEach((p: string) => depts.add(p));
+        if (c && Array.isArray(c.programs)) {
+          c.programs.forEach((p: string) => depts.add(p));
+        }
       });
     }
     return Array.from(depts).sort();
@@ -204,9 +210,11 @@ const PatientList: React.FC = () => {
     setLoading(true);
     try {
       const res = await apiFetch(`/api/index.php?route=patients&action=list&page=${page}&search=${encodeURIComponent(searchQuery)}&type=${filterType}&dept=${encodeURIComponent(dept)}&sort=${sortOption}`);
-      if (res.profiles) {
+      if (res && res.profiles) {
         setPatients(res.profiles);
-        setPagination(res.pagination);
+        if (res.pagination) {
+          setPagination(res.pagination);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch patients:', err);
@@ -228,7 +236,7 @@ const PatientList: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-end sm:items-end gap-4 mb-6 sm:mb-8">
           <button 
             onClick={handleOpenAdd}
-            className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-md text-xs sm:text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm w-full sm:w-auto">
+            className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-md text-xs sm:text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm w-full sm:w-auto cursor-pointer">
             <FiPlus className="w-4 h-4" strokeWidth={3} />
             Add New Patient
           </button>

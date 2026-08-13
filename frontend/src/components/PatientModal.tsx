@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft, FiCheck, FiRefreshCw, FiAlertCircle, FiZap, FiDatabase, FiCloudDownload, FiCheckCircle } from 'react-icons/fi';
+import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft, FiCheck, FiRefreshCw, FiAlertCircle, FiZap, FiDatabase, FiCloudDownload, FiCheckCircle, FiPlus } from 'react-icons/fi';
 
 interface PatientModalProps {
   isOpen: boolean;
@@ -77,20 +77,25 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     emergency_relation: 'Parent / Guardian'
   });
   
-  // Health History specific state
-  const [healthHistoryObj, setHealthHistoryObj] = useState<any>({
-    Asthma: false,
-    ThyroidDisease: false,
-    HeartDisease: false,
-    HighBloodPressure: false,
-    EpilepsySeizures: false,
-    Tuberculosis: false,
-    HistoryOfFainting: false,
-    Allergies: false,
-    RheumaticHeartDisease: false,
-    LungDisease: false,
-    OthersText: ''
-  });
+  // Health History specific state (Pill / Bean UI)
+  const DEFAULT_HEALTH_PRESETS = [
+    'Asthma',
+    'Thyroid Disease',
+    'Heart Disease',
+    'High Blood Pressure',
+    'Epilepsy / Seizures',
+    'Tuberculosis',
+    'History of Fainting',
+    'Allergies (Food / Drug)',
+    'Rheumatic Heart Disease',
+    'Lung Disease',
+    'Diabetes',
+    'Kidney Disease'
+  ];
+
+  const [selectedHealthConditions, setSelectedHealthConditions] = useState<string[]>([]);
+  const [customHealthText, setCustomHealthText] = useState<string>('');
+  const [customInputVal, setCustomInputVal] = useState<string>('');
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -143,7 +148,11 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
           emergency_contact_name: p.emergency_contact_name || prev.emergency_contact_name,
           emergency_contact_number: p.emergency_contact_number || prev.emergency_contact_number
         }));
-        setSscStatus(`Auto-filled student info from SSC Database for ${res.ssc_data.fullName}`);
+        if (!p.birthdate) {
+          setSscStatus(`Auto-filled student info from SSC Database for ${res.ssc_data.fullName}. (Note: Birthdate was not provided in SSC portal, please enter birthdate manually).`);
+        } else {
+          setSscStatus(`Auto-filled student info from SSC Database for ${res.ssc_data.fullName}`);
+        }
       } else {
         setSscStatus(`Student ID not found in SSC database — please enter details manually.`);
       }
@@ -159,7 +168,8 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     bed_hierarchy: [],
     college_year_levels: [],
     post_graduate_hierarchy: [],
-    custom_categories_hierarchy: []
+    custom_categories_hierarchy: [],
+    health_history_presets: []
   });
 
   // Fetch settings once when the component mounts
@@ -174,7 +184,8 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
             bed_hierarchy: Array.isArray(res.settings.bed_hierarchy) ? res.settings.bed_hierarchy : [],
             college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
             post_graduate_hierarchy: Array.isArray(res.settings.post_graduate_hierarchy) ? res.settings.post_graduate_hierarchy : [],
-            custom_categories_hierarchy: Array.isArray(res.settings.custom_categories_hierarchy) ? res.settings.custom_categories_hierarchy : []
+            custom_categories_hierarchy: Array.isArray(res.settings.custom_categories_hierarchy) ? res.settings.custom_categories_hierarchy : [],
+            health_history_presets: Array.isArray(res.settings.health_history_presets) ? res.settings.health_history_presets : DEFAULT_HEALTH_PRESETS
           });
           // Update default form data if it's currently at the old hardcoded default
           setFormData(prev => ({
@@ -201,11 +212,34 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                 try {
                   const parsed = JSON.parse(res.profile.health_history);
                   if (typeof parsed === 'object' && parsed !== null) {
-                    setHealthHistoryObj({ ...healthHistoryObj, ...parsed });
+                    if (Array.isArray(parsed.conditions)) {
+                      setSelectedHealthConditions(parsed.conditions);
+                    } else {
+                      const legacyLabels: Record<string, string> = {
+                        Asthma: 'Asthma',
+                        ThyroidDisease: 'Thyroid Disease',
+                        HeartDisease: 'Heart Disease',
+                        HighBloodPressure: 'High Blood Pressure',
+                        EpilepsySeizures: 'Epilepsy / Seizures',
+                        Tuberculosis: 'Tuberculosis',
+                        HistoryOfFainting: 'History of Fainting',
+                        Allergies: 'Allergies (Food / Drug)',
+                        RheumaticHeartDisease: 'Rheumatic Heart Disease',
+                        LungDisease: 'Lung Disease'
+                      };
+                      const converted: string[] = [];
+                      Object.entries(parsed).forEach(([k, v]) => {
+                        if (v === true && legacyLabels[k]) {
+                          converted.push(legacyLabels[k]);
+                        }
+                      });
+                      setSelectedHealthConditions(converted);
+                    }
+                    setCustomHealthText(parsed.OthersText || parsed.others || '');
                   }
                 } catch (e) {
-                  // If it fails, maybe it's old plain text data, we can put it in Others
-                  setHealthHistoryObj({ ...healthHistoryObj, OthersText: res.profile.health_history });
+                  setCustomHealthText(res.profile.health_history);
+                  setSelectedHealthConditions([]);
                 }
               }
             }
@@ -244,19 +278,9 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
           mother_name: '',
           father_name: ''
         });
-        setHealthHistoryObj({
-          Asthma: false,
-          ThyroidDisease: false,
-          HeartDisease: false,
-          HighBloodPressure: false,
-          EpilepsySeizures: false,
-          Tuberculosis: false,
-          HistoryOfFainting: false,
-          Allergies: false,
-          RheumaticHeartDisease: false,
-          LungDisease: false,
-          OthersText: ''
-        });
+        setSelectedHealthConditions([]);
+        setCustomHealthText('');
+        setCustomInputVal('');
       }
     }
   }, [isOpen, patientId, currentUser]);
@@ -342,21 +366,26 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
             isValid = false;
           }
         } else if (sub === 'BED') {
-          if (!formData.bed_dept) {
-            errors['bed_dept'] = true;
+          if (!formData.course || formData.course === 'Select Program') {
+            errors['course'] = true;
             isValid = false;
           }
-          if (!formData.bed_year_level) {
-            errors['bed_year_level'] = true;
+          if (!formData.year_level || formData.year_level === 'Select Year Level') {
+            errors['year_level'] = true;
             isValid = false;
           }
         } else if (sub === 'Post Graduate') {
-          if (!formData.post_graduate_school) {
-            errors['post_graduate_school'] = true;
+          if (!formData.college_dept || formData.college_dept === 'Select School') {
+            errors['college_dept'] = true;
             isValid = false;
           }
-          if (!formData.post_graduate_program) {
-            errors['post_graduate_program'] = true;
+          if (!formData.course || formData.course === 'Select Program') {
+            errors['course'] = true;
+            isValid = false;
+          }
+        } else {
+          if (!formData.course || formData.course === 'Select Option') {
+            errors['course'] = true;
             isValid = false;
           }
         }
@@ -365,6 +394,19 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
           errors['college_dept'] = true;
           isValid = false;
         }
+      }
+    } else if (currentStep === 2) {
+      if (!formData.contact || !formData.contact.trim()) {
+        errors['contact'] = true;
+        isValid = false;
+      }
+      if (!formData.emergency_contact_name || !formData.emergency_contact_name.trim()) {
+        errors['emergency_contact_name'] = true;
+        isValid = false;
+      }
+      if (!formData.emergency_contact_number || !formData.emergency_contact_number.trim()) {
+        errors['emergency_contact_number'] = true;
+        isValid = false;
       }
     }
 
@@ -437,10 +479,13 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
 
     const action = patientId ? 'update' : 'create';
     
-    // Convert health history obj to string
+    // Convert health history selected conditions to stringified JSON
     const payload: any = { 
       ...formData, 
-      health_history: JSON.stringify(healthHistoryObj)
+      health_history: JSON.stringify({
+        conditions: selectedHealthConditions,
+        OthersText: customHealthText
+      })
     };
     if (patientId) {
       payload.id = patientId;
@@ -465,21 +510,37 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     }
   };
 
-  // Computed Arrays based on Hierarchy
-  const collegeDepartments = globalSettings.departments_hierarchy.map((d: any) => d.department) || [];
-  const selectedCollegeDept = globalSettings.departments_hierarchy.find((d: any) => d.department === formData.college_dept);
-  const collegePrograms = selectedCollegeDept ? selectedCollegeDept.programs : [];
+  // Computed Arrays based on Hierarchy (100% Null Safe)
+  const collegeDepartments = Array.isArray(globalSettings?.departments_hierarchy) 
+    ? globalSettings.departments_hierarchy.map((d: any) => d?.department).filter(Boolean) 
+    : [];
+  const selectedCollegeDept = Array.isArray(globalSettings?.departments_hierarchy) 
+    ? globalSettings.departments_hierarchy.find((d: any) => d?.department === formData.college_dept) 
+    : null;
+  const collegePrograms = Array.isArray(selectedCollegeDept?.programs) ? selectedCollegeDept.programs : [];
   
-  const bedPrograms = globalSettings.bed_hierarchy.map((b: any) => b.program) || [];
-  const selectedBedProgram = globalSettings.bed_hierarchy.find((b: any) => b.program === formData.course);
-  const bedYearLevels = selectedBedProgram ? selectedBedProgram.year_levels : [];
+  const bedPrograms = Array.isArray(globalSettings?.bed_hierarchy) 
+    ? globalSettings.bed_hierarchy.map((b: any) => b?.program).filter(Boolean) 
+    : [];
+  const selectedBedProgram = Array.isArray(globalSettings?.bed_hierarchy) 
+    ? globalSettings.bed_hierarchy.find((b: any) => b?.program === formData.course) 
+    : null;
+  const bedYearLevels = Array.isArray(selectedBedProgram?.year_levels) ? selectedBedProgram.year_levels : [];
 
-  const postGradSchools = globalSettings.post_graduate_hierarchy.map((s: any) => s.school) || [];
-  const selectedPostGradSchool = globalSettings.post_graduate_hierarchy.find((s: any) => s.school === formData.college_dept);
-  const postGradPrograms = selectedPostGradSchool ? selectedPostGradSchool.programs : [];
+  const postGradSchools = Array.isArray(globalSettings?.post_graduate_hierarchy) 
+    ? globalSettings.post_graduate_hierarchy.map((s: any) => s?.school).filter(Boolean) 
+    : [];
+  const selectedPostGradSchool = Array.isArray(globalSettings?.post_graduate_hierarchy) 
+    ? globalSettings.post_graduate_hierarchy.find((s: any) => s?.school === formData.college_dept) 
+    : null;
+  const postGradPrograms = Array.isArray(selectedPostGradSchool?.programs) ? selectedPostGradSchool.programs : [];
 
-  const customCategory = globalSettings.custom_categories_hierarchy?.find((c: any) => c.category === formData.sub_type);
-  const customPrograms = customCategory ? customCategory.programs : [];
+  const customCategory = Array.isArray(globalSettings?.custom_categories_hierarchy) 
+    ? globalSettings.custom_categories_hierarchy.find((c: any) => c?.category === formData.sub_type) 
+    : null;
+  const customPrograms = Array.isArray(customCategory?.programs) ? customCategory.programs : [];
+
+  const collegeYearLevels = Array.isArray(globalSettings?.college_year_levels) ? globalSettings.college_year_levels : ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'];
 
   if (!isOpen) return null;
 
@@ -739,7 +800,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
                           <select name="year_level" value={formData.year_level} onChange={handleChange} className={`${inputClass} ${getInputErrorClass('year_level')}`}>
                             <option value="">Select Year</option>
-                            {globalSettings.college_year_levels.map((yr: string, idx: number) => (
+                            {collegeYearLevels.map((yr: string, idx: number) => (
                               <option key={idx} value={yr}>{yr}</option>
                             ))}
                           </select>
@@ -794,7 +855,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           <label className={labelClass}>Year Level <span className="text-red-500">*</span></label>
                           <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass}>
                             <option value="">Select Year</option>
-                            {globalSettings.college_year_levels.map((yr: string, idx: number) => (
+                            {collegeYearLevels.map((yr: string, idx: number) => (
                               <option key={idx} value={yr}>{yr}</option>
                             ))}
                           </select>
@@ -815,7 +876,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           <label className={labelClass}>Year Level (Optional)</label>
                           <select name="year_level" value={formData.year_level} onChange={handleChange} className={inputClass}>
                             <option value="">Select Year (If applicable)</option>
-                            {globalSettings.college_year_levels.map((yr: string, idx: number) => (
+                            {collegeYearLevels.map((yr: string, idx: number) => (
                               <option key={idx} value={yr}>{yr}</option>
                             ))}
                           </select>
@@ -904,40 +965,102 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
               <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-5 h-full flex flex-col gap-5">
                 <div>
                   <label className="block text-sm font-semibold text-blue-900 mb-1">Health History & Allergies</label>
-                  <p className="text-xs text-blue-700/70 mb-3 font-medium">Please list any health problems that might affect your child's performance in school: Kindly Check (☑)</p>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-                    {[
-                      { key: 'Asthma', label: 'Asthma' },
-                      { key: 'ThyroidDisease', label: 'Thyroid Disease' },
-                      { key: 'HeartDisease', label: 'Heart Disease' },
-                      { key: 'HighBloodPressure', label: 'High Blood Pressure' },
-                      { key: 'EpilepsySeizures', label: 'Epilepsy/Seizures' },
-                      { key: 'Tuberculosis', label: 'Tuberculosis' },
-                      { key: 'HistoryOfFainting', label: 'History of Fainting' },
-                      { key: 'Allergies', label: 'Allergies (Food/Drug)' },
-                      { key: 'RheumaticHeartDisease', label: 'Rheumatic Heart Disease' },
-                      { key: 'LungDisease', label: 'Lung Disease' },
-                    ].map(item => (
-                      <label key={item.key} className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={healthHistoryObj[item.key]} 
-                          onChange={() => handleHealthCheck(item.key)} 
-                          className="w-4 h-4 text-[#C01D38] bg-white border-blue-300 rounded focus:ring-[#C01D38]" 
-                        />
-                        <span className="text-sm font-medium text-slate-700">{item.label}</span>
-                      </label>
-                    ))}
+                  <p className="text-xs text-blue-700/70 mb-3 font-medium">Select health conditions or allergies from configured presets or enter custom entries below.</p>
+
+                  {/* Selected Conditions Pills / Bean Chips UI */}
+                  <div className="mb-3.5 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs min-h-[52px] flex flex-wrap items-center gap-2">
+                    {selectedHealthConditions.length === 0 ? (
+                      <span className="text-xs text-slate-400 italic font-medium px-1">
+                        No health conditions selected yet. Choose from dropdown or type custom entry below.
+                      </span>
+                    ) : (
+                      selectedHealthConditions.map((cond, idx) => (
+                        <span 
+                          key={idx} 
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800 text-white rounded-full text-xs font-semibold shadow-xs border border-slate-700 transition-all hover:bg-slate-900 animate-in zoom-in-95"
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0"></span>
+                          <span>{cond}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedHealthConditions(selectedHealthConditions.filter(c => c !== cond))}
+                            className="text-slate-400 hover:text-white hover:bg-slate-700 rounded-full w-4 h-4 flex items-center justify-center text-xs transition-colors cursor-pointer ml-0.5"
+                            title="Remove condition"
+                          >
+                            <FiX className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                      ))
+                    )}
                   </div>
+
+                  {/* Dropdown & Custom Input Controls */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Select from Presets:</label>
+                      <select 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val && !selectedHealthConditions.includes(val)) {
+                            setSelectedHealthConditions([...selectedHealthConditions, val]);
+                          }
+                          e.target.value = '';
+                        }}
+                        className={inputClass + " bg-white font-medium cursor-pointer"}
+                      >
+                        <option value="">➕ Choose Condition / Allergy...</option>
+                        {(globalSettings.health_history_presets || DEFAULT_HEALTH_PRESETS)
+                          .filter((p: string) => !selectedHealthConditions.includes(p))
+                          .map((preset: string, idx: number) => (
+                            <option key={idx} value={preset}>{preset}</option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Or Add Custom Condition:</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={customInputVal}
+                          onChange={(e) => setCustomInputVal(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (customInputVal.trim() && !selectedHealthConditions.includes(customInputVal.trim())) {
+                                setSelectedHealthConditions([...selectedHealthConditions, customInputVal.trim()]);
+                                setCustomInputVal('');
+                              }
+                            }
+                          }}
+                          placeholder="Type custom condition..."
+                          className={inputClass + " bg-white"}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (customInputVal.trim() && !selectedHealthConditions.includes(customInputVal.trim())) {
+                              setSelectedHealthConditions([...selectedHealthConditions, customInputVal.trim()]);
+                              setCustomInputVal('');
+                            }
+                          }}
+                          disabled={!customInputVal.trim()}
+                          className="px-3 py-2 bg-[#C01D38] hover:bg-[#8c1526] text-white text-xs font-bold rounded-lg transition-colors shrink-0 disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                        >
+                          <FiPlus className="w-3.5 h-3.5" /> Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className={labelClass}>Others</label>
+                    <label className={labelClass}>Additional Health Notes / Remarks</label>
                     <input 
                       type="text" 
-                      value={healthHistoryObj.OthersText} 
-                      onChange={handleHealthText} 
-                      className={inputClass} 
-                      placeholder="Specify other health problems here..." 
+                      value={customHealthText} 
+                      onChange={(e) => setCustomHealthText(e.target.value)} 
+                      className={inputClass + " bg-white"} 
+                      placeholder="Specify extra details or medication history here..." 
                     />
                   </div>
                 </div>
@@ -1049,9 +1172,9 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
                           <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">{st.yearLevel}</span>
                         </div>
                         <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <span>Dept: <strong className="text-slate-700">{st.department}</strong></span>
-                          <span>Program: <strong className="text-slate-700">{st.program}</strong></span>
-                          <span>DOB: <strong className="text-slate-700">{st.dateOfBirth}</strong></span>
+                          <span>Dept: <strong className="text-slate-700">{st.department || 'CCIS'}</strong></span>
+                          <span>Program: <strong className="text-slate-700">{st.program || 'BS Computer Science'}</strong></span>
+                          <span>DOB: <strong className="text-slate-700">{st.dateOfBirth || 'Not in SSC (fill manually)'}</strong></span>
                         </div>
                       </div>
                       <button

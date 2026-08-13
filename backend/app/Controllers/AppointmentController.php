@@ -18,17 +18,96 @@ class AppointmentController {
             $params[] = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
         }
 
-        $stmt = $pdo->prepare("
-            SELECT a.*, 
-                   COALESCE(a.appointment_code, CONCAT('APT-', YEAR(a.appointment_date), '-', LPAD(a.id, 5, '0'))) as appointment_code,
-                   p.patient_id_number, p.first_name, p.last_name, p.profile_type, p.college_dept, p.course, p.year_level
-            FROM appointments a
-            JOIN profiles p ON a.profile_id = p.id
-            $branchFilter
-            ORDER BY a.appointment_date ASC, a.appointment_time ASC
-        ");
-        $stmt->execute($params);
-        $this->jsonResponse(['appointments' => $stmt->fetchAll()]);
+        try {
+            $stmt = $pdo->prepare("
+                SELECT a.*, 
+                       COALESCE(a.appointment_code, CONCAT('APT-', YEAR(a.appointment_date), '-', LPAD(a.id, 5, '0'))) as appointment_code,
+                       p.patient_id_number, p.first_name, p.last_name, p.profile_type, p.college_dept, p.course, p.year_level
+                FROM appointments a
+                JOIN profiles p ON a.profile_id = p.id
+                $branchFilter
+                ORDER BY a.appointment_date DESC, a.appointment_time DESC, a.id DESC
+            ");
+            $stmt->execute($params);
+            $this->jsonResponse(['appointments' => $stmt->fetchAll()]);
+        } catch (PDOException $e) {
+            try {
+                $pdo->exec("ALTER TABLE appointments ADD COLUMN appointment_code VARCHAR(50) DEFAULT NULL AFTER id;");
+                $stmt = $pdo->prepare("
+                    SELECT a.*, 
+                           COALESCE(a.appointment_code, CONCAT('APT-', YEAR(a.appointment_date), '-', LPAD(a.id, 5, '0'))) as appointment_code,
+                           p.patient_id_number, p.first_name, p.last_name, p.profile_type, p.college_dept, p.course, p.year_level
+                    FROM appointments a
+                    JOIN profiles p ON a.profile_id = p.id
+                    $branchFilter
+                    ORDER BY a.appointment_date DESC, a.appointment_time DESC, a.id DESC
+                ");
+                $stmt->execute($params);
+                $this->jsonResponse(['appointments' => $stmt->fetchAll()]);
+            } catch (Exception $ex) {
+                error_log('[CJC-CLINIC] appointments list error: ' . $e->getMessage());
+                $this->jsonResponse(['appointments' => [], 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    private function generateDynamicPrefix($purpose, $groupName = null) {
+        if (!empty($groupName)) {
+            return 'GRP';
+        }
+
+        $purpose = trim($purpose);
+        if (empty($purpose)) {
+            return 'APT';
+        }
+
+        $pdo = cjcDatabaseConnection();
+        $prefix = null;
+        try {
+            $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'cues_meta' OR setting_key = 'cues' LIMIT 1");
+            $stmt->execute();
+            $row = $stmt->fetch();
+            if ($row) {
+                $cues = json_decode($row['setting_value'], true);
+                if (is_array($cues)) {
+                    foreach ($cues as $c) {
+                        if (is_array($c) && isset($c['name']) && strtolower(trim($c['name'])) === strtolower($purpose) && !empty($c['prefix'])) {
+                            $prefix = strtoupper(trim($c['prefix']));
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception $e) {}
+
+        if (!empty($prefix)) {
+            return preg_replace('/[^A-Z0-9]/', '', $prefix);
+        }
+
+        // Auto-generate acronym/prefix from the purpose string (e.g. "Medical Clearance" -> MED, "Headache" -> HEA)
+        $words = preg_split('/\s+/', $purpose);
+        if (count($words) >= 2) {
+            $acronym = '';
+            foreach ($words as $w) {
+                $wClean = preg_replace('/[^A-Za-z0-9]/', '', $w);
+                if (!empty($wClean)) {
+                    $acronym .= strtoupper($wClean[0]);
+                }
+            }
+            if (strlen($acronym) >= 2 && strlen($acronym) <= 4) {
+                return $acronym;
+            }
+        }
+
+        $clean = preg_replace('/[^A-Za-z0-9]/', '', $purpose);
+        $clean = strtoupper($clean);
+        if (strlen($clean) >= 3) {
+            return substr($clean, 0, 3);
+        } elseif (strlen($clean) > 0) {
+            return str_pad($clean, 3, 'X');
+        }
+
+        return 'APT';
     }
 
     public function create() {
@@ -58,7 +137,8 @@ class AppointmentController {
             $id = $pdo->lastInsertId();
 
             $year = date('Y', strtotime($date)) ?: date('Y');
-            $code = sprintf('APT-%s-%05d', $year, $id);
+            $prefix = $this->generateDynamicPrefix($purpose);
+            $code = sprintf('%s-%s-%05d', $prefix, $year, $id);
 
             try {
                 $upd = $pdo->prepare("UPDATE appointments SET appointment_code = ? WHERE id = ?");
@@ -102,6 +182,7 @@ class AppointmentController {
             $upd = $pdo->prepare("UPDATE appointments SET appointment_code = ? WHERE id = ?");
             
             $year = date('Y', strtotime($date)) ?: date('Y');
+            $prefix = $this->generateDynamicPrefix($purpose, $group_name);
             $insertedCount = 0;
             $createdCodes = [];
 
@@ -109,7 +190,7 @@ class AppointmentController {
                 if ($pid > 0) {
                     $stmt->execute([$pid, $date, $time, $purpose, $branch, $group_name ?: null]);
                     $id = $pdo->lastInsertId();
-                    $code = sprintf('APT-%s-%05d', $year, $id);
+                    $code = sprintf('%s-%s-%05d', $prefix, $year, $id);
                     try {
                         $upd->execute([$code, $id]);
                     } catch (Exception $e) {}

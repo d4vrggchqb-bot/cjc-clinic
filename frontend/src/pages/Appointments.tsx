@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiCalendar, FiPlus, FiClock, FiCheck, FiX, FiSearch, FiUserPlus, FiEdit, FiFilter, FiUsers, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
+import { FiCalendar, FiPlus, FiClock, FiCheck, FiX, FiSearch, FiUserPlus, FiEdit, FiFilter, FiUsers, FiRefreshCw, FiAlertCircle, FiArrowDown, FiArrowUp } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
 import PatientModal from '../components/PatientModal';
@@ -60,103 +60,162 @@ interface DepartmentCategory {
 const DEFAULT_DEPARTMENT_HIERARCHY: DepartmentCategory[] = [
   {
     id: 'CCIS',
-    name: 'CCIS - College of Computer & Information Sciences',
+    name: 'College of Computing and Information Sciences (CCIS)',
     programs: [
-      { label: 'BS Information Technology (BSIT)', value: 'BSIT', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
-      { label: 'BS Computer Science (BSCS)', value: 'BSCS', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'Bachelor of Science in Information Technology', value: 'BSIT', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'Bachelor of Science in Computer Science', value: 'BSCS', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
       { label: 'All Programs in CCIS', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
     ]
   },
   {
     id: 'CON',
-    name: 'CON - College of Nursing',
+    name: 'College of Nursing (CON)',
     programs: [
-      { label: 'BS Nursing (BSN)', value: 'BSN', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
+      { label: 'Bachelor of Science in Nursing', value: 'BSN', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
       { label: 'All Programs in CON', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
-    ]
-  },
-  {
-    id: 'CTE',
-    name: 'CTE - College of Teacher Education',
-    programs: [
-      { label: 'Bachelor of Elementary Education (BEED)', value: 'BEED', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
-      { label: 'Bachelor of Secondary Education (BSED)', value: 'BSED', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
-      { label: 'All Programs in CTE', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
-    ]
-  },
-  {
-    id: 'CBE',
-    name: 'CBE - College of Business & Education',
-    programs: [
-      { label: 'BS Business Administration (BSBA)', value: 'BSBA', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
-      { label: 'BS Accountancy (BSA)', value: 'BSA', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
-      { label: 'All Programs in CBE', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
-    ]
-  },
-  {
-    id: 'CCJE',
-    name: 'CCJE - College of Criminal Justice Education',
-    programs: [
-      { label: 'BS Criminology (BSCRIM)', value: 'BSCRIM', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
-      { label: 'All Programs in CCJE', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
     ]
   },
   {
     id: 'Basic Education',
     name: 'Basic Education Department (BED)',
     programs: [
-      {
-        label: 'Elementary School',
-        value: 'Elementary',
-        years: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Kindergarten', 'Nursery', 'All Elementary Grades']
-      },
-      {
-        label: 'Junior High School (JHS)',
-        value: 'Junior High School',
-        years: ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'All JHS Grades']
-      },
-      {
-        label: 'Senior High School (SHS)',
-        value: 'Senior High School',
-        years: ['Grade 11', 'Grade 12', 'All SHS Grades']
-      },
-      {
-        label: 'All Basic Education Programs',
-        value: 'All',
-        years: [
-          'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-          'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12',
-          'Kindergarten', 'Nursery', 'All BED Levels'
-        ]
-      }
-    ]
-  },
-  {
-    id: 'Post Graduate',
-    name: 'Post Graduate / Law School',
-    programs: [
-      { label: 'Law School (Juris Doctor)', value: 'Juris Doctor', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
-      { label: 'Masteral Programs', value: 'Masteral', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] },
-      { label: 'All Post Graduate Programs', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'] }
+      { label: 'Grade School', value: 'Grade School', years: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'All Levels'] },
+      { label: 'Junior High School', value: 'Junior High School', years: ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'All Levels'] },
+      { label: 'Senior High School', value: 'Senior High School', years: ['Grade 11', 'Grade 12', 'All Levels'] },
+      { label: 'All Basic Education Programs', value: 'All', years: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'All BED Levels'] }
     ]
   },
   {
     id: 'All',
     name: 'All Departments',
     programs: [
-      {
-        label: 'All Programs',
-        value: 'All',
-        years: [
-          '1st Year', '2nd Year', '3rd Year', '4th Year',
-          'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-          'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12',
-          'All Year Levels'
-        ]
-      }
+      { label: 'All Programs', value: 'All', years: ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', 'All Year Levels'] }
     ]
   }
 ];
+
+function buildDynamicHierarchy(settings: any): DepartmentCategory[] {
+  if (!settings) return DEFAULT_DEPARTMENT_HIERARCHY;
+
+  const collegeYears = Array.isArray(settings?.college_year_levels) && settings.college_year_levels.length > 0
+    ? [...settings.college_year_levels, 'All Year Levels']
+    : ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', 'All Year Levels'];
+
+  const hierarchy: DepartmentCategory[] = [];
+
+  // 1. College Departments
+  if (Array.isArray(settings?.departments_hierarchy) && settings.departments_hierarchy.length > 0) {
+    settings.departments_hierarchy.forEach((deptObj: any) => {
+      const deptName = deptObj.department || deptObj.name || 'Department';
+      const progs = Array.isArray(deptObj.programs) ? deptObj.programs : [];
+      const programs: ProgramItem[] = progs.map((prog: string) => ({
+        label: prog,
+        value: prog,
+        years: collegeYears
+      }));
+      programs.push({
+        label: `All Programs in ${deptName}`,
+        value: 'All',
+        years: collegeYears
+      });
+
+      hierarchy.push({
+        id: deptName,
+        name: deptName,
+        programs: programs
+      });
+    });
+  }
+
+  // 2. BED (Basic Education)
+  if (Array.isArray(settings?.bed_hierarchy) && settings.bed_hierarchy.length > 0) {
+    const bedPrograms: ProgramItem[] = [];
+    const allBedYearsSet = new Set<string>();
+
+    settings.bed_hierarchy.forEach((bedObj: any) => {
+      const progName = bedObj.program || 'Program';
+      const yrs = Array.isArray(bedObj.year_levels) ? bedObj.year_levels : [];
+      yrs.forEach((y: string) => allBedYearsSet.add(y));
+      
+      bedPrograms.push({
+        label: progName,
+        value: progName,
+        years: yrs.length > 0 ? [...yrs, 'All Levels'] : ['All Levels']
+      });
+    });
+
+    const allBedYears = Array.from(allBedYearsSet);
+    bedPrograms.push({
+      label: 'All Basic Education Programs',
+      value: 'All',
+      years: allBedYears.length > 0 ? [...allBedYears, 'All BED Levels'] : ['All BED Levels']
+    });
+
+    hierarchy.push({
+      id: 'Basic Education',
+      name: 'Basic Education Department (BED)',
+      programs: bedPrograms
+    });
+  }
+
+  // 3. Post Graduate
+  if (Array.isArray(settings?.post_graduate_hierarchy) && settings.post_graduate_hierarchy.length > 0) {
+    settings.post_graduate_hierarchy.forEach((pgObj: any) => {
+      const schoolName = pgObj.school || 'Post Graduate';
+      const progs = Array.isArray(pgObj.programs) ? pgObj.programs : [];
+      const programs: ProgramItem[] = progs.map((prog: string) => ({
+        label: prog,
+        value: prog,
+        years: collegeYears
+      }));
+      programs.push({
+        label: `All Programs in ${schoolName}`,
+        value: 'All',
+        years: collegeYears
+      });
+      hierarchy.push({
+        id: schoolName,
+        name: schoolName,
+        programs: programs
+      });
+    });
+  }
+
+  // 4. Custom Categories
+  if (Array.isArray(settings?.custom_categories_hierarchy) && settings.custom_categories_hierarchy.length > 0) {
+    settings.custom_categories_hierarchy.forEach((catObj: any) => {
+      const catName = catObj.category || 'Category';
+      const progs = Array.isArray(catObj.programs) ? catObj.programs : [];
+      const programs: ProgramItem[] = progs.map((prog: string) => ({
+        label: prog,
+        value: prog,
+        years: collegeYears
+      }));
+      hierarchy.push({
+        id: catName,
+        name: catName,
+        programs: programs
+      });
+    });
+  }
+
+  if (hierarchy.length > 0) {
+    hierarchy.push({
+      id: 'All',
+      name: 'All Departments',
+      programs: [
+        {
+          label: 'All Programs',
+          value: 'All',
+          years: collegeYears
+        }
+      ]
+    });
+    return hierarchy;
+  }
+
+  return DEFAULT_DEPARTMENT_HIERARCHY;
+}
 
 const SkeletonRow = () => (
   <tr className="border-b border-slate-100 animate-pulse">
@@ -174,7 +233,8 @@ const Appointments: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('All');
+  const [activeTab, setActiveTab] = useState('Scheduled');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [listSearchQuery, setListSearchQuery] = useState('');
 
   // Advanced Dropdown Filter States
@@ -219,27 +279,27 @@ const Appointments: React.FC = () => {
   const [groupName, setGroupName] = useState('');
   
   // Department, Program & Year Batch Selector State
-  const [batchDept, setBatchDept] = useState('CCIS');
-  const [batchProgram, setBatchProgram] = useState('BSIT');
-  const [batchYear, setBatchYear] = useState('1st Year');
+  const [departmentHierarchy, setDepartmentHierarchy] = useState<DepartmentCategory[]>(DEFAULT_DEPARTMENT_HIERARCHY);
+  const [batchDept, setBatchDept] = useState<string>(DEFAULT_DEPARTMENT_HIERARCHY[0].id);
+  const [batchProgram, setBatchProgram] = useState<string>(DEFAULT_DEPARTMENT_HIERARCHY[0].programs[0].value);
+  const [batchYear, setBatchYear] = useState<string>(DEFAULT_DEPARTMENT_HIERARCHY[0].programs[0].years[0]);
   const [fetchedBatchPatients, setFetchedBatchPatients] = useState<Patient[]>([]);
   const [checkedBatchPatientIds, setCheckedBatchPatientIds] = useState<Record<number, boolean>>({});
   const [isFetchingBatch, setIsFetchingBatch] = useState(false);
   const [hasFetchedBatch, setHasFetchedBatch] = useState(false);
-  const [departmentsHierarchy, setDepartmentsHierarchy] = useState<DepartmentCategory[]>(DEFAULT_DEPARTMENT_HIERARCHY);
 
-  const selectedDeptObj = departmentsHierarchy.find(d => d.id === batchDept) || departmentsHierarchy[0] || DEFAULT_DEPARTMENT_HIERARCHY[0];
-  const availablePrograms = selectedDeptObj?.programs || [];
-  const selectedProgramObj = availablePrograms.find(p => p.value === batchProgram) || availablePrograms[0];
-  const availableYears = selectedProgramObj?.years || ['1st Year'];
+  const selectedDeptObj = departmentHierarchy.find(d => d.id === batchDept || d.name === batchDept) || departmentHierarchy[0] || DEFAULT_DEPARTMENT_HIERARCHY[0];
+  const availablePrograms = selectedDeptObj ? selectedDeptObj.programs : [];
+  const selectedProgramObj = availablePrograms.find(p => p.value === batchProgram || p.label === batchProgram) || availablePrograms[0];
+  const availableYears = selectedProgramObj ? selectedProgramObj.years : ['1st Year'];
 
   const handleDeptChange = (newDeptId: string) => {
     setBatchDept(newDeptId);
-    const deptObj = departmentsHierarchy.find(d => d.id === newDeptId) || departmentsHierarchy[0] || DEFAULT_DEPARTMENT_HIERARCHY[0];
-    const firstProg = (deptObj?.programs || [])[0];
-    if (firstProg) {
+    const deptObj = departmentHierarchy.find(d => d.id === newDeptId || d.name === newDeptId) || departmentHierarchy[0];
+    if (deptObj && deptObj.programs.length > 0) {
+      const firstProg = deptObj.programs[0];
       setBatchProgram(firstProg.value);
-      setBatchYear((firstProg.years || ['1st Year'])[0] || '1st Year');
+      setBatchYear(firstProg.years[0] || '1st Year');
     }
     setFetchedBatchPatients([]);
     setCheckedBatchPatientIds({});
@@ -248,11 +308,9 @@ const Appointments: React.FC = () => {
 
   const handleProgramChange = (newProgValue: string) => {
     setBatchProgram(newProgValue);
-    const progObj = availablePrograms.find(p => p.value === newProgValue) || availablePrograms[0];
-    if (progObj && progObj.years && progObj.years.length > 0) {
+    const progObj = availablePrograms.find(p => p.value === newProgValue || p.label === newProgValue) || availablePrograms[0];
+    if (progObj && progObj.years.length > 0) {
       setBatchYear(progObj.years[0]);
-    } else {
-      setBatchYear('1st Year');
     }
     setFetchedBatchPatients([]);
     setCheckedBatchPatientIds({});
@@ -352,50 +410,32 @@ const Appointments: React.FC = () => {
 
   useEffect(() => {
     fetchAppointments();
-    // Fetch cues from settings so the appointment form reflects configurable options
+    // Fetch cues and department hierarchy from settings
     (async () => {
       try {
         const res = await apiFetch('/api/index.php?route=settings&action=get');
-        if (res.settings && Array.isArray(res.settings.cues) && res.settings.cues.length > 0) {
-          setCues(res.settings.cues);
-          setPurposeType(res.settings.cues[0]);
-        } else {
-          setCues(DEFAULT_CUES);
-          setPurposeType(DEFAULT_CUES[0]);
-        }
-        if (res.settings && Array.isArray(res.settings.departments_hierarchy) && res.settings.departments_hierarchy.length > 0) {
-          const globalYears = Array.isArray(res.settings.college_year_levels) && res.settings.college_year_levels.length > 0
-            ? res.settings.college_year_levels 
-            : ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'];
-            
-          const normalizedHierarchy = res.settings.departments_hierarchy.map((item: any) => {
-            // Handle the raw settings format: { department: '...', programs: ['...'] }
-            if (item.department && Array.isArray(item.programs)) {
-              return {
-                id: item.department,
-                name: item.department,
-                programs: item.programs.length > 0 ? item.programs.map((p: any) => ({
-                  label: typeof p === 'string' ? p : p?.label || 'Unknown',
-                  value: typeof p === 'string' ? p : p?.value || 'Unknown',
-                  years: globalYears
-                })) : [{ label: 'All Programs', value: 'All', years: globalYears }]
-              };
-            }
-            // Fallback for valid format if it ever changes
-            return item;
-          });
-          
-          setDepartmentsHierarchy(normalizedHierarchy);
-          setBatchDept(normalizedHierarchy[0].id);
-          if (normalizedHierarchy[0].programs && normalizedHierarchy[0].programs.length > 0) {
-            setBatchProgram(normalizedHierarchy[0].programs[0].value);
-            if (normalizedHierarchy[0].programs[0].years && normalizedHierarchy[0].programs[0].years.length > 0) {
-              setBatchYear(normalizedHierarchy[0].programs[0].years[0]);
+        if (res.settings) {
+          if (Array.isArray(res.settings.cues) && res.settings.cues.length > 0) {
+            setCues(res.settings.cues);
+            setPurposeType(res.settings.cues[0]);
+          } else {
+            setCues(DEFAULT_CUES);
+            setPurposeType(DEFAULT_CUES[0]);
+          }
+
+          const dynamicHier = buildDynamicHierarchy(res.settings);
+          setDepartmentHierarchy(dynamicHier);
+          if (dynamicHier.length > 0) {
+            const firstDept = dynamicHier[0];
+            setBatchDept(firstDept.id);
+            if (firstDept.programs.length > 0) {
+              setBatchProgram(firstDept.programs[0].value);
+              setBatchYear(firstDept.programs[0].years[0] || '1st Year');
             }
           }
         }
       } catch (err) {
-        console.error('Failed to load settings cues', err);
+        console.error('Failed to load settings cues and department hierarchy', err);
         setCues(DEFAULT_CUES);
         setPurposeType(DEFAULT_CUES[0]);
       }
@@ -645,9 +685,16 @@ const Appointments: React.FC = () => {
     }
 
     return true;
+  }).sort((a, b) => {
+    const dateA = new Date(`${a.appointment_date}T${a.appointment_time || '00:00'}`).getTime();
+    const dateB = new Date(`${b.appointment_date}T${b.appointment_time || '00:00'}`).getTime();
+    if (dateA !== dateB) {
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    }
+    return sortOrder === 'desc' ? b.id - a.id : a.id - b.id;
   });
 
-  const tabs = ['All', 'Scheduled', 'Completed', 'Cancelled', 'No-Show'];
+  const tabs = ['Scheduled', 'All', 'Completed', 'Cancelled', 'No-Show'];
 
   return (
     <div className="px-5 py-5 w-full">
@@ -666,6 +713,17 @@ const Appointments: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Sort Button */}
+            <button
+              type="button"
+              onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+              className="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold border flex items-center gap-1.5 transition-all bg-white text-slate-700 border-slate-300 hover:bg-slate-50 cursor-pointer shadow-2xs"
+              title={`Sorting: ${sortOrder === 'desc' ? 'Newest / Most Recent First' : 'Oldest First'}`}
+            >
+              {sortOrder === 'desc' ? <FiArrowDown className="text-[#A5192D]" /> : <FiArrowUp className="text-[#A5192D]" />}
+              <span>{sortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowFiltersBar(!showFiltersBar)}
@@ -754,15 +812,12 @@ const Appointments: React.FC = () => {
                 <select
                   value={filterDepartment}
                   onChange={(e) => setFilterDepartment(e.target.value)}
-                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700 cursor-pointer"
                 >
                   <option value="all">All Departments</option>
-                  <option value="CCIS">CCIS (Computer Studies)</option>
-                  <option value="CON">CON (Nursing)</option>
-                  <option value="CTE">CTE (Teacher Education)</option>
-                  <option value="CBE">CBE (Business & Education)</option>
-                  <option value="CCJE">CCJE (Criminology)</option>
-                  <option value="Basic Education">Basic Education (BED)</option>
+                  {departmentHierarchy.filter(d => d.id !== 'All').map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -772,20 +827,12 @@ const Appointments: React.FC = () => {
                 <select
                   value={filterProgram}
                   onChange={(e) => setFilterProgram(e.target.value)}
-                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700 cursor-pointer"
                 >
                   <option value="all">All Programs</option>
-                  <option value="BSIT">BSIT</option>
-                  <option value="BSCS">BSCS</option>
-                  <option value="BSN">BSN</option>
-                  <option value="BEED">BEED</option>
-                  <option value="BSED">BSED</option>
-                  <option value="BSBA">BSBA</option>
-                  <option value="BSA">BSA</option>
-                  <option value="BSCRIM">BSCRIM</option>
-                  <option value="Elementary">Elementary</option>
-                  <option value="Junior High School">Junior High School (JHS)</option>
-                  <option value="Senior High School">Senior High School (SHS)</option>
+                  {Array.from(new Set(departmentHierarchy.flatMap(d => d.programs.map(p => !p.label.startsWith('All Programs') ? p.value : null)).filter(Boolean))).map((prog: any) => (
+                    <option key={prog} value={prog}>{prog}</option>
+                  ))}
                 </select>
               </div>
 
@@ -795,19 +842,12 @@ const Appointments: React.FC = () => {
                 <select
                   value={filterYearLevel}
                   onChange={(e) => setFilterYearLevel(e.target.value)}
-                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-700 cursor-pointer"
                 >
                   <option value="all">All Year Levels</option>
-                  <option value="1st Year">1st Year</option>
-                  <option value="2nd Year">2nd Year</option>
-                  <option value="3rd Year">3rd Year</option>
-                  <option value="4th Year">4th Year</option>
-                  <option value="Grade 7">Grade 7</option>
-                  <option value="Grade 8">Grade 8</option>
-                  <option value="Grade 9">Grade 9</option>
-                  <option value="Grade 10">Grade 10</option>
-                  <option value="Grade 11">Grade 11</option>
-                  <option value="Grade 12">Grade 12</option>
+                  {Array.from(new Set(departmentHierarchy.flatMap(d => d.programs.flatMap(p => p.years)).filter(y => y && !y.toLowerCase().includes('all')))).map((yr: any) => (
+                    <option key={yr} value={yr}>{yr}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -1115,130 +1155,126 @@ const Appointments: React.FC = () => {
             </div>
             
             <div className="p-6 overflow-y-auto flex-1 space-y-5">
-              {!editingAppointmentId && ((!selectedPatient && !isGroupMode) || isGroupMode) ? (
-                <div className="min-h-[150px]" ref={searchRef}>
-                  {!isGroupMode && (
-                    <>
-                      <label className="block text-sm font-bold text-slate-800 mb-2">Search Patient</label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <FiSearch className="text-slate-400" />
-                        </div>
-                        <input
-                          type="text"
-                          className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all bg-slate-50/50"
-                          placeholder="Type patient name or ID to search..."
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          onFocus={() => {
-                            if (searchResults.length > 0) setShowSearchDropdown(true);
-                          }}
-                        />
-                        
-                        {/* Autocomplete Dropdown */}
-                        {showSearchDropdown && search.length >= 2 && (
-                          <div className="absolute z-20 mt-1.5 w-full bg-white rounded-xl border border-slate-200 shadow-xl max-h-60 overflow-y-auto">
-                            {isSearching ? (
-                              <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
-                            ) : searchResults.length > 0 ? (
-                              searchResults.map(p => (
-                                <div 
-                                  key={p.id}
-                                  onClick={() => setSelectedPatient(p)}
-                                  className="p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer flex justify-between items-center transition-colors"
-                                >
-                                  <div>
-                                    <div className="font-semibold text-slate-800">{p.first_name} {p.last_name}</div>
-                                    <div className="text-xs text-slate-500">{p.patient_id_number || 'No ID'}</div>
-                                  </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedPatient(p);
-                                    }}
-                                    className="text-xs font-bold px-3.5 py-1.5 bg-[#C01D38] text-white rounded-lg hover:bg-[#8B0E1B] transition-colors"
-                                  >
-                                    Select Patient
-                                  </button>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="p-4 text-center">
-                                <p className="text-sm text-slate-500 mb-3">No patients found.</p>
-                                <button
-                                  onClick={() => {
-                                    setIsModalOpen(false);
-                                    setShowSearchDropdown(false);
-                                    setIsRegisterModalOpen(true);
-                                  }}
-                                  className="inline-flex items-center gap-2 text-sm font-bold text-[#C01D38] hover:underline transition-colors cursor-pointer"
-                                >
-                                  <FiUserPlus /> Register New Patient
-                                </button>
+              {!editingAppointmentId && !isGroupMode && !selectedPatient ? (
+                <div className="min-h-[140px]" ref={searchRef}>
+                  <label className="block text-sm font-bold text-slate-800 mb-2">Search Patient</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FiSearch className="text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all bg-slate-50/50"
+                      placeholder="Type patient name or ID to search..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      onFocus={() => {
+                        if (searchResults.length > 0) setShowSearchDropdown(true);
+                      }}
+                    />
+                    
+                    {/* Autocomplete Dropdown */}
+                    {showSearchDropdown && search.length >= 2 && (
+                      <div className="absolute z-20 mt-1.5 w-full bg-white rounded-xl border border-slate-200 shadow-xl max-h-60 overflow-y-auto">
+                        {isSearching ? (
+                          <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
+                        ) : searchResults.length > 0 ? (
+                          searchResults.map(p => (
+                            <div 
+                              key={p.id}
+                              onClick={() => setSelectedPatient(p)}
+                              className="p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer flex justify-between items-center transition-colors"
+                            >
+                              <div>
+                                <div className="font-semibold text-slate-800">{p.first_name} {p.last_name}</div>
+                                <div className="text-xs text-slate-500">{p.patient_id_number || 'No ID'}</div>
                               </div>
-                            )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedPatient(p);
+                                }}
+                                className="text-xs font-bold px-3.5 py-1.5 bg-[#C01D38] text-white rounded-lg hover:bg-[#8B0E1B] transition-colors"
+                              >
+                                Select Patient
+                              </button>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-4 text-center">
+                            <p className="text-sm text-slate-500 mb-3">No patients found.</p>
+                            <button
+                              onClick={() => {
+                                setIsModalOpen(false);
+                                setShowSearchDropdown(false);
+                                setIsRegisterModalOpen(true);
+                              }}
+                              className="inline-flex items-center gap-2 text-sm font-bold text-[#C01D38] hover:underline transition-colors cursor-pointer"
+                            >
+                              <FiUserPlus /> Register New Patient
+                            </button>
                           </div>
                         )}
                       </div>
-                      <div className="mt-6 border-t border-slate-100 pt-6 text-center">
-                        <p className="text-sm text-slate-500 mb-3">Can't find the student/employee?</p>
-                        <button
-                          onClick={() => {
-                            setIsModalOpen(false);
-                            setShowSearchDropdown(false);
-                            setIsRegisterModalOpen(true);
-                          }}
-                          className="inline-flex items-center gap-2 text-sm font-bold px-5 py-2.5 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-                        >
-                          <FiUserPlus /> Register New Patient
-                        </button>
-                      </div>
-                    </>
-                  )}
+                    )}
+                  </div>
+                  <div className="mt-4 border-t border-slate-100 pt-4 text-center">
+                    <p className="text-xs text-slate-500 mb-2">Can't find the student/employee?</p>
+                    <button
+                      onClick={() => {
+                        setIsModalOpen(false);
+                        setShowSearchDropdown(false);
+                        setIsRegisterModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      <FiUserPlus /> Register New Patient
+                    </button>
+                  </div>
                 </div>
               ) : null}
               
               {(selectedPatient && !isGroupMode) || (isGroupMode) ? (
-                <div className="space-y-5 animate-in fade-in duration-300">
+                <div className="space-y-4 animate-in fade-in duration-300">
                   {!isGroupMode ? (
-                    <div className="bg-red-50/40 p-4 rounded-2xl border border-red-100 flex justify-between items-center">
+                    <div className="bg-red-50/40 p-3.5 rounded-2xl border border-red-100 flex justify-between items-center">
                       <div>
-                        <p className="text-xs font-extrabold text-[#C01D38] uppercase tracking-wider mb-1">Selected Patient</p>
-                        <p className="font-bold text-slate-800 text-base">{selectedPatient?.first_name} {selectedPatient?.last_name}</p>
+                        <p className="text-xs font-extrabold text-[#C01D38] uppercase tracking-wider mb-0.5">Selected Patient</p>
+                        <p className="font-bold text-slate-800 text-sm">{selectedPatient?.first_name} {selectedPatient?.last_name}</p>
                         <p className="text-xs text-slate-500">{selectedPatient?.patient_id_number || 'No ID'} • {selectedPatient?.college_dept || selectedPatient?.profile_type}</p>
                       </div>
                       {editingAppointmentId ? null : (
                         <button 
                           onClick={() => setSelectedPatient(null)}
-                          className="text-xs font-bold text-[#C01D38] bg-white px-3.5 py-1.5 rounded-xl border border-red-200 hover:bg-red-50 transition-colors shadow-2xs cursor-pointer"
+                          className="text-xs font-bold text-[#C01D38] bg-white px-3 py-1.5 rounded-xl border border-red-200 hover:bg-red-50 transition-colors shadow-2xs cursor-pointer"
                         >
                           Change Patient
                         </button>
                       )}
                     </div>
                   ) : (
-                    <div className="bg-slate-50/60 p-5 rounded-2xl border border-slate-200 space-y-4">
+                    <div className="bg-slate-50/60 p-4 rounded-2xl border border-slate-200 space-y-3.5">
                       {/* Department -> Program -> Year Level Filter Panel */}
-                      <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-[#C01D38] uppercase tracking-wider flex items-center gap-1.5">
-                            <FiPlus className="text-[#C01D38]" /> Filter & Select Group: Department ➔ Program ➔ Year
+                            <FiFilter className="text-[#C01D38]" /> Filter & Select Group: Department ➔ Program ➔ Year
                           </span>
-                          <span className="text-[11px] font-semibold text-[#C01D38] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-100">
+                          <span className="text-[10px] font-bold text-[#C01D38] bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
                             3-Level Filter
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                           {/* 1. Department */}
                           <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">1. Department</label>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">1. Department</label>
                             <select
                               value={batchDept}
                               onChange={(e) => handleDeptChange(e.target.value)}
-                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all cursor-pointer"
+                              className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all cursor-pointer truncate"
                             >
-                              {departmentsHierarchy.map(d => (
+                              {departmentHierarchy.map(d => (
                                 <option key={d.id} value={d.id}>
                                   {d.name}
                                 </option>
@@ -1248,11 +1284,11 @@ const Appointments: React.FC = () => {
 
                           {/* 2. Program / Course */}
                           <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">2. Program / Course</label>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">2. Program / Course</label>
                             <select
                               value={batchProgram}
                               onChange={(e) => handleProgramChange(e.target.value)}
-                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all cursor-pointer"
+                              className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all cursor-pointer truncate"
                             >
                               {availablePrograms.map(p => (
                                 <option key={p.value} value={p.value}>
@@ -1264,11 +1300,11 @@ const Appointments: React.FC = () => {
 
                           {/* 3. Year Level */}
                           <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">3. Year Level</label>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">3. Year Level</label>
                             <select
                               value={batchYear}
                               onChange={(e) => handleYearChange(e.target.value)}
-                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all cursor-pointer"
+                              className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all cursor-pointer truncate"
                             >
                               {availableYears.map(y => (
                                 <option key={y} value={y}>
@@ -1279,25 +1315,32 @@ const Appointments: React.FC = () => {
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={handleFetchBatchStudents}
-                          disabled={isFetchingBatch}
-                          className="w-full py-3 bg-gradient-to-r from-[#8B0E1B] via-[#A5192D] to-[#C01D38] hover:from-[#720B15] hover:to-[#A5192D] text-white rounded-xl text-xs font-extrabold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2 active:scale-[0.99]"
-                        >
-                          {isFetchingBatch ? (
-                            <>
-                              <FiRefreshCw className="w-4 h-4 animate-spin text-white" />
-                              <span>Searching Database & Fetching Students...</span>
-                            </>
-                          ) : (
-                            <>
-                              <FiUsers className="w-4 h-4 text-amber-300" />
-                              <FiFilter className="w-3.5 h-3.5 text-white/80" />
-                              <span>Fetch All Matching Students ({batchDept} • {batchProgram} • {batchYear})</span>
-                            </>
-                          )}
-                        </button>
+                        {/* Sleek, Modern Action Bar */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+                          <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg flex-1 overflow-hidden">
+                            <span className="font-bold text-slate-500 shrink-0">Filter Target:</span>
+                            <span className="font-semibold text-[#C01D38] truncate">{batchDept} • {batchProgram} • {batchYear}</span>
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={handleFetchBatchStudents}
+                            disabled={isFetchingBatch}
+                            className="bg-[#C01D38] hover:bg-[#A5192D] text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shrink-0 active:scale-[0.98]"
+                          >
+                            {isFetchingBatch ? (
+                              <>
+                                <FiRefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Fetching...</span>
+                              </>
+                            ) : (
+                              <>
+                                <FiUsers className="w-3.5 h-3.5 text-amber-300" />
+                                <span>Fetch Matching Students</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
 
                         {/* Fetched Students Checklist Section */}
                         {fetchedBatchPatients.length > 0 && (

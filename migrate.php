@@ -117,6 +117,34 @@ try {
     }
 
     try {
+        $pdo->exec("ALTER TABLE `borrowings` ADD COLUMN `expected_return_date` DATETIME DEFAULT NULL AFTER `purpose`");
+    } catch (PDOException $e) {
+        // Ignore error
+    }
+
+    // borrowed_items: track whether equipment stock was reserved
+    try {
+        $pdo->exec("ALTER TABLE `borrowed_items` ADD COLUMN `stock_reserved` TINYINT(1) NOT NULL DEFAULT 0 AFTER `status`");
+    } catch (PDOException $e) {
+        // Ignore error
+    }
+
+    // Return reconciliation table — tracks per-item return details
+    $pdo->exec("
+    CREATE TABLE IF NOT EXISTS `borrowed_item_returns` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `borrowed_item_id` INT NOT NULL,
+      `quantity_returned` INT NOT NULL DEFAULT 0,
+      `quantity_consumed` INT NOT NULL DEFAULT 0,
+      `notes` TEXT DEFAULT NULL,
+      `processed_by` INT DEFAULT NULL,
+      `returned_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (`borrowed_item_id`) REFERENCES `borrowed_items`(`id`) ON DELETE CASCADE,
+      FOREIGN KEY (`processed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
+    );
+    ");
+
+    try {
         $pdo->exec("ALTER TABLE `inventory_items` 
             ADD COLUMN `date_acquired` DATE DEFAULT NULL,
             ADD COLUMN `date_purchased` DATE DEFAULT NULL,
@@ -127,8 +155,39 @@ try {
     } catch (PDOException $e) {
         // Ignore error
     }
-    
+
+    // Equipment Calibrations Table
+    $pdo->exec("
+    CREATE TABLE IF NOT EXISTS `equipment_calibrations` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `item_id` INT NOT NULL,
+      `batch_id` INT DEFAULT NULL,
+      `cert_type` ENUM('external_upload', 'internal_generated') NOT NULL DEFAULT 'external_upload',
+      `calibrated_by` VARCHAR(150) DEFAULT NULL,
+      `cert_number` VARCHAR(100) DEFAULT NULL,
+      `calibration_date` DATE DEFAULT NULL,
+      `due_date` DATE DEFAULT NULL,
+      `file_url` VARCHAR(500) DEFAULT NULL,
+      `filename` VARCHAR(255) DEFAULT NULL,
+      `uploaded_by` VARCHAR(100) DEFAULT NULL,
+      `notes` TEXT DEFAULT NULL,
+      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (`item_id`) REFERENCES `inventory_items`(`id`) ON DELETE CASCADE
+    );
+    ");
+
+    try { $pdo->exec("ALTER TABLE `equipment_calibrations` ADD COLUMN `batch_id` INT DEFAULT NULL AFTER `item_id`;"); } catch (Exception $e) {}
+    try {
+        $pdo->exec("ALTER TABLE `inventory_batches` 
+            ADD COLUMN `last_calibrated` DATE DEFAULT NULL,
+            ADD COLUMN `calibration_due` DATE DEFAULT NULL,
+            ADD COLUMN `calibration_notes` TEXT DEFAULT NULL
+        ");
+    } catch (Exception $e) {}
+
     echo "Tables created/updated successfully. Recovered {$recoveredExtracts} OCR extract(s).\n";
+
+
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage() . "\n";
 }

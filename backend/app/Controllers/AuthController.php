@@ -316,7 +316,7 @@ class AuthController {
             unset($_SESSION[$key]);
             return false;
         }
-        return $_SESSION[$key]['count'] >= 5;
+        return $_SESSION[$key]['count'] >= 15;
     }
 
     private function recordFailedAttempt(string $username): void {

@@ -19,7 +19,12 @@ import {
   FiTrash2,
   FiArchive,
   FiActivity,
-  FiX
+  FiX,
+  FiUploadCloud,
+  FiFileText,
+  FiDownload,
+  FiExternalLink,
+  FiPaperclip
 } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 
@@ -38,6 +43,29 @@ interface InventoryItem {
   last_calibrated?: string | null;
   calibration_due?: string | null;
   calibration_notes?: string | null;
+  latest_cert_url?: string | null;
+  latest_cert_filename?: string | null;
+  latest_cert_type?: string | null;
+  latest_calibrated_by?: string | null;
+  cert_count?: number;
+}
+
+interface EquipmentCalibration {
+  id: number;
+  item_id: number;
+  batch_id?: number | null;
+  batch_number?: string | null;
+  clinic_branch?: string | null;
+  cert_type: 'external_upload' | 'internal_generated';
+  calibrated_by: string | null;
+  cert_number: string | null;
+  calibration_date: string | null;
+  due_date: string | null;
+  file_url: string | null;
+  filename: string | null;
+  uploaded_by: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 interface InventoryBatch {
@@ -51,8 +79,12 @@ interface InventoryBatch {
   disposed_qty?: number;
   date_arrived: string | null;
   expired_on: string | null;
+  last_calibrated?: string | null;
+  calibration_due?: string | null;
+  calibration_notes?: string | null;
   status: string;
 }
+
 
 interface BatchLog {
   id: number;
@@ -100,6 +132,43 @@ const InventoryCatalog: React.FC = () => {
   
   const [calibrationCertItem, setCalibrationCertItem] = useState<InventoryItem | null>(null);
   
+  // Calibration Management State
+  const [showUploadCertItem, setShowUploadCertItem] = useState<InventoryItem | null>(null);
+  const [showCalibHistoryItem, setShowCalibHistoryItem] = useState<InventoryItem | null>(null);
+  const [calibHistoryList, setCalibHistoryList] = useState<EquipmentCalibration[]>([]);
+  const [isLoadingCalibHistory, setIsLoadingCalibHistory] = useState(false);
+  const [isSubmittingCalib, setIsSubmittingCalib] = useState(false);
+
+  const [uploadCalibForm, setUploadCalibForm] = useState({
+    batch_id: null as number | null,
+    calibrated_by: '',
+    cert_number: '',
+    calibration_date: new Date().toISOString().split('T')[0],
+    due_date: '',
+    notes: '',
+    file: null as File | null
+  });
+
+  // Calibration Certificate Generator Form State
+  const [showCalibFormItem, setShowCalibFormItem] = useState<InventoryItem | null>(null);
+  const [certFormDetails, setCertFormDetails] = useState({
+    batch_id: null as number | null,
+    equipment_name: '',
+    brand_name: '',
+    formulation: '',
+    date_acquired: '',
+    last_calibrated: new Date().toISOString().split('T')[0],
+    calibration_due: '',
+    control_no: '',
+    inspector_name: 'Registered Biomedical Tech / Clinic Nurse',
+    inspector_position: 'Cor Jesu College Health Services Clinic',
+    notes: ''
+  });
+
+
+
+
+  
   // Modals state
   const [showAddItem, setShowAddItem] = useState(false);
   const [showEditItem, setShowEditItem] = useState<InventoryItem | null>(null);
@@ -119,8 +188,9 @@ const InventoryCatalog: React.FC = () => {
   // Form States
   const [newItem, setNewItem] = useState({ category: 'medicine', customCategory: '', brand_name: '', generic_name: '', dosage: '', formulation: '', alert_threshold: 20 });
   const [editItemForm, setEditItemForm] = useState<InventoryItem | null>(null);
-  const [newBatch, setNewBatch] = useState({ item_id: 0, clinic_branch: 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '' });
-  const [editBatchData, setEditBatchData] = useState({ batch_id: 0, batch_number: '', date_arrived: '', expired_on: '', stock_remaining: 0 });
+  const [newBatch, setNewBatch] = useState({ item_id: 0, clinic_branch: 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
+  const [editBatchData, setEditBatchData] = useState({ batch_id: 0, batch_number: '', date_arrived: '', expired_on: '', stock_remaining: 0, last_calibrated: '', calibration_due: '', calibration_notes: '' });
+
   const [dispenseData, setDispenseData] = useState({ clinic_branch: 'College Clinic', quantity: 1, disposed_to: '', reason: '' });
 
   const fetchData = async () => {
@@ -244,6 +314,180 @@ const InventoryCatalog: React.FC = () => {
       alert(err.message || 'Error disposing stock');
     }
   };
+
+
+  const fetchCalibHistory = async (itemId: number) => {
+    setIsLoadingCalibHistory(true);
+    try {
+      const res = await apiFetch(`/api/index.php?route=inventory&action=get_calibrations&item_id=${itemId}`);
+      if (res.success && res.calibrations) {
+        setCalibHistoryList(res.calibrations);
+      }
+    } catch (e) {
+      console.error('Failed to load calibration history', e);
+    } finally {
+      setIsLoadingCalibHistory(false);
+    }
+  };
+
+  const handleOpenCalibHistory = (item: InventoryItem) => {
+    setShowCalibHistoryItem(item);
+    fetchCalibHistory(item.id);
+  };
+
+  const handleOpenCalibCertForm = (item: InventoryItem, selectedBatch?: InventoryBatch) => {
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    setCertFormDetails({
+      batch_id: selectedBatch ? selectedBatch.id : null,
+      equipment_name: item.generic_name,
+      brand_name: item.brand_name || '',
+      formulation: item.formulation || 'Standard Clinical Grade',
+      date_acquired: item.date_acquired || '',
+      last_calibrated: selectedBatch?.last_calibrated || item.last_calibrated || new Date().toISOString().split('T')[0],
+      calibration_due: selectedBatch?.calibration_due || item.calibration_due || nextYear.toISOString().split('T')[0],
+      control_no: `CAL-${new Date().getFullYear()}-${selectedBatch ? ('B' + selectedBatch.id) : String(item.id).padStart(5, '0')}`,
+      inspector_name: item.latest_calibrated_by || 'Registered Biomedical Tech / Clinic Nurse',
+      inspector_position: 'Cor Jesu College Health Services Clinic',
+      notes: selectedBatch?.calibration_notes || item.calibration_notes || ''
+    });
+    setShowCalibFormItem(item);
+  };
+
+  const handleGeneratePreviewFromForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showCalibFormItem) return;
+    setCalibrationCertItem(showCalibFormItem);
+    setShowCalibFormItem(null);
+  };
+
+  const handleOpenUploadCert = (item: InventoryItem, selectedBatch?: InventoryBatch) => {
+    setShowUploadCertItem(item);
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    setUploadCalibForm({
+      batch_id: selectedBatch ? selectedBatch.id : null,
+      calibrated_by: item.latest_calibrated_by || '',
+      cert_number: '',
+      calibration_date: selectedBatch?.last_calibrated || item.last_calibrated || new Date().toISOString().split('T')[0],
+      due_date: selectedBatch?.calibration_due || item.calibration_due || nextYear.toISOString().split('T')[0],
+      notes: selectedBatch?.calibration_notes || '',
+      file: null
+    });
+  };
+
+  const handleUploadCalibSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showUploadCertItem || !uploadCalibForm.file) {
+      await confirm({
+        title: 'Missing File',
+        message: 'Please select a calibration certificate file to upload.',
+        type: 'warning',
+        confirmText: 'OK',
+        hideCancel: true
+      });
+      return;
+    }
+
+    setIsSubmittingCalib(true);
+    try {
+      const formData = new FormData();
+      formData.append('item_id', String(showUploadCertItem.id));
+      if (uploadCalibForm.batch_id) {
+        formData.append('batch_id', String(uploadCalibForm.batch_id));
+      }
+      formData.append('calibrated_by', uploadCalibForm.calibrated_by);
+      formData.append('cert_number', uploadCalibForm.cert_number);
+      formData.append('calibration_date', uploadCalibForm.calibration_date);
+      formData.append('due_date', uploadCalibForm.due_date);
+      formData.append('notes', uploadCalibForm.notes);
+      formData.append('cert_file', uploadCalibForm.file);
+
+      const res = await apiFetch('/api/index.php?route=inventory&action=upload_calibration', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (res.success) {
+        setShowUploadCertItem(null);
+        await confirm({
+          title: 'Success',
+          message: 'Calibration certificate uploaded successfully!',
+          type: 'success',
+          confirmText: 'OK',
+          hideCancel: true
+        });
+        fetchItems();
+        fetchBatches();
+      } else {
+        await confirm({
+          title: 'Upload Failed',
+          message: res.message || 'Failed to upload calibration certificate.',
+          type: 'danger',
+          confirmText: 'OK',
+          hideCancel: true
+        });
+      }
+    } catch (err: any) {
+      await confirm({
+        title: 'Upload Error',
+        message: 'Error uploading certificate: ' + (err.message || 'Network error'),
+        type: 'danger',
+        confirmText: 'OK',
+        hideCancel: true
+      });
+    } finally {
+      setIsSubmittingCalib(false);
+    }
+  };
+
+  const handleRecordInternalCert = async (item: InventoryItem) => {
+    try {
+      await apiFetch('/api/index.php?route=inventory&action=record_calibration', {
+        method: 'POST',
+        body: JSON.stringify({
+          item_id: item.id,
+          batch_id: certFormDetails.batch_id || null,
+          calibrated_by: certFormDetails.inspector_name || 'CJC Health Services Clinic',
+          cert_number: certFormDetails.control_no || `CAL-${new Date().getFullYear()}-${String(item.id).padStart(5, '0')}`,
+          calibration_date: certFormDetails.last_calibrated || item.last_calibrated || new Date().toISOString().split('T')[0],
+          due_date: certFormDetails.calibration_due || item.calibration_due || '',
+          notes: certFormDetails.notes || item.calibration_notes || 'Generated CJC Calibration Certificate'
+        })
+      });
+      fetchItems();
+      fetchBatches();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+
+
+  const handleDeleteCalibRecord = async (id: number, itemId: number) => {
+    const isConfirmed = await confirm({
+      title: 'Delete Calibration Record',
+      message: 'Are you sure you want to delete this calibration record?',
+      confirmText: 'Delete',
+      type: 'danger'
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      const res = await apiFetch('/api/index.php?route=inventory&action=delete_calibration', {
+        method: 'POST',
+        body: JSON.stringify({ id })
+      });
+      if (res.success) {
+        fetchCalibHistory(itemId);
+        fetchItems();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -588,15 +832,40 @@ const InventoryCatalog: React.FC = () => {
                       </td>
                       <td className="p-3 text-right">
                         {item.category === 'equipment' && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setCalibrationCertItem(item); }}
-                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-xs font-bold mr-1 inline-flex items-center gap-1 transition-colors cursor-pointer"
-                            title="Print Annual Calibration Certificate"
-                          >
-                            <FiPrinter size={12} /> Cert
-                          </button>
+                          <div className="inline-flex items-center gap-1 mr-1">
+                            {/* Upload External Cert Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleOpenUploadCert(item); }}
+                              className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Upload Calibration Certificate from External Calibrator"
+                            >
+                              <FiUploadCloud size={12} /> Upload
+                            </button>
+
+                            {/* Generate Internal CJC Cert Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleOpenCalibCertForm(item); }}
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Fill details and generate official CJC Calibration Certificate"
+                            >
+                              <FiPrinter size={12} /> CJC Cert
+                            </button>
+
+
+                            {/* Calibration History / View Certs Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleOpenCalibHistory(item); }}
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                              title="View Calibration History & Uploaded Files"
+                            >
+                              <FiFileText size={12} /> History {item.cert_count ? `(${item.cert_count})` : ''}
+                            </button>
+                          </div>
                         )}
+
 
                         <button 
                           onClick={(e) => { 
@@ -692,42 +961,66 @@ const InventoryCatalog: React.FC = () => {
                                           </span>
                                         </td>
                                         <td className="p-2 text-right space-x-1" onClick={e => e.stopPropagation()}>
-                                          <button 
-                                            type="button"
-                                            onClick={() => handleOpenBatchDetails(b.id)}
-                                            className="bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1"
-                                            title="View Full Batch Trace Audit & Logs"
-                                          >
-                                            <FiEye size={12} /> Details
-                                          </button>
+                                           {isEquipment && (
+                                             <>
+                                               <button
+                                                 type="button"
+                                                 onClick={() => handleOpenUploadCert(item, b)}
+                                                 className="bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                                 title={`Upload Calibration Cert for Batch #${b.batch_number || b.id}`}
+                                               >
+                                                 <FiUploadCloud size={11} /> Calib
+                                               </button>
+                                               <button
+                                                 type="button"
+                                                 onClick={() => handleOpenCalibCertForm(item, b)}
+                                                 className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                                 title={`Generate CJC Calibration Cert for Batch #${b.batch_number || b.id}`}
+                                               >
+                                                 <FiPrinter size={11} /> Cert
+                                               </button>
+                                             </>
+                                           )}
 
-                                          {b.stock_remaining > 0 && (
-                                            <button 
-                                              type="button"
-                                              onClick={() => {
-                                                setShowDisposeModal(b);
-                                                setDisposeForm({ quantity: b.stock_remaining, reason: 'Expired / Unconsumed Disposal', disposed_to: 'CJC Hazardous Medical Waste Bin' });
-                                              }}
-                                              className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1"
-                                              title="Dispose Unconsumed / Expired Stock"
-                                            >
-                                              <FiTrash2 size={12} /> Dispose
-                                            </button>
-                                          )}
+                                           <button 
+                                             type="button"
+                                             onClick={() => handleOpenBatchDetails(b.id)}
+                                             className="bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                             title="View Full Batch Trace Audit & Logs"
+                                           >
+                                             <FiEye size={11} /> Details
+                                           </button>
 
-                                          <button onClick={() => {
-                                            setEditBatchData({
-                                              batch_id: b.id,
-                                              batch_number: b.batch_number || '',
-                                              date_arrived: b.date_arrived || '',
-                                              expired_on: b.expired_on || '',
-                                              stock_remaining: b.stock_remaining
-                                            });
-                                            setShowEditBatch(true);
-                                          }} className="text-slate-500 hover:text-slate-800 p-1" title="Edit Batch">
-                                            <FiEdit3 size={13} />
-                                          </button>
-                                        </td>
+                                           {b.stock_remaining > 0 && (
+                                             <button 
+                                               type="button"
+                                               onClick={() => {
+                                                 setShowDisposeModal(b);
+                                                 setDisposeForm({ quantity: b.stock_remaining, reason: 'Expired / Unconsumed Disposal', disposed_to: 'CJC Hazardous Medical Waste Bin' });
+                                               }}
+                                               className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                               title="Dispose Unconsumed / Expired Stock"
+                                             >
+                                               <FiTrash2 size={11} /> Dispose
+                                             </button>
+                                           )}
+
+                                           <button onClick={() => {
+                                             setEditBatchData({
+                                               batch_id: b.id,
+                                               batch_number: b.batch_number || '',
+                                               date_arrived: b.date_arrived || '',
+                                               expired_on: b.expired_on || '',
+                                               stock_remaining: b.stock_remaining,
+                                               last_calibrated: b.last_calibrated || '',
+                                               calibration_due: b.calibration_due || '',
+                                               calibration_notes: b.calibration_notes || ''
+                                             });
+                                             setShowEditBatch(true);
+                                           }} className="text-slate-500 hover:text-slate-800 p-1" title="Edit Batch">
+                                             <FiEdit3 size={13} />
+                                           </button>
+                                         </td>
                                       </tr>
                                     );
                                   })}
@@ -1266,17 +1559,200 @@ const InventoryCatalog: React.FC = () => {
         </div>
       )}
 
-      {/* Annual Calibration Certificate Modal */}
+      {/* Fill Out Calibration Certificate Details Modal */}
+      {showCalibFormItem && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl flex flex-col overflow-hidden max-h-[90vh]">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
+              <span className="font-bold text-sm flex items-center gap-2">
+                <FiEdit3 className="text-emerald-400" /> Fill Out Calibration Certificate Details
+              </span>
+              <button
+                onClick={() => setShowCalibFormItem(null)}
+                className="text-slate-400 hover:text-white font-bold text-xl px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleGeneratePreviewFromForm} className="p-6 space-y-4 text-xs overflow-y-auto">
+              <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 text-emerald-950">
+                <div className="font-bold text-sm text-emerald-900">{showCalibFormItem.generic_name}</div>
+                <div className="text-emerald-700 text-[11px] mt-0.5">Customize the apparatus details and inspector information to be printed on the official CJC Calibration Certificate.</div>
+              </div>
+
+              {batches.filter(b => b.item_id === showCalibFormItem.id).length > 0 && (
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <label className="block text-slate-800 font-bold mb-1">Target Batch Unit (Optional)</label>
+                  <select
+                    value={certFormDetails.batch_id || ''}
+                    onChange={e => {
+                      const selectedBId = e.target.value ? Number(e.target.value) : null;
+                      const selectedB = batches.find(b => b.id === selectedBId);
+                      setCertFormDetails({
+                        ...certFormDetails,
+                        batch_id: selectedBId,
+                        control_no: `CAL-${new Date().getFullYear()}-${selectedBId ? ('B' + selectedBId) : String(showCalibFormItem.id).padStart(5, '0')}`,
+                        last_calibrated: selectedB?.last_calibrated || certFormDetails.last_calibrated,
+                        calibration_due: selectedB?.calibration_due || certFormDetails.calibration_due,
+                        notes: selectedB?.calibration_notes || certFormDetails.notes
+                      });
+                    }}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs bg-white"
+                  >
+                    <option value="">-- Entire Equipment Category (All Batches) --</option>
+                    {batches.filter(b => b.item_id === showCalibFormItem.id).map(b => (
+                      <option key={b.id} value={b.id}>
+                        Batch #{b.batch_number || b.id} - {b.clinic_branch} (Remaining Stock: {b.stock_remaining})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Equipment Name*</label>
+                  <input
+                    type="text"
+                    required
+                    value={certFormDetails.equipment_name}
+                    onChange={e => setCertFormDetails({ ...certFormDetails, equipment_name: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Brand / Model</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Omron / HE-7120"
+                    value={certFormDetails.brand_name}
+                    onChange={e => setCertFormDetails({ ...certFormDetails, brand_name: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Formulation / Specification</label>
+                  <input
+                    type="text"
+                    value={certFormDetails.formulation}
+                    onChange={e => setCertFormDetails({ ...certFormDetails, formulation: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Control / Cert Number*</label>
+                  <input
+                    type="text"
+                    required
+                    value={certFormDetails.control_no}
+                    onChange={e => setCertFormDetails({ ...certFormDetails, control_no: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Date Acquired</label>
+                  <input
+                    type="date"
+                    value={certFormDetails.date_acquired}
+                    onChange={e => setCertFormDetails({ ...certFormDetails, date_acquired: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Last Calibrated*</label>
+                  <input
+                    type="date"
+                    required
+                    value={certFormDetails.last_calibrated}
+                    onChange={e => setCertFormDetails({ ...certFormDetails, last_calibrated: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Next Due Date</label>
+                  <input
+                    type="date"
+                    value={certFormDetails.calibration_due}
+                    onChange={e => setCertFormDetails({ ...certFormDetails, calibration_due: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Inspector / Nurse Name</label>
+                  <input
+                    type="text"
+                    value={certFormDetails.inspector_name}
+                    onChange={e => setCertFormDetails({ ...certFormDetails, inspector_name: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Inspector Designation</label>
+                  <input
+                    type="text"
+                    value={certFormDetails.inspector_position}
+                    onChange={e => setCertFormDetails({ ...certFormDetails, inspector_position: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Notes / Inspector Remarks</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Apparatus meets accuracy and clinical precision standards..."
+                  value={certFormDetails.notes}
+                  onChange={e => setCertFormDetails({ ...certFormDetails, notes: e.target.value })}
+                  className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                ></textarea>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCalibFormItem(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold flex items-center gap-1.5 shadow-md"
+                >
+                  <FiPrinter size={14} /> Preview & Print Certificate
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Annual Printable CJC Calibration Certificate Modal */}
       {calibrationCertItem && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[90vh]">
             <div className="p-4 bg-slate-900 text-white flex justify-between items-center no-print">
               <span className="font-bold text-sm flex items-center gap-2">
-                <FiCheckCircle className="text-emerald-400" /> Printable Equipment Calibration Certificate
+                <FiCheckCircle className="text-emerald-400" /> Official CJC Equipment Calibration Certificate
               </span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => {
+                    handleRecordInternalCert(calibrationCertItem);
+                    window.print();
+                  }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"
                 >
                   <FiPrinter /> Print Certificate
@@ -1290,58 +1766,327 @@ const InventoryCatalog: React.FC = () => {
               </div>
             </div>
 
-            {/* Printable Document Sheet */}
-            <div className="p-8 overflow-y-auto bg-white text-slate-800 space-y-6">
-              {/* Header */}
-              <div className="text-center border-b-2 border-slate-900 pb-4">
-                <h2 className="text-xl font-black uppercase text-[#8c1526]">Cor Jesu College Health Services Clinic</h2>
-                <p className="text-xs text-slate-600 uppercase tracking-widest">Biomedical Equipment & Medical Apparatus Inspection</p>
-                <h1 className="text-2xl font-serif font-black uppercase tracking-wider text-slate-900 mt-4">Annual Calibration Certificate</h1>
-                <p className="text-xs text-slate-500 font-mono">Cert No: CAL-{new Date().getFullYear()}-{String(calibrationCertItem.id).padStart(5, '0')}</p>
-              </div>
+            {/* Printable Document Sheet (A4 Letterhead Format) */}
+            <div className="p-10 overflow-y-auto bg-white text-slate-900 space-y-6 font-serif border border-slate-200 print:border-none print:p-6">
+              
+              {/* Header Image Background with Document Control Box Overlay */}
+              <div className="mb-4 relative">
+                <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto" />
 
-              {/* Apparatus Details */}
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 text-xs">
-                <h3 className="font-extrabold uppercase tracking-wider text-slate-700">Apparatus Information</h3>
-                <div className="grid grid-cols-2 gap-3 text-slate-700">
-                  <div><span className="text-slate-500">Equipment Name:</span> <strong className="text-slate-900 font-bold">{calibrationCertItem.generic_name}</strong></div>
-                  <div><span className="text-slate-500">Brand / Model:</span> <strong className="text-slate-900 font-bold">{calibrationCertItem.brand_name || 'N/A'}</strong></div>
-                  <div><span className="text-slate-500">Date Acquired:</span> <strong className="text-slate-900 font-bold">{calibrationCertItem.date_acquired || 'N/A'}</strong></div>
-                  <div><span className="text-slate-500">Date Purchased:</span> <strong className="text-slate-900 font-bold">{calibrationCertItem.date_purchased || 'N/A'}</strong></div>
-                  <div><span className="text-slate-500">Last Calibrated:</span> <strong className="text-emerald-700 font-bold">{calibrationCertItem.last_calibrated || new Date().toISOString().split('T')[0]}</strong></div>
-                  <div><span className="text-slate-500">Next Calibration Due:</span> <strong className="text-amber-700 font-bold">{calibrationCertItem.calibration_due || 'N/A'}</strong></div>
+                {/* Document Control Overlay Box - Exact CJC MedCert Style */}
+                <div className="absolute top-[5%] right-[0%] bottom-[41%] w-[17%] z-10 overflow-visible">
+                  <div className="w-[200%] h-[200%] scale-50 origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-1 shadow-sm font-sans leading-none">
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Index No.:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">9.9</span>
+                    </div>
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Revision No.:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">01</span>
+                    </div>
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Effective Date:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[14px]">08/01/2024</span>
+                    </div>
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[13px]">Control No.:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[13px]">{certFormDetails.control_no || `CAL-${new Date().getFullYear()}`}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Inspection Status Banner */}
-              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl text-xs text-emerald-900 space-y-1">
-                <h4 className="font-bold uppercase tracking-wide flex items-center gap-1.5 text-emerald-800">
-                  <FiCheckCircle className="text-emerald-600" /> Calibration Status: PASSED & VERIFIED
-                </h4>
-                <p className="text-emerald-700">
-                  This apparatus has undergone standard biomedical inspection and functionality testing. It meets accuracy and clinical precision standards for health services administration.
+              {/* Title Section */}
+              <div className="text-center my-6">
+                <h2 className="text-2xl font-black uppercase tracking-widest text-[#8c1526] font-sans underline underline-offset-8">
+                  Annual Calibration Certificate
+                </h2>
+                <p className="text-xs text-slate-500 font-mono mt-2">
+                  Cert No: {certFormDetails.control_no || `CAL-${new Date().getFullYear()}-${String(calibrationCertItem.id).padStart(5, '0')}`}
                 </p>
-                {calibrationCertItem.calibration_notes && (
-                  <p className="font-medium text-slate-700 pt-1">
-                    <span className="text-slate-500">Notes / Remarks:</span> {calibrationCertItem.calibration_notes}
+              </div>
+
+              {/* Apparatus Details Card */}
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-300 space-y-4 text-xs font-sans">
+                <h3 className="font-extrabold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-2">
+                  Biomedical Apparatus Specification
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-slate-800">
+                  <div><span className="text-slate-500 font-medium">Equipment Name:</span> <strong className="text-slate-900 font-bold uppercase text-sm block">{certFormDetails.equipment_name || calibrationCertItem.generic_name}</strong></div>
+                  <div><span className="text-slate-500 font-medium">Brand / Model:</span> <strong className="text-slate-900 font-bold block">{certFormDetails.brand_name || calibrationCertItem.brand_name || 'N/A'}</strong></div>
+                  <div><span className="text-slate-500 font-medium">Formulation / Spec:</span> <strong className="text-slate-900 font-bold block">{certFormDetails.formulation || calibrationCertItem.formulation || 'Standard Clinical Grade'}</strong></div>
+                  <div><span className="text-slate-500 font-medium">Date Acquired:</span> <strong className="text-slate-900 font-bold block">{certFormDetails.date_acquired || calibrationCertItem.date_acquired || 'N/A'}</strong></div>
+                  <div><span className="text-slate-500 font-medium">Inspection / Last Calibrated:</span> <strong className="text-emerald-700 font-bold text-sm block">{certFormDetails.last_calibrated || calibrationCertItem.last_calibrated || new Date().toISOString().split('T')[0]}</strong></div>
+                  <div><span className="text-slate-500 font-medium">Next Calibration Recertification Due:</span> <strong className="text-amber-700 font-bold text-sm block">{certFormDetails.calibration_due || calibrationCertItem.calibration_due || 'N/A'}</strong></div>
+                </div>
+              </div>
+
+              {/* Status Banner */}
+              <div className="bg-emerald-50 border-2 border-emerald-300 p-5 rounded-2xl text-xs text-emerald-950 space-y-1 font-sans">
+                <h4 className="font-black uppercase tracking-wider flex items-center gap-2 text-emerald-900 text-sm">
+                  <FiCheckCircle className="text-emerald-600" size={16} /> CALIBRATION STATUS: PASSED & VERIFIED
+                </h4>
+                <p className="text-emerald-800 leading-relaxed">
+                  This equipment/apparatus has passed standard biomedical safety checks, diagnostic accuracy verification, and operational readiness inspection in accordance with Cor Jesu College Health Services Clinic protocols.
+                </p>
+                {(certFormDetails.notes || calibrationCertItem.calibration_notes) && (
+                  <p className="font-medium text-slate-800 pt-2 border-t border-emerald-200 mt-2">
+                    <span className="text-slate-500 font-bold">Notes / Inspector Remarks:</span> {certFormDetails.notes || calibrationCertItem.calibration_notes}
                   </p>
                 )}
               </div>
 
-              {/* Signatures Footer */}
-              <div className="pt-10 flex justify-between items-end text-xs">
-                <div className="w-40 h-20 border-2 border-dashed border-slate-300 rounded-xl flex items-center justify-center text-center p-2 text-slate-400 text-[10px] uppercase font-bold">
-                  Clinic Seal & Stamp
+              {/* Signatures & Seal Section */}
+              <div className="pt-10 flex justify-between items-end text-xs font-sans">
+                <div className="w-44 h-24 border-2 border-dashed border-slate-400 rounded-2xl flex items-center justify-center text-center p-3 text-slate-400 text-[10px] uppercase font-bold">
+                  Official Clinic Seal & Verification Stamp
                 </div>
-                <div className="text-center w-64">
-                  <div className="border-b-2 border-slate-900 mb-1 pb-1 font-bold text-slate-900 uppercase">Registered Biomedical Tech / Nurse</div>
-                  <div className="text-[10px] text-slate-500">Cor Jesu College Health Services</div>
+                <div className="text-center w-72">
+                  <div className="border-b-2 border-slate-900 mb-1 pb-1 font-bold text-slate-900 uppercase text-xs">
+                    {certFormDetails.inspector_name || 'Registered Biomedical Tech / Clinic Nurse'}
+                  </div>
+                  <div className="text-[11px] text-slate-600 font-semibold">{certFormDetails.inspector_position || 'Cor Jesu College Health Services Clinic'}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Digos City, Davao del Sur</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       )}
+
+
+      {/* Upload External Calibration Certificate Modal */}
+      {showUploadCertItem && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
+              <span className="font-bold text-sm flex items-center gap-2">
+                <FiUploadCloud className="text-blue-400" /> Upload Calibration Certificate
+              </span>
+              <button
+                onClick={() => setShowUploadCertItem(null)}
+                className="text-slate-400 hover:text-white font-bold text-xl px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUploadCalibSubmit} className="p-6 space-y-4 text-xs">
+              <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 text-blue-900">
+                <div className="font-bold text-sm">{showUploadCertItem.generic_name}</div>
+                <div className="text-slate-600">{showUploadCertItem.brand_name || 'No Brand Specified'}</div>
+              </div>
+
+              {batches.filter(b => b.item_id === showUploadCertItem.id).length > 0 && (
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <label className="block text-slate-800 font-bold mb-1">Target Batch Unit (Optional)</label>
+                  <select
+                    value={uploadCalibForm.batch_id || ''}
+                    onChange={e => {
+                      const selectedBId = e.target.value ? Number(e.target.value) : null;
+                      const selectedB = batches.find(b => b.id === selectedBId);
+                      setUploadCalibForm({
+                        ...uploadCalibForm,
+                        batch_id: selectedBId,
+                        calibration_date: selectedB?.last_calibrated || uploadCalibForm.calibration_date,
+                        due_date: selectedB?.calibration_due || uploadCalibForm.due_date,
+                        notes: selectedB?.calibration_notes || uploadCalibForm.notes
+                      });
+                    }}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs bg-white"
+                  >
+                    <option value="">-- Entire Equipment Category (All Batches) --</option>
+                    {batches.filter(b => b.item_id === showUploadCertItem.id).map(b => (
+                      <option key={b.id} value={b.id}>
+                        Batch #{b.batch_number || b.id} - {b.clinic_branch} (Remaining Stock: {b.stock_remaining})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Select Certificate File (PDF / Image / DOC)*</label>
+                <input
+                  type="file"
+                  required
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  onChange={e => setUploadCalibForm({ ...uploadCalibForm, file: e.target.files?.[0] || null })}
+                  className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Calibrated By / Agency</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. BioMedTech Corp / Engr. Santos"
+                    value={uploadCalibForm.calibrated_by}
+                    onChange={e => setUploadCalibForm({ ...uploadCalibForm, calibrated_by: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Cert / Control Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. CERT-2026-8891"
+                    value={uploadCalibForm.cert_number}
+                    onChange={e => setUploadCalibForm({ ...uploadCalibForm, cert_number: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Calibration Date*</label>
+                  <input
+                    type="date"
+                    required
+                    value={uploadCalibForm.calibration_date}
+                    onChange={e => setUploadCalibForm({ ...uploadCalibForm, calibration_date: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Next Calibration Due Date</label>
+                  <input
+                    type="date"
+                    value={uploadCalibForm.due_date}
+                    onChange={e => setUploadCalibForm({ ...uploadCalibForm, due_date: e.target.value })}
+                    className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Notes / Inspection Remarks</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Temperature probe verified within +-0.1C accuracy..."
+                  value={uploadCalibForm.notes}
+                  onChange={e => setUploadCalibForm({ ...uploadCalibForm, notes: e.target.value })}
+                  className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                ></textarea>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadCertItem(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingCalib}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center gap-1.5"
+                >
+                  {isSubmittingCalib ? 'Uploading...' : <><FiUploadCloud /> Upload Certificate</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Calibration History & File Attachments Modal */}
+      {showCalibHistoryItem && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[85vh]">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
+              <div>
+                <span className="font-bold text-sm flex items-center gap-2">
+                  <FiFileText className="text-emerald-400" /> Calibration Records & File Attachments
+                </span>
+                <span className="text-xs text-slate-300 block">{showCalibHistoryItem.generic_name} ({showCalibHistoryItem.brand_name || 'Equipment'})</span>
+              </div>
+              <button
+                onClick={() => setShowCalibHistoryItem(null)}
+                className="text-slate-400 hover:text-white font-bold text-xl px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Calibration Log ({calibHistoryList.length})</span>
+                <button
+                  onClick={() => { const item = showCalibHistoryItem; setShowCalibHistoryItem(null); handleOpenUploadCert(item); }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"
+                >
+                  <FiUploadCloud size={14} /> Upload New Certificate
+                </button>
+              </div>
+
+              {isLoadingCalibHistory ? (
+                <div className="p-8 text-center text-slate-500 text-xs italic">Loading calibration records...</div>
+              ) : calibHistoryList.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                  <FiTool size={28} className="mx-auto text-slate-400 mb-2" />
+                  <p className="text-slate-600 text-xs font-bold">No uploaded certificates or calibration records found.</p>
+                  <p className="text-slate-400 text-xs mt-1">Upload external certificates issued by calibrators to build a permanent history.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {calibHistoryList.map(calib => (
+                    <div key={calib.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2 relative group hover:border-blue-300 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${calib.cert_type === 'external_upload' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                            {calib.cert_type === 'external_upload' ? 'External Vendor Cert' : 'Internal CJC Cert'}
+                          </span>
+                          <h4 className="font-bold text-slate-900 text-sm mt-1">
+                            {calib.calibrated_by || 'Unknown Calibrator'} {calib.cert_number ? `#${calib.cert_number}` : ''}
+                          </h4>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {calib.file_url && (
+                            <a
+                              href={calib.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1"
+                            >
+                              <FiExternalLink size={12} /> View File
+                            </a>
+                          )}
+                          <button
+                            onClick={() => handleDeleteCalibRecord(calib.id, showCalibHistoryItem.id)}
+                            className="text-slate-400 hover:text-rose-600 p-1"
+                            title="Delete Record"
+                          >
+                            <FiTrash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-slate-600 bg-white p-2.5 rounded-xl border border-slate-100">
+                        <div><span className="text-slate-400">Calibrated On:</span> <strong>{calib.calibration_date || 'N/A'}</strong></div>
+                        <div><span className="text-slate-400">Next Due:</span> <strong className="text-amber-700">{calib.due_date || 'N/A'}</strong></div>
+                        <div><span className="text-slate-400">Logged By:</span> <strong>{calib.uploaded_by || 'Staff'}</strong></div>
+                        <div><span className="text-slate-400">Recorded At:</span> <strong>{new Date(calib.created_at).toLocaleDateString()}</strong></div>
+                      </div>
+
+                      {calib.notes && (
+                        <p className="text-slate-600 italic">
+                          <span className="font-bold not-italic text-slate-500">Notes:</span> {calib.notes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
