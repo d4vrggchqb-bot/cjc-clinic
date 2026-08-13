@@ -77,15 +77,12 @@ function fmtDateShort(d: string | null) {
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   Print Slip — window.open approach (reliable, no ref timing issues)
-───────────────────────────────────────────────────────────────── */
-/* ─────────────────────────────────────────────────────────────────
    Print Slip — window.open approach (reliable, mode-aware)
 ───────────────────────────────────────────────────────────────── */
 function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
   if (!b) return;
 
-  const logoSrc = `${window.location.origin}/med cert.png`;
+  const logoSrc = `${window.location.origin}/med_cert_header.png`;
   const isHistory = mode === 'history' || b.borrowing_status === 'returned' || Boolean(b.returned_at);
 
   let tableHeaderHtml = '';
@@ -172,14 +169,14 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
     table{width:100%;border-collapse:collapse}
     th{background:#A5192D;color:#fff;padding:6px 10px;font-weight:700;font-size:11px}
     td{padding:6px 10px;font-size:12px}
-    .sigline{border-bottom:1.5px solid #333;min-height:26px;margin-bottom:3px}
+    .sigline{border-bottom:1.5px solid #333;min-height:22px;margin-bottom:3px}
     .siglabel{font-size:10px;color:#555}
     .footer{text-align:center;font-size:9px;color:#aaa;margin-top:10px;border-top:1px solid #eee;padding-top:6px}
   </style>
   </head><body>
   <div class="wrap">
     <!-- OFFICIAL MED CERT BANNER HEADER -->
-    <img class="cjc-banner" src="${logoSrc}" alt="Cor Jesu College Header" />
+    <img class="cjc-banner" src="${logoSrc}" alt="Cor Jesu College Clinic Header" />
     
     <!-- DOCUMENT TITLE -->
     <div class="doc-title">${docTitle}</div>
@@ -219,14 +216,34 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
       </table>
     </div>
     
-    <!-- SIGNATURES -->
+    <!-- ACKNOWLEDGMENT & AUTO-FILLED SIGNATURES -->
     <div class="section">
-      <div class="label">Acknowledgment &amp; Signatures</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px">
-        <div><div class="sigline"></div><div class="siglabel">Released by (Staff) + Date</div></div>
-        <div><div class="sigline"></div><div class="siglabel">Received by (Borrower) + Date</div></div>
-        <div><div class="sigline"></div><div class="siglabel">Returned to (Staff) + Date</div></div>
-        <div><div class="sigline"></div><div class="siglabel">Borrower's Signature + Date</div></div>
+      <div class="label" style="margin-bottom:8px">Acknowledgment &amp; Signatures</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-top:4px">
+        <div>
+          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
+            ${b.released_by_name || 'Clinic Staff'} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.created_at)}</span>
+          </div>
+          <div class="siglabel" style="margin-top:3px">Released by (Staff) + Date</div>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
+            ${b.first_name} ${b.last_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.created_at)}</span>
+          </div>
+          <div class="siglabel" style="margin-top:3px">Received by (Borrower) + Date</div>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
+            ${b.returned_to_name ? `${b.returned_to_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.returned_at)}</span>` : (b.returned_at ? `Clinic Staff &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.returned_at)}</span>` : '&nbsp;')}
+          </div>
+          <div class="siglabel" style="margin-top:3px">Returned to (Staff) + Date</div>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
+            ${b.first_name} ${b.last_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${b.returned_at ? fmtDate(b.returned_at) : fmtDate(b.created_at)}</span>
+          </div>
+          <div class="siglabel" style="margin-top:3px">Borrower's Signature + Date</div>
+        </div>
       </div>
     </div>
     
@@ -236,7 +253,17 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
     </div>
     <div class="footer">CJC Clinic Patient Records System &bull; Printed: ${new Date().toLocaleString()}</div>
   </div>
-  <script>window.onload=function(){window.print();}<\/script>
+  <script>
+    window.onload = function() {
+      var img = document.querySelector('.cjc-banner');
+      if (img && (!img.complete || img.naturalWidth === 0)) {
+        img.onload = function() { window.print(); };
+        img.onerror = function() { window.print(); };
+      } else {
+        window.print();
+      }
+    };
+  <\/script>
   </body></html>`;
 
   const win = window.open('', '_blank', 'width=860,height=780');

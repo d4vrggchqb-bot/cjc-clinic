@@ -30,8 +30,9 @@ class BorrowingController {
             $pdo->beginTransaction();
 
             // 1. Create the main borrowing record
-            $stmt = $pdo->prepare("INSERT INTO borrowings (profile_id, purpose, expected_return_date, status) VALUES (?, ?, ?, 'active')");
-            $stmt->execute([$profileId, $purpose, $expectedReturnDate]);
+            $releasedBy = $_SESSION['cjc_user']['id'] ?? null;
+            $stmt = $pdo->prepare("INSERT INTO borrowings (profile_id, purpose, expected_return_date, released_by, status) VALUES (?, ?, ?, ?, 'active')");
+            $stmt->execute([$profileId, $purpose, $expectedReturnDate, $releasedBy]);
             $borrowingId = $pdo->lastInsertId();
 
             // Auto-generate booking reference code (e.g. EQ-2026-00042)
@@ -126,6 +127,7 @@ class BorrowingController {
                 p.year_level,
                 p.profile_type,
                 p.college_dept AS department,
+                COALESCE(u_rel.name, u_rel.username) AS released_by_name,
                 bi.id AS borrowed_item_id,
                 bi.quantity,
                 bi.item_type,
@@ -138,6 +140,7 @@ class BorrowingController {
             JOIN profiles p ON b.profile_id = p.id
             JOIN borrowed_items bi ON bi.borrowing_id = b.id
             JOIN inventory_items i ON bi.inventory_item_id = i.id
+            LEFT JOIN users u_rel ON b.released_by = u_rel.id
             WHERE b.status = 'active'
               AND bi.status = 'borrowed'
             ORDER BY b.created_at DESC
@@ -168,6 +171,7 @@ class BorrowingController {
                     'year_level'           => $row['year_level'],
                     'profile_type'         => $row['profile_type'],
                     'department'           => $row['department'],
+                    'released_by_name'     => $row['released_by_name'],
                     'items'                => []
                 ];
             }
@@ -212,6 +216,8 @@ class BorrowingController {
                 p.year_level,
                 p.profile_type,
                 p.college_dept AS department,
+                COALESCE(u_rel.name, u_rel.username) AS released_by_name,
+                COALESCE(u_ret.name, u_ret.username) AS returned_to_name,
                 bi.id AS borrowed_item_id,
                 bi.quantity,
                 bi.item_type,
@@ -228,7 +234,9 @@ class BorrowingController {
             JOIN profiles p ON b.profile_id = p.id
             JOIN borrowed_items bi ON bi.borrowing_id = b.id
             JOIN inventory_items i ON bi.inventory_item_id = i.id
+            LEFT JOIN users u_rel ON b.released_by = u_rel.id
             LEFT JOIN borrowed_item_returns bir ON bir.borrowed_item_id = bi.id
+            LEFT JOIN users u_ret ON bir.processed_by = u_ret.id
             WHERE b.id = ?
             ORDER BY bi.id ASC
         ");
@@ -258,6 +266,8 @@ class BorrowingController {
             'year_level'           => $first['year_level'],
             'profile_type'         => $first['profile_type'],
             'department'           => $first['department'],
+            'released_by_name'     => $first['released_by_name'],
+            'returned_to_name'     => $first['returned_to_name'],
             'items'                => []
         ];
 
