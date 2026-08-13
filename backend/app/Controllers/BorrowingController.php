@@ -146,7 +146,7 @@ class BorrowingController {
         
         $pdo = cjcDatabaseConnection();
         $stmt = $pdo->query("
-            SELECT bi.id as borrowed_item_id, bi.quantity, b.created_at as item_created,
+            SELECT bi.id as borrowed_item_id, bi.quantity, bi.returned_quantity, b.created_at as item_created,
                    b.id as borrowing_id, b.booking_code, b.purpose, b.expected_return_date, b.created_at,
                    p.first_name, p.last_name, p.course, p.year_level, p.profile_type,
                    i.generic_name, i.brand_name, i.id as inventory_item_id
@@ -169,8 +169,8 @@ class BorrowingController {
         $stmt = $pdo->query("
             SELECT b.id as borrowing_id, b.booking_code, b.purpose, b.created_at,
                    p.first_name, p.last_name, p.course, p.year_level, p.profile_type,
-                   bi.item_type, bi.status, bi.quantity,
-                   i.generic_name, i.brand_name
+                   bi.id as borrowed_item_id, bi.item_type, bi.status, bi.quantity, bi.returned_quantity,
+                   i.id as inventory_item_id, i.generic_name, i.brand_name
             FROM borrowings b
             JOIN profiles p ON b.profile_id = p.id
             JOIN borrowed_items bi ON bi.borrowing_id = b.id
@@ -197,9 +197,11 @@ class BorrowingController {
                 ];
             }
             $history[$bId]['items'][] = [
+                'id' => $row['borrowed_item_id'],
                 'generic_name' => $row['generic_name'],
                 'brand_name' => $row['brand_name'],
                 'quantity' => $row['quantity'],
+                'returned_quantity' => $row['returned_quantity'],
                 'item_type' => $row['item_type'],
                 'status' => $row['status']
             ];
@@ -214,22 +216,60 @@ class BorrowingController {
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         $borrowedItemId = $input['borrowed_item_id'] ?? null;
+        $returnQty = isset($input['return_qty']) ? (int)$input['return_qty'] : 1;
         
-        if (!$borrowedItemId) $this->jsonResponse(['success' => false, 'error' => 'Borrowed Item ID required'], 400);
+        if (!$borrowedItemId || $returnQty <= 0) {
+            $this->jsonResponse(['success' => false, 'error' => 'Valid Borrowed Item ID and Return Quantity required'], 400);
+        }
         
         $pdo = cjcDatabaseConnection();
         try {
             $pdo->beginTransaction();
             
-            // Mark item as returned
-            $stmt = $pdo->prepare("UPDATE borrowed_items SET status = 'returned' WHERE id = ?");
-            $stmt->execute([$borrowedItemId]);
+            // Get item details
+            $itemStmt = $pdo->prepare("SELECT * FROM borrowed_items WHERE id = ? FOR UPDATE");
+            $itemStmt->execute([$borrowedItemId]);
+            $bItem = $itemStmt->fetch();
             
-            // Check if all items for this borrowing are returned/dispensed
-            // If so, mark the main borrowing as returned
+            if (!$bItem) {
+                throw new Exception("Borrowed item not found.");
+            }
+            
+            if ($bItem['returned_quantity'] + $returnQty > $bItem['quantity']) {
+                throw new Exception("Cannot return more than what was borrowed.");
+            }
+            
+            $newReturnedQty = $bItem['returned_quantity'] + $returnQty;
+            $newStatus = ($newReturnedQty >= $bItem['quantity']) ? 'returned' : $bItem['status'];
+            
+            // Update borrowed_items
+            $updItem = $pdo->prepare("UPDATE borrowed_items SET returned_quantity = ?, status = ? WHERE id = ?");
+            $updItem->execute([$newReturnedQty, $newStatus, $borrowedItemId]);
+            
+            // Replenish inventory ONLY if it was a supply (since equipment doesn't deduct from batches)
+            if ($bItem['item_type'] === 'supply') {
+                $batchStmt = $pdo->prepare("SELECT id FROM inventory_batches WHERE item_id = ? AND clinic_branch = ? ORDER BY id DESC LIMIT 1");
+                $batchStmt->execute([$bItem['inventory_item_id'], $_SESSION['cjc_user']['clinic_branch']]);
+                $batch = $batchStmt->fetch();
+                
+                if ($batch) {
+                    $pdo->prepare("UPDATE inventory_batches SET stock_remaining = stock_remaining + ?, status = 'active' WHERE id = ?")
+                        ->execute([$returnQty, $batch['id']]);
+                    $batchId = $batch['id'];
+                } else {
+                    $pdo->prepare("INSERT INTO inventory_batches (item_id, clinic_branch, stock_remaining, status) VALUES (?, ?, ?, 'active')")
+                        ->execute([$bItem['inventory_item_id'], $_SESSION['cjc_user']['clinic_branch'], $returnQty]);
+                    $batchId = $pdo->lastInsertId();
+                }
+                
+                $logStmt = $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, processed_by) VALUES (?, 'restock', ?, 'Returned from Booking', ?)");
+                $logStmt->execute([$batchId, $returnQty, $_SESSION['cjc_user']['id']]);
+            }
+            
+            // Check if all items for this borrowing are returned
             $chkStmt = $pdo->prepare("
                 SELECT b.id, 
-                       (SELECT COUNT(*) FROM borrowed_items WHERE borrowing_id = b.id AND status = 'borrowed') as pending_count
+                       (SELECT COUNT(*) FROM borrowed_items WHERE borrowing_id = b.id AND status != 'returned') as pending_count
                 FROM borrowed_items bi
                 JOIN borrowings b ON bi.borrowing_id = b.id
                 WHERE bi.id = ?

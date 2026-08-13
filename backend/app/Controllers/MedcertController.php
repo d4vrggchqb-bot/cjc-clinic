@@ -26,13 +26,17 @@ class MedcertController {
             'clinic_branch' => trim($input['clinic_branch'] ?? 'College Clinic'),
         ];
 
-        if (!$data['profile_id'] || !$data['issued_to'] || !$data['issued_by'] || !$data['reason'] || !$data['valid_until']) {
+        if (!$data['profile_id'] || !$data['issued_to'] || !$data['issued_by']) {
             $this->jsonResponse(['success' => false, 'message' => 'All fields are required.'], 400);
         }
 
-        $parsedDate = DateTime::createFromFormat('Y-m-d', $data['valid_until']);
-        if (!$parsedDate || $parsedDate->format('Y-m-d') !== $data['valid_until']) {
-            $this->jsonResponse(['success' => false, 'message' => 'Invalid date format. Use YYYY-MM-DD.'], 400);
+        if ($data['valid_until']) {
+            $parsedDate = DateTime::createFromFormat('Y-m-d', $data['valid_until']);
+            if (!$parsedDate || $parsedDate->format('Y-m-d') !== $data['valid_until']) {
+                $this->jsonResponse(['success' => false, 'message' => 'Invalid date format. Use YYYY-MM-DD.'], 400);
+            }
+        } else {
+            $data['valid_until'] = null;
         }
 
         try {
@@ -54,10 +58,16 @@ class MedcertController {
             }
             // Failsafe: Ensure issued_by_position and issued_by_license columns exist
             try {
-                $pdo->exec("ALTER TABLE medcerts ADD COLUMN issued_by_position VARCHAR(150) DEFAULT NULL");
-                $pdo->exec("ALTER TABLE medcerts ADD COLUMN issued_by_license VARCHAR(100) DEFAULT NULL");
+                @$pdo->exec("ALTER TABLE medcerts ADD COLUMN issued_by_position VARCHAR(150) DEFAULT NULL");
+                @$pdo->exec("ALTER TABLE medcerts ADD COLUMN issued_by_license VARCHAR(100) DEFAULT NULL");
             } catch (Exception $e) {
                 // Ignore if column already exists
+            }
+            // Failsafe: Allow valid_until to be null
+            try {
+                @$pdo->exec("ALTER TABLE medcerts MODIFY valid_until DATE NULL DEFAULT NULL");
+            } catch (Exception $e) {
+                // Ignore
             }
 
             try {
@@ -155,8 +165,8 @@ class MedcertController {
         
         $preview  = "<div class='small text-secondary'>";
         $preview .= "<div class='border-bottom border-secondary pb-3 mb-3'><p class='small text-uppercase text-secondary letter-spacing-2 mb-1'>Official Medical Certificate</p><h2 class='h5 fw-semibold mb-0 text-slate-900'>CJC {$clinicBranch}</h2></div>";
-        $preview .= "<div class='mb-3'><p><span class='fw-semibold text-slate-900'>Patient:</span> " . cjcEscape($payload['issued_to']) . "</p><p><span class='fw-semibold text-slate-900'>Provider:</span> " . cjcEscape($payload['issued_by']) . "</p><p><span class='fw-semibold text-slate-900'>Date Issued:</span> {$issuedAt}</p><p><span class='fw-semibold text-slate-900'>Valid Until:</span> " . cjcEscape($payload['valid_until']) . "</p></div>";
-        $preview .= "<div class='rounded-2xl border border-slate-200 bg-slate-50 p-4 mb-4'><p class='text-slate-500 mb-0'>" . nl2br(cjcEscape($payload['reason'])) . "</p></div>";
+        $preview .= "<div class='mb-3'><p><span class='fw-semibold text-slate-900'>Patient:</span> " . cjcEscape($payload['issued_to'] ?? '') . "</p><p><span class='fw-semibold text-slate-900'>Provider:</span> " . cjcEscape($payload['issued_by'] ?? '') . "</p><p><span class='fw-semibold text-slate-900'>Date Issued:</span> {$issuedAt}</p><p><span class='fw-semibold text-slate-900'>Valid Until:</span> " . cjcEscape($payload['valid_until'] ?? '') . "</p></div>";
+        $preview .= "<div class='rounded-2xl border border-slate-200 bg-slate-50 p-4 mb-4'><p class='text-slate-500 mb-0'>" . nl2br(cjcEscape($payload['reason'] ?? '')) . "</p></div>";
         
         $preview .= "<div class='rounded-2xl border border-blue-200 bg-blue-50 p-3 mb-4 text-xs font-mono text-blue-800 break-all'>";
         $preview .= "<span class='font-bold uppercase text-blue-900 block mb-1'>Anti-Forgery Data</span>";

@@ -21,6 +21,7 @@ interface LogbookEntry {
   clinic_branch?: string;
   patient_id_number: string;
   patient_name: string;
+  address?: string;
   time_in: string;
   purpose: string;
   time_out: string | null;
@@ -146,9 +147,11 @@ const Consultation: React.FC = () => {
   const [isGeneratingMedcert, setIsGeneratingMedcert] = useState(false);
   const [medcertData, setMedcertData] = useState({
     issued_to: '',
+    address: '',
     issued_by: '',
     issued_by_position: '',
     issued_by_license: '',
+    is_essentially_normal: false,
     reason: '',
     valid_until: '',
     clinic_branch: 'College Clinic'
@@ -1503,13 +1506,12 @@ const Consultation: React.FC = () => {
             <div className="p-4 sm:px-6 border-t border-slate-200 flex justify-between items-center bg-white shrink-0">
               <button 
                 onClick={() => {
-                  const tomorrow = new Date();
-                  tomorrow.setDate(tomorrow.getDate() + 1);
                   setMedcertData({ 
                     ...medcertData, 
                     issued_to: activeNoteEntry.patient_name, 
-                    reason: diagnosis || 'Medical Consultation',
-                    valid_until: tomorrow.toISOString().split('T')[0],
+                    is_essentially_normal: false,
+                    reason: '',
+                    valid_until: '',
                     clinic_branch: activeNoteEntry.clinic_branch || 'College Clinic'
                   });
                   setIsMedcertModalOpen(true);
@@ -1646,6 +1648,25 @@ const Consultation: React.FC = () => {
                 <input required type="text" value={medcertData.issued_to} onChange={e => setMedcertData({...medcertData, issued_to: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
               </div>
               <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-semibold text-slate-600">Address (Optional)</label>
+                  <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setMedcertData({...medcertData, address: selectedProfileDetails?.address || activeNoteEntry?.address || ''});
+                        } else {
+                          setMedcertData({...medcertData, address: ''});
+                        }
+                      }} 
+                    />
+                    Autofill from patient profile
+                  </label>
+                </div>
+                <input type="text" value={medcertData.address} onChange={e => setMedcertData({...medcertData, address: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" placeholder="Leave blank for a blank line" />
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Issued By</label>
                 <select 
                   required 
@@ -1671,12 +1692,23 @@ const Consultation: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Reason / Remarks</label>
-                <textarea required value={medcertData.reason} onChange={e => setMedcertData({...medcertData, reason: e.target.value})} rows={3} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] resize-none"></textarea>
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4 cursor-pointer p-2 bg-slate-50 border border-slate-200 rounded">
+                  <input 
+                    type="checkbox" 
+                    checked={medcertData.is_essentially_normal}
+                    onChange={e => setMedcertData({...medcertData, is_essentially_normal: e.target.checked})}
+                    className="w-4 h-4 text-[#8c1526] rounded border-slate-300 focus:ring-[#8c1526]"
+                  />
+                  Essentially Normal
+                </label>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Valid Until (Excuse Date)</label>
-                <input required type="date" value={medcertData.valid_until} onChange={e => setMedcertData({...medcertData, valid_until: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Reason / Remarks (If with findings)</label>
+                <textarea value={medcertData.reason} onChange={e => setMedcertData({...medcertData, reason: e.target.value})} rows={3} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] resize-none"></textarea>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Valid Until (Excuse Date) - Optional</label>
+                <input type="date" value={medcertData.valid_until} onChange={e => setMedcertData({...medcertData, valid_until: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Clinic Branch</label>
@@ -1731,7 +1763,7 @@ const Consultation: React.FC = () => {
           </div>
 
           {/* A4 Paper Printable Sheet */}
-          <div className="w-[210mm] min-h-[297mm] bg-white shadow-2xl print:shadow-none p-14 relative flex flex-col justify-between text-slate-900 font-serif border border-slate-200 print:border-none print:p-8">
+          <div className="w-[210mm] min-h-[297mm] bg-white shadow-2xl print:shadow-none p-14 relative flex flex-col text-slate-900 font-serif border border-slate-200 print:border-none print:p-8">
             
             <div>
               <div className="mb-6 relative">
@@ -1774,20 +1806,20 @@ const Consultation: React.FC = () => {
 
                 <p className="indent-12">
                   This is to certify that <span className="inline-block border-b border-black min-w-[320px] text-center font-bold px-2 uppercase">{medcertData.issued_to}</span>, <span className="inline-block border-b border-black min-w-[60px] text-center px-2">&nbsp;</span> years old
-                  <br />and a resident of <span className="inline-block border-b border-black min-w-[440px] text-center px-2">&nbsp;</span> has been examined at the
+                  <br />and a resident of <span className="inline-block border-b border-black min-w-[440px] text-center px-2 font-semibold uppercase">{medcertData.address || <>&nbsp;</>}</span> has been examined at the
                   <br />School Clinic-Cor Jesu College.
                 </p>
 
                 <div className="pl-12 space-y-3 my-6 leading-relaxed">
                   <div className="flex items-center gap-3">
                     <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5">
-                      {!medcertData.reason && <span></span>}
+                      {medcertData.is_essentially_normal && <span>✓</span>}
                     </div>
                     <span>ESSENTIALLY NORMAL</span>
                   </div>
                   <div className="flex items-end gap-3">
                     <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5 mb-1.5">
-                      {medcertData.reason && <span>✓</span>}
+                      {(!medcertData.is_essentially_normal && medcertData.reason) && <span>✓</span>}
                     </div>
                     <span className="whitespace-nowrap">With Findings:</span>
                     <span className="border-b border-black w-full inline-block min-h-[1.5rem] px-2">{medcertData.reason}</span>
@@ -1808,7 +1840,7 @@ const Consultation: React.FC = () => {
             </div>
 
             {/* Bottom Signatures Section */}
-            <div className="pt-4 font-serif pb-12">
+            <div className="pt-4 font-serif pb-12 mt-24">
               <div className="flex justify-end">
                 <div className="text-center w-[300px]">
                   <div className="font-extrabold text-base text-slate-900 uppercase">

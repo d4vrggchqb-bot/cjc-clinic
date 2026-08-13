@@ -57,7 +57,7 @@ interface DepartmentCategory {
   programs: ProgramItem[];
 }
 
-const DEPARTMENT_HIERARCHY: DepartmentCategory[] = [
+const DEFAULT_DEPARTMENT_HIERARCHY: DepartmentCategory[] = [
   {
     id: 'CCIS',
     name: 'CCIS - College of Computer & Information Sciences',
@@ -226,18 +226,21 @@ const Appointments: React.FC = () => {
   const [checkedBatchPatientIds, setCheckedBatchPatientIds] = useState<Record<number, boolean>>({});
   const [isFetchingBatch, setIsFetchingBatch] = useState(false);
   const [hasFetchedBatch, setHasFetchedBatch] = useState(false);
+  const [departmentsHierarchy, setDepartmentsHierarchy] = useState<DepartmentCategory[]>(DEFAULT_DEPARTMENT_HIERARCHY);
 
-  const selectedDeptObj = DEPARTMENT_HIERARCHY.find(d => d.id === batchDept) || DEPARTMENT_HIERARCHY[0];
-  const availablePrograms = selectedDeptObj.programs;
+  const selectedDeptObj = departmentsHierarchy.find(d => d.id === batchDept) || departmentsHierarchy[0] || DEFAULT_DEPARTMENT_HIERARCHY[0];
+  const availablePrograms = selectedDeptObj?.programs || [];
   const selectedProgramObj = availablePrograms.find(p => p.value === batchProgram) || availablePrograms[0];
-  const availableYears = selectedProgramObj ? selectedProgramObj.years : ['1st Year'];
+  const availableYears = selectedProgramObj?.years || ['1st Year'];
 
   const handleDeptChange = (newDeptId: string) => {
     setBatchDept(newDeptId);
-    const deptObj = DEPARTMENT_HIERARCHY.find(d => d.id === newDeptId) || DEPARTMENT_HIERARCHY[0];
-    const firstProg = deptObj.programs[0];
-    setBatchProgram(firstProg.value);
-    setBatchYear(firstProg.years[0]);
+    const deptObj = departmentsHierarchy.find(d => d.id === newDeptId) || departmentsHierarchy[0] || DEFAULT_DEPARTMENT_HIERARCHY[0];
+    const firstProg = (deptObj?.programs || [])[0];
+    if (firstProg) {
+      setBatchProgram(firstProg.value);
+      setBatchYear((firstProg.years || ['1st Year'])[0] || '1st Year');
+    }
     setFetchedBatchPatients([]);
     setCheckedBatchPatientIds({});
     setHasFetchedBatch(false);
@@ -246,8 +249,10 @@ const Appointments: React.FC = () => {
   const handleProgramChange = (newProgValue: string) => {
     setBatchProgram(newProgValue);
     const progObj = availablePrograms.find(p => p.value === newProgValue) || availablePrograms[0];
-    if (progObj && progObj.years.length > 0) {
+    if (progObj && progObj.years && progObj.years.length > 0) {
       setBatchYear(progObj.years[0]);
+    } else {
+      setBatchYear('1st Year');
     }
     setFetchedBatchPatients([]);
     setCheckedBatchPatientIds({});
@@ -357,6 +362,37 @@ const Appointments: React.FC = () => {
         } else {
           setCues(DEFAULT_CUES);
           setPurposeType(DEFAULT_CUES[0]);
+        }
+        if (res.settings && Array.isArray(res.settings.departments_hierarchy) && res.settings.departments_hierarchy.length > 0) {
+          const globalYears = Array.isArray(res.settings.college_year_levels) && res.settings.college_year_levels.length > 0
+            ? res.settings.college_year_levels 
+            : ['1st Year', '2nd Year', '3rd Year', '4th Year', 'All Year Levels'];
+            
+          const normalizedHierarchy = res.settings.departments_hierarchy.map((item: any) => {
+            // Handle the raw settings format: { department: '...', programs: ['...'] }
+            if (item.department && Array.isArray(item.programs)) {
+              return {
+                id: item.department,
+                name: item.department,
+                programs: item.programs.length > 0 ? item.programs.map((p: any) => ({
+                  label: typeof p === 'string' ? p : p?.label || 'Unknown',
+                  value: typeof p === 'string' ? p : p?.value || 'Unknown',
+                  years: globalYears
+                })) : [{ label: 'All Programs', value: 'All', years: globalYears }]
+              };
+            }
+            // Fallback for valid format if it ever changes
+            return item;
+          });
+          
+          setDepartmentsHierarchy(normalizedHierarchy);
+          setBatchDept(normalizedHierarchy[0].id);
+          if (normalizedHierarchy[0].programs && normalizedHierarchy[0].programs.length > 0) {
+            setBatchProgram(normalizedHierarchy[0].programs[0].value);
+            if (normalizedHierarchy[0].programs[0].years && normalizedHierarchy[0].programs[0].years.length > 0) {
+              setBatchYear(normalizedHierarchy[0].programs[0].years[0]);
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to load settings cues', err);
@@ -1202,7 +1238,7 @@ const Appointments: React.FC = () => {
                               onChange={(e) => handleDeptChange(e.target.value)}
                               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C01D38]/20 focus:border-[#C01D38] transition-all cursor-pointer"
                             >
-                              {DEPARTMENT_HIERARCHY.map(d => (
+                              {departmentsHierarchy.map(d => (
                                 <option key={d.id} value={d.id}>
                                   {d.name}
                                 </option>

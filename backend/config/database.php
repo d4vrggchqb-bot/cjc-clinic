@@ -49,7 +49,7 @@ function cjcDatabaseConnection(): PDO
     $targetPass = $pass;
 
     if ($primaryHost !== '127.0.0.1' && $primaryHost !== 'localhost') {
-        if (!cjcIsPortOpen($primaryHost, 3306, 0.4)) {
+        if (!cjcIsPortOpen($primaryHost, 3306, 2.0)) {
             $targetHost = '127.0.0.1';
             $targetUser = 'root';
             $targetPass = '';

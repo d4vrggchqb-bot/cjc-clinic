@@ -81,6 +81,7 @@ class ConsultationController {
                            c.clinic_branch,
                            p.patient_id_number,
                            COALESCE(CONCAT(p.first_name, ' ', p.last_name), 'Unknown') AS patient_name,
+                           p.address,
                            c.created_at AS time_in,
                            c.purpose,
                            c.time_out,

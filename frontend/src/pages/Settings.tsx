@@ -284,15 +284,7 @@ export default function Settings() {
                 onEdit={(oldVal: any, newVal: any) => handleArrayEdit('college_year_levels', oldVal, newVal)}
               />
 
-              {/* Medical Personnel for Med Certs */}
-              <PersonnelEditor 
-                items={settings.medcert_personnel}
-                onSave={(newList: any) => {
-                  const updated = { ...settings, medcert_personnel: newList };
-                  setSettings(updated);
-                  saveSettings({ medcert_personnel: newList });
-                }}
-              />
+
 
               {/* BED Config - Hierarchical */}
               <div className="mt-8 border-t border-slate-200 pt-6">
@@ -354,6 +346,16 @@ export default function Settings() {
                 onAdd={(v: any) => handleArrayAdd('common_conditions', v)}
                 onRemove={(v: any) => handleArrayRemove('common_conditions', v)}
                 onEdit={(oldVal: any, newVal: any) => handleArrayEdit('common_conditions', oldVal, newVal)}
+              />
+
+              {/* Medical Personnel for Med Certs */}
+              <PersonnelEditor 
+                items={settings.medcert_personnel}
+                onSave={(newList: any) => {
+                  const updated = { ...settings, medcert_personnel: newList };
+                  setSettings(updated);
+                  saveSettings({ medcert_personnel: newList });
+                }}
               />
             </>
           )}

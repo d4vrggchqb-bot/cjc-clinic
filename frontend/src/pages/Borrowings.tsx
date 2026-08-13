@@ -51,7 +51,12 @@ const Borrowings: React.FC = () => {
 const CheckedOutList: React.FC = () => {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { confirm } = useConfirm();
+
+  // Return Modal State
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnItem, setReturnItem] = useState<any>(null);
+  const [returnQty, setReturnQty] = useState<number>(1);
+  const [returning, setReturning] = useState(false);
 
   const fetchCheckedOut = async () => {
     setLoading(true);
@@ -69,28 +74,37 @@ const CheckedOutList: React.FC = () => {
     fetchCheckedOut();
   }, []);
 
-  const handleReturn = async (borrowedItemId: number) => {
-    const isConfirmed = await confirm({
-      title: 'Return Equipment',
-      message: 'Mark this equipment as returned?',
-      type: 'info'
-    });
-    
-    if (!isConfirmed) return;
-    
-    try {
-      await apiFetch('/api/index.php?route=borrowings&action=return_item', {
-        method: 'POST',
-        body: JSON.stringify({ borrowed_item_id: borrowedItemId })
-      });
-      toast.success('Equipment returned successfully');
-      fetchCheckedOut();
-    } catch (e) {
-      toast.error('Failed to return item');
-    }
+  const openReturnModal = (item: any) => {
+    setReturnItem(item);
+    setReturnQty(item.quantity - (item.returned_quantity || 0));
+    setShowReturnModal(true);
   };
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Loading...</div>;
+  const submitReturn = async () => {
+    if (!returnItem) return;
+    setReturning(true);
+    try {
+      const res = await apiFetch('/api/index.php?route=borrowings&action=return_item', {
+        method: 'POST',
+        body: JSON.stringify({
+          borrowed_item_id: returnItem.borrowed_item_id,
+          return_qty: returnQty
+        })
+      });
+      if (res.success) {
+        toast.success(`Successfully returned ${returnQty}x ${returnItem.generic_name}`);
+        setShowReturnModal(false);
+        fetchCheckedOut(); // Refresh list
+      } else {
+        toast.error(res.error || res.message || 'Failed to return item');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Error returning item');
+    }
+    setReturning(false);
+  };
+
+  if (loading && items.length === 0) return <div className="p-8 text-center text-slate-500">Loading...</div>;
 
   return (
     <div className="p-6 h-full overflow-y-auto">
@@ -104,11 +118,18 @@ const CheckedOutList: React.FC = () => {
           {items.map((item) => (
             <div key={item.borrowed_item_id} className="border border-slate-200 rounded-lg p-5 flex flex-col hover:border-slate-300 transition-colors bg-slate-50/50">
               <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-2 text-[#A5192D] font-bold">
-                  <FiBox />
-                  <span>{item.brand_name ? `${item.brand_name} (${item.generic_name})` : item.generic_name}</span>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 text-[#A5192D] font-bold">
+                    <FiBox />
+                    <span>{item.brand_name ? `${item.brand_name} (${item.generic_name})` : item.generic_name}</span>
+                  </div>
+                  {item.returned_quantity > 0 && (
+                    <span className="text-[10px] font-bold text-emerald-600 mt-1">
+                      Returned: {item.returned_quantity} / {item.quantity}
+                    </span>
+                  )}
                 </div>
-                <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-bold">Qty: {item.quantity}</span>
+                <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-bold whitespace-nowrap">Qty: {item.quantity}</span>
               </div>
               
               <div className="text-sm text-slate-600 space-y-1 mb-4 flex-1">
@@ -125,13 +146,72 @@ const CheckedOutList: React.FC = () => {
               </div>
               
               <button
-                onClick={() => handleReturn(item.borrowed_item_id)}
+                onClick={() => openReturnModal(item)}
                 className="w-full py-2 bg-white border-2 border-[#A5192D] text-[#A5192D] hover:bg-[#A5192D] hover:text-white rounded-md font-bold transition-colors flex items-center justify-center gap-2"
               >
                 <FiCheckCircle /> Mark as Returned
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Return Modal */}
+      {showReturnModal && returnItem && (
+        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <FiBox className="text-[#A5192D]" />
+                Return Item
+              </h3>
+              <button 
+                onClick={() => setShowReturnModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="p-5">
+              <p className="text-sm text-slate-600 mb-4">
+                How many <strong className="text-slate-800">{returnItem.generic_name}</strong> are you returning?
+              </p>
+              
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Quantity to Return</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={1}
+                    max={returnItem.quantity - (returnItem.returned_quantity || 0)}
+                    value={returnQty}
+                    onChange={(e) => setReturnQty(Math.min(returnItem.quantity - (returnItem.returned_quantity || 0), Math.max(1, parseInt(e.target.value) || 1)))}
+                    className="w-full border border-slate-300 rounded-md p-2.5 font-bold text-slate-800 focus:outline-none focus:border-[#A5192D]"
+                  />
+                  <span className="text-sm font-semibold text-slate-400 whitespace-nowrap">
+                    / {returnItem.quantity - (returnItem.returned_quantity || 0)} max
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mt-6">
+                <button
+                  onClick={() => setShowReturnModal(false)}
+                  className="flex-1 border border-slate-300 text-slate-600 font-bold py-2.5 rounded-md hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitReturn}
+                  disabled={returning}
+                  className="flex-1 bg-[#A5192D] text-white font-bold py-2.5 rounded-md hover:bg-[#8B1424] transition-colors disabled:opacity-70"
+                >
+                  {returning ? 'Processing...' : 'Confirm Return'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -523,8 +603,15 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
 const BookingHistoryList: React.FC = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Return Modal State
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnItem, setReturnItem] = useState<any>(null);
+  const [returnQty, setReturnQty] = useState<number>(1);
+  const [returning, setReturning] = useState(false);
 
-  useEffect(() => {
+  const fetchHistory = () => {
+    setLoading(true);
     apiFetch('/api/index.php?route=borrowings&action=recent_history')
       .then(res => {
         setHistory(res.history || []);
@@ -534,9 +621,43 @@ const BookingHistoryList: React.FC = () => {
         toast.error('Failed to load borrowing history');
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchHistory();
   }, []);
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Loading history...</div>;
+  const openReturnModal = (item: any) => {
+    setReturnItem(item);
+    setReturnQty(item.quantity - (item.returned_quantity || 0));
+    setShowReturnModal(true);
+  };
+
+  const submitReturn = async () => {
+    if (!returnItem) return;
+    setReturning(true);
+    try {
+      const res = await apiFetch('/api/index.php?route=borrowings&action=return_item', {
+        method: 'POST',
+        body: JSON.stringify({
+          borrowed_item_id: returnItem.id,
+          return_qty: returnQty
+        })
+      });
+      if (res.success) {
+        toast.success(`Successfully returned ${returnQty}x ${returnItem.generic_name}`);
+        setShowReturnModal(false);
+        fetchHistory(); // Refresh history
+      } else {
+        toast.error(res.error || res.message || 'Failed to return item');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Error returning item');
+    }
+    setReturning(false);
+  };
+
+  if (loading && history.length === 0) return <div className="p-8 text-center text-slate-500">Loading history...</div>;
 
   return (
     <div className="p-6 h-full overflow-y-auto">
@@ -572,14 +693,40 @@ const BookingHistoryList: React.FC = () => {
               <div className="flex-1">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Items Borrowed / Dispensed</p>
                 <div className="space-y-2">
-                  {record.items.map((item: any, i: number) => (
-                    <div key={i} className="flex justify-between items-center text-sm bg-white p-2 border border-slate-100 rounded-md shadow-sm">
-                      <span className="font-medium text-slate-700">{item.generic_name} <span className="text-slate-400 text-xs">x{item.quantity}</span></span>
-                      {item.status === 'borrowed' && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">ACTIVE</span>}
-                      {item.status === 'returned' && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">RETURNED</span>}
-                      {item.status === 'dispensed' && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-200">DISPENSED</span>}
-                    </div>
-                  ))}
+                  {record.items.map((item: any, i: number) => {
+                    const remaining = item.quantity - (item.returned_quantity || 0);
+                    const canReturn = remaining > 0 && (item.status === 'borrowed' || item.status === 'dispensed');
+                    
+                    return (
+                      <div key={i} className="flex justify-between items-center text-sm bg-white p-2 border border-slate-100 rounded-md shadow-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-700">
+                            {item.generic_name} 
+                            <span className="text-slate-400 text-xs ml-1">x{item.quantity}</span>
+                          </span>
+                          {item.returned_quantity > 0 && (
+                            <span className="text-[10px] font-bold text-emerald-600 mt-0.5">
+                              Returned: {item.returned_quantity} / {item.quantity}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {item.status === 'borrowed' && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">ACTIVE</span>}
+                          {item.status === 'returned' && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">RETURNED</span>}
+                          {item.status === 'dispensed' && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-200">DISPENSED</span>}
+                          
+                          {canReturn && (
+                            <button
+                              onClick={() => openReturnModal(item)}
+                              className="text-[10px] font-bold bg-white text-slate-600 border border-slate-300 hover:bg-slate-100 hover:text-slate-800 px-2 py-1 rounded-md shadow-sm transition-colors"
+                            >
+                              RETURN
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -588,6 +735,65 @@ const BookingHistoryList: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Return Modal */}
+      {showReturnModal && returnItem && (
+        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <FiBox className="text-[#A5192D]" />
+                Return Item
+              </h3>
+              <button 
+                onClick={() => setShowReturnModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="p-5">
+              <p className="text-sm text-slate-600 mb-4">
+                How many <strong className="text-slate-800">{returnItem.generic_name}</strong> are you returning?
+              </p>
+              
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Quantity to Return</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={1}
+                    max={returnItem.quantity - (returnItem.returned_quantity || 0)}
+                    value={returnQty}
+                    onChange={(e) => setReturnQty(Math.min(returnItem.quantity - (returnItem.returned_quantity || 0), Math.max(1, parseInt(e.target.value) || 1)))}
+                    className="w-full border border-slate-300 rounded-md p-2.5 font-bold text-slate-800 focus:outline-none focus:border-[#A5192D]"
+                  />
+                  <span className="text-sm font-semibold text-slate-400 whitespace-nowrap">
+                    / {returnItem.quantity - (returnItem.returned_quantity || 0)} max
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mt-6">
+                <button
+                  onClick={() => setShowReturnModal(false)}
+                  className="flex-1 border border-slate-300 text-slate-600 font-bold py-2.5 rounded-md hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitReturn}
+                  disabled={returning}
+                  className="flex-1 bg-[#A5192D] text-white font-bold py-2.5 rounded-md hover:bg-[#8B1424] transition-colors disabled:opacity-70"
+                >
+                  {returning ? 'Processing...' : 'Confirm Return'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
