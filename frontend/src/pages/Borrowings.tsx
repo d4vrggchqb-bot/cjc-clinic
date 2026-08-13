@@ -81,13 +81,17 @@ function fmtDateShort(d: string | null) {
 ───────────────────────────────────────────────────────────────── */
 function printBorrowingSlip(b: any) {
   if (!b) return;
+
+  // Logo URL (base64-encode inline or use absolute URL to the med cert image)
+  const logoSrc = `${window.location.origin}/med cert.png`;
+
   const itemRows = (b.items || []).map((item: any, idx: number) => `
-    <tr style="background:${idx % 2 === 0 ? '#fff' : '#fafafa'};border-bottom:1px solid #eee">
+    <tr style="background:${idx % 2 === 0 ? '#fff' : '#f9f9f9'};border-bottom:1px solid #eee">
       <td style="padding:6px 10px">${idx + 1}</td>
-      <td style="padding:6px 10px;font-weight:600">${item.brand_name ? item.brand_name + (item.generic_name ? ' — ' + item.generic_name : '') : item.generic_name}</td>
+      <td style="padding:6px 10px;font-weight:600">${item.brand_name ? item.brand_name + (item.generic_name ? ' &#8212; ' + item.generic_name : '') : item.generic_name}</td>
       <td style="padding:6px 10px;text-align:center;text-transform:capitalize">${item.category || item.item_type}</td>
       <td style="padding:6px 10px;text-align:center">
-        <span style="background:${item.item_type === 'equipment' ? '#dbeafe' : '#dcfce7'};color:${item.item_type === 'equipment' ? '#1d4ed8' : '#15803d'};padding:1px 8px;border-radius:4px;font-size:11px;font-weight:700">
+        <span style="background:${item.item_type === 'equipment' ? '#dbeafe' : '#dcfce7'};color:${item.item_type === 'equipment' ? '#1d4ed8' : '#15803d'};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">
           ${item.item_type === 'equipment' ? 'To Return' : 'Consumable'}
         </span>
       </td>
@@ -96,41 +100,73 @@ function printBorrowingSlip(b: any) {
   `).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-  <title>Borrowing Slip — ${b.booking_code}</title>
+  <title>Borrowing Slip &#8212; ${b.booking_code}</title>
   <style>
-    body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#000}
+    body{font-family:Arial,sans-serif;margin:0;padding:0;color:#000;font-size:13px}
     *{box-sizing:border-box}
-    @page{margin:12mm}
+    @page{margin:10mm 12mm}
     @media print{body{padding:0}}
-    table{width:100%;border-collapse:collapse;font-size:13px}
-    th{background:#A5192D;color:#fff;padding:6px 10px;text-align:left;font-weight:700}
-    .label{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
-    .section{border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:14px}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:13px}
-    .sigline{border-bottom:1.5px solid #333;min-height:28px;margin-bottom:4px}
-    .siglabel{font-size:11px;color:#555}
+    .wrap{max-width:700px;margin:0 auto;padding:0}
+    /* ---- COR JESU HEADER ---- */
+    .cjc-header{display:flex;align-items:center;justify-content:space-between;padding:10px 0 6px;border-bottom:3px solid #1a237e}
+    .cjc-logo{width:70px;height:70px;object-fit:contain}
+    .cjc-title-block{flex:1;text-align:center;padding:0 10px}
+    .cjc-title{font-size:26px;font-weight:900;color:#c00;font-family:Arial,sans-serif;line-height:1;margin:0}
+    .cjc-sub{font-size:11px;color:#7a4a00;font-weight:600;margin:2px 0 0}
+    .cjc-addr{font-size:10px;color:#555;margin:1px 0 0}
+    .cjc-index-box{border:1px solid #333;padding:4px 8px;font-size:9px;min-width:130px;line-height:1.8}
+    .cjc-index-box div{display:flex;justify-content:space-between;gap:12px}
+    .cjc-index-box span{border-bottom:1px solid #999;display:inline-block;width:70px}
+    .doc-title{text-align:center;font-size:15px;font-weight:900;color:#A5192D;letter-spacing:1.5px;text-transform:uppercase;margin:10px 0 2px;padding:6px;border-bottom:1px solid #ddd}
+    /* ---- Content ---- */
+    .meta-row{display:flex;justify-content:space-between;gap:12px;margin:10px 0;font-size:12px}
+    .meta-block{flex:1}
+    .label{font-size:9px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+    .section{border:1px solid #ddd;border-radius:5px;padding:10px;margin-bottom:10px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
+    table{width:100%;border-collapse:collapse}
+    th{background:#A5192D;color:#fff;padding:6px 10px;text-align:left;font-weight:700;font-size:11px}
+    td{padding:6px 10px;font-size:12px}
+    .sigline{border-bottom:1.5px solid #333;min-height:26px;margin-bottom:3px}
+    .siglabel{font-size:10px;color:#555}
+    .footer{text-align:center;font-size:9px;color:#aaa;margin-top:10px;border-top:1px solid #eee;padding-top:6px}
   </style>
   </head><body>
-  <div style="max-width:680px;margin:0 auto;border:2px solid #333;border-radius:8px;padding:24px">
-    <div style="text-align:center;border-bottom:2px solid #A5192D;padding-bottom:12px;margin-bottom:16px">
-      <div style="font-size:11px;color:#A5192D;font-weight:700;letter-spacing:2px;text-transform:uppercase">CJC Clinic Management System</div>
-      <div style="font-size:22px;font-weight:900;color:#A5192D;margin-top:2px">EQUIPMENT BORROWING SLIP</div>
-      <div style="font-size:12px;color:#555;margin-top:2px">College Clinic</div>
+  <div class="wrap">
+    <!-- COR JESU HEADER -->
+    <div class="cjc-header">
+      <img class="cjc-logo" src="${logoSrc}" alt="CJC Logo" onerror="this.style.display='none'" />
+      <div class="cjc-title-block">
+        <div class="cjc-title">COR JESU COLLEGE, INC.</div>
+        <div class="cjc-sub">COLLEGE CLINIC</div>
+        <div class="cjc-addr">Sacred Heart Avenue, Digos City, Davao del Sur, Philippines</div>
+        <div class="cjc-addr">Tel. No.: (082) 553-2433 local 101 &bull; www.cjc.edu.ph</div>
+      </div>
+      <div class="cjc-index-box">
+        <div>Index No.: <span></span></div>
+        <div>Revision No.: <span></span></div>
+        <div>Effective Date: <span></span></div>
+        <div>Control No.: <span></span></div>
+      </div>
     </div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:16px;gap:12px">
-      <div>
+    <!-- DOCUMENT TITLE -->
+    <div class="doc-title">&#x1F4CB; Equipment Borrowing Slip</div>
+    <!-- META -->
+    <div class="meta-row">
+      <div class="meta-block">
         <div class="label">Booking Reference</div>
-        <div style="font-size:20px;font-weight:900;letter-spacing:2px;color:#A5192D;font-family:monospace">${b.booking_code}</div>
+        <div style="font-size:18px;font-weight:900;letter-spacing:2px;color:#A5192D;font-family:monospace">${b.booking_code}</div>
       </div>
       <div style="text-align:right">
         <div class="label">Date Borrowed</div>
-        <div style="font-size:13px;font-weight:600">${fmtDate(b.created_at)}</div>
-        ${b.expected_return_date ? `<div class="label" style="margin-top:8px">Expected Return</div><div style="font-size:13px;font-weight:600;color:${b.is_overdue ? '#c00' : '#000'}">${fmtDate(b.expected_return_date)}</div>` : ''}
+        <div style="font-weight:600">${fmtDate(b.created_at)}</div>
+        ${b.expected_return_date ? `<div class="label" style="margin-top:6px">Expected Return</div><div style="font-weight:600;color:${b.is_overdue ? '#c00' : '#000'}">${fmtDate(b.expected_return_date)}</div>` : ''}
       </div>
     </div>
+    <!-- BORROWER -->
     <div class="section">
       <div class="label">Borrower Information</div>
-      <div class="grid2">
+      <div class="grid2" style="margin-top:6px">
         <div><strong>Name:</strong> ${b.first_name} ${b.last_name}</div>
         <div><strong>Type:</strong> ${b.profile_type ? b.profile_type.charAt(0).toUpperCase() + b.profile_type.slice(1) : ''}</div>
         ${b.course ? `<div><strong>Course:</strong> ${b.course} ${b.year_level || ''}</div>` : ''}
@@ -138,29 +174,32 @@ function printBorrowingSlip(b: any) {
         <div style="grid-column:1/-1"><strong>Purpose:</strong> ${b.purpose}</div>
       </div>
     </div>
-    <div style="margin-bottom:16px">
+    <!-- ITEMS TABLE -->
+    <div style="margin-bottom:10px">
       <div class="label">Items Borrowed</div>
-      <table><thead><tr><th>#</th><th>Item Name</th><th style="text-align:center">Category</th><th style="text-align:center">Type</th><th style="text-align:center">Qty</th></tr></thead>
+      <table style="margin-top:4px"><thead><tr><th>#</th><th>Item Name</th><th style="text-align:center">Category</th><th style="text-align:center">Type</th><th style="text-align:center">Qty</th></tr></thead>
       <tbody>${itemRows}</tbody></table>
     </div>
+    <!-- SIGNATURES -->
     <div class="section">
       <div class="label">Acknowledgment &amp; Signatures</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:13px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px">
         <div><div class="sigline"></div><div class="siglabel">Released by (Staff) + Date</div></div>
         <div><div class="sigline"></div><div class="siglabel">Received by (Borrower) + Date</div></div>
         <div><div class="sigline"></div><div class="siglabel">Returned to (Staff) + Date</div></div>
         <div><div class="sigline"></div><div class="siglabel">Borrower's Signature + Date</div></div>
       </div>
     </div>
-    <div style="font-size:10px;color:#888;line-height:1.5;border-top:1px solid #eee;padding-top:10px">
-      <strong>Terms &amp; Conditions:</strong> The borrower is responsible for returning all equipment in the same condition as when borrowed. Any equipment that is lost or damaged must be replaced or the cost of repair/replacement reimbursed to the clinic. Consumable supplies are permanently dispensed and non-returnable. This slip must be presented upon return.
+    <!-- TERMS -->
+    <div style="font-size:9.5px;color:#888;line-height:1.5;border-top:1px solid #eee;padding-top:8px">
+      <strong>Terms &amp; Conditions:</strong> The borrower is responsible for returning all equipment in the same condition as when borrowed. Equipment that is lost or damaged must be replaced or the cost reimbursed to the clinic. Consumable supplies are permanently dispensed and non-returnable. This slip must be presented upon return.
     </div>
-    <div style="text-align:center;font-size:10px;color:#aaa;margin-top:10px">CJC Clinic Patient Records System • ${new Date().toLocaleString()}</div>
+    <div class="footer">CJC Clinic Patient Records System &bull; Generated: ${new Date().toLocaleString()}</div>
   </div>
   <script>window.onload=function(){window.print();}<\/script>
   </body></html>`;
 
-  const win = window.open('', '_blank', 'width=860,height=720');
+  const win = window.open('', '_blank', 'width=860,height=780');
   if (!win) { toast.error('Please allow popups to enable printing.'); return; }
   win.document.write(html);
   win.document.close();
@@ -419,9 +458,6 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
           </div>
         </div>
       </div>
-
-      {/* Hidden print slip */}
-      {detail && <PrintSlip borrowing={detail} printRef={printRef} />}
     </div>
   );
 };
