@@ -56,54 +56,47 @@ const PatientList: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   const { availablePrograms, availableYearLevels } = React.useMemo(() => {
-    let progs: string[] = [];
-    let years: string[] = [];
+    let progs = new Set<string>();
+    let years = new Set<string>();
     const dept = filterDept;
 
-    if (!dept) return { availablePrograms: [], availableYearLevels: [] };
+    const branch = currentUser?.clinic_branch || 'All Branches';
+    const isSuperadmin = currentUser?.role === 'Superadmin';
 
     const defaultCollegeYears = Array.isArray(globalSettings?.college_year_levels) && globalSettings.college_year_levels.length > 0
       ? globalSettings.college_year_levels
       : ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'];
 
-    if (Array.isArray(globalSettings?.departments_hierarchy)) {
-      const found = globalSettings.departments_hierarchy.find((d: any) => (d.department || d.name) === dept);
-      if (found) {
-        progs = Array.isArray(found.programs) ? found.programs : [];
-        years = defaultCollegeYears;
-        return { availablePrograms: progs, availableYearLevels: years };
-      }
+    const processHierarchy = (arr: any[], idField: string, defaultYears: string[]) => {
+      if (!Array.isArray(arr)) return;
+      arr.forEach((item: any) => {
+        const name = item[idField] || item.name;
+        if (!dept || name === dept) {
+          if (Array.isArray(item.programs)) {
+            item.programs.forEach((p: string) => progs.add(p));
+          }
+          const itemYears = Array.isArray(item.year_levels) && item.year_levels.length > 0 ? item.year_levels : defaultYears;
+          itemYears.forEach((y: string) => years.add(y));
+        }
+      });
+    };
+
+    if (isSuperadmin || branch === 'College Clinic' || branch === 'All Branches') {
+      processHierarchy(globalSettings?.departments_hierarchy, 'department', defaultCollegeYears);
+      processHierarchy(globalSettings?.post_graduate_hierarchy, 'school', defaultCollegeYears);
+    }
+    
+    if (isSuperadmin || branch === 'BED Clinic' || branch === 'All Branches') {
+      processHierarchy(globalSettings?.bed_hierarchy, 'program', []);
     }
 
-    if (Array.isArray(globalSettings?.post_graduate_hierarchy)) {
-      const found = globalSettings.post_graduate_hierarchy.find((s: any) => (s.school || s.name) === dept);
-      if (found) {
-        progs = Array.isArray(found.programs) ? found.programs : [];
-        years = defaultCollegeYears;
-        return { availablePrograms: progs, availableYearLevels: years };
-      }
-    }
+    processHierarchy(globalSettings?.custom_categories_hierarchy, 'category', defaultCollegeYears);
 
-    if (Array.isArray(globalSettings?.bed_hierarchy)) {
-      const found = globalSettings.bed_hierarchy.find((b: any) => b.program === dept);
-      if (found) {
-        progs = [];
-        years = Array.isArray(found.year_levels) ? found.year_levels : [];
-        return { availablePrograms: progs, availableYearLevels: years };
-      }
-    }
-
-    if (Array.isArray(globalSettings?.custom_categories_hierarchy)) {
-      const found = globalSettings.custom_categories_hierarchy.find((c: any) => (c.category || c.name) === dept);
-      if (found) {
-        progs = Array.isArray(found.programs) ? found.programs : [];
-        years = defaultCollegeYears;
-        return { availablePrograms: progs, availableYearLevels: years };
-      }
-    }
-
-    return { availablePrograms: [], availableYearLevels: [] };
-  }, [filterDept, globalSettings]);
+    return { 
+      availablePrograms: Array.from(progs).sort(), 
+      availableYearLevels: Array.from(years) 
+    };
+  }, [filterDept, globalSettings, currentUser]);
 
   useEffect(() => {
     setFilterCourse('');
