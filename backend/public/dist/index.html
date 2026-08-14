@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CJC Clinic</title>
     <link rel="icon" type="image/png" href="/assets/logo.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#A5192D" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CJC Clinic" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400&family=Mulish:wght@300;400&display=swap" rel="stylesheet">
@@ -13,5 +18,14 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((reg) => console.log('ServiceWorker registered successfully:', reg.scope))
+            .catch((err) => console.warn('ServiceWorker registration skipped/failed:', err));
+        });
+      }
+    </script>
   </body>
 </html>

@@ -301,8 +301,8 @@ const PurchaseOrders: React.FC = () => {
                       <input required type="text" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] bg-white" value={newOrder.generic_name} onChange={e => setNewOrder({...newOrder, generic_name: e.target.value})} placeholder="e.g. Paracetamol" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Brand Name <span className="text-red-500">*</span></label>
-                      <input required type="text" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] bg-white" value={newOrder.brand_name} onChange={e => setNewOrder({...newOrder, brand_name: e.target.value})} placeholder="e.g. Biogesic" />
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Brand Name (Optional)</label>
+                      <input type="text" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] bg-white" value={newOrder.brand_name} onChange={e => setNewOrder({...newOrder, brand_name: e.target.value})} placeholder="e.g. Biogesic (Optional)" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1">Dosage (e.g. 500mg)</label>

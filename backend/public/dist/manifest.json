@@ -1,0 +1,21 @@
+{
+  "short_name": "CJC Clinic",
+  "name": "Cor Jesu College Clinic Records & Inventory",
+  "icons": [
+    {
+      "src": "/cjc-logo.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/cjc-logo.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#A5192D",
+  "display": "standalone",
+  "orientation": "portrait-primary"
+}

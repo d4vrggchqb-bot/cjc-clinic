@@ -46,8 +46,8 @@ class InventoryController {
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         
-        if (isset($input['category']) && $input['category'] === 'medicine' && empty(trim($input['brand_name'] ?? ''))) {
-            $this->jsonResponse(['success' => false, 'error' => 'Brand name is required for medicines.'], 400);
+        if (empty(trim($input['generic_name'] ?? ''))) {
+            $this->jsonResponse(['success' => false, 'error' => 'Generic name is required.'], 400);
         }
 
         $pdo = cjcDatabaseConnection();

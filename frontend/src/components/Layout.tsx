@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch, clearCsrfToken } from '../utils/api';
 import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText, FiChevronLeft, FiChevronRight, FiCalendar, FiMenu, FiX, FiRepeat, FiUserCheck, FiLock, FiShield, FiUser, FiTrash2, FiPlus, FiCheck } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
+import { SyncStatusBadge } from './SyncStatusBadge';
 
 interface SavedAccount {
   username: string;
@@ -334,6 +335,8 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <SyncStatusBadge />
+            
             {user && (
               <div className="mr-2 text-slate-500 text-[12px] font-medium hidden lg:block">
                 Welcome back, <span className="font-bold text-slate-700">{user.name || user.username}</span>

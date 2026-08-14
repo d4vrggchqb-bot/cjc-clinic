@@ -217,6 +217,16 @@ switch ($route) {
             $controller->listSsc();
         }
         break;
+
+    case 'sync':
+        require_once __DIR__ . '/../../app/Controllers/SyncController.php';
+        $controller = new SyncController();
+        if ($action === 'ping') {
+            $controller->ping();
+        } elseif ($action === 'batch') {
+            $controller->batch();
+        }
+        break;
 }
 
 // Fallback 404

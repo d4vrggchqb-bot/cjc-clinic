@@ -277,6 +277,14 @@ const PatientList: React.FC = () => {
     fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel);
   }, [pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel]);
 
+  useEffect(() => {
+    const handleSyncDone = () => {
+      fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel);
+    };
+    window.addEventListener('cjc-sync-completed', handleSyncDone);
+    return () => window.removeEventListener('cjc-sync-completed', handleSyncDone);
+  }, [pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel]);
+
   const fetchPatients = async (page: number, searchQuery: string, filterType: string, dept: string = '', sortOption: string = 'newest', course: string = '', year: string = '') => {
     setLoading(true);
     try {
