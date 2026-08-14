@@ -15,7 +15,7 @@ const Dashboard: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState<string>('All Branches');
   const [predictiveAlerts, setPredictiveAlerts] = useState<any[]>([]);
   const [stats, setStats] = useState({
-    visitsThisWeek: 0,
+    visitsToday: 0,
     totalRegistered: 0,
     unattended: 0,
     pendingRechecks: 0,
@@ -104,7 +104,7 @@ const Dashboard: React.FC = () => {
           }
           
           setStats({
-            visitsThisWeek: res.visits_week || 0,
+            visitsToday: res.visits_today || 0,
             totalRegistered: res.total_registered || 0,
             unattended: res.unattended || 0,
             pendingRechecks: res.pending_rechecks || 0,
@@ -516,7 +516,7 @@ const Dashboard: React.FC = () => {
 
       {/* Metrics Row – 6-col responsive grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-5">
-        <MetricCard title="VISITS THIS WEEK"  value={stats.visitsThisWeek}       subtext="This week"                              valueColor="text-[#D32F2F]" />
+        <MetricCard title="VISITS TODAY"  value={stats.visitsToday}       subtext="Today"                              valueColor="text-[#D32F2F]" />
         <MetricCard title="TOTAL REGISTERED" value={stats.totalRegistered}       subtext="Students & Employees"                  valueColor="text-[#1976D2]" />
         <MetricCard title="UNATTENDED"       value={stats.unattended}            subtext="Today: Waiting to turn"                valueColor="text-[#ED6C02]" />
         <MetricCard title="PENDING RE-CHECKS" value={stats.pendingRechecks}      subtext="Today: Followups due"                  valueColor="text-[#9C27B0]" />

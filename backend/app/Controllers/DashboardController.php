@@ -31,13 +31,13 @@ class DashboardController {
             $branch = 'All Branches';
         }
 
-        $visitsWeek = 0;
+        $visitsToday = 0;
         try {
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM consultations WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) $branchConditionAnd");
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM consultations WHERE created_at >= CURDATE() $branchConditionAnd");
             $stmt->execute($branchParams);
-            $visitsWeek = (int)$stmt->fetchColumn();
+            $visitsToday = (int)$stmt->fetchColumn();
         } catch (PDOException $e) {
-            error_log("[CJC-CLINIC] dashboard visits_week error: " . $e->getMessage());
+            error_log("[CJC-CLINIC] dashboard visits_today error: " . $e->getMessage());
         }
 
         $totalRegistered = 0;
@@ -267,7 +267,7 @@ class DashboardController {
         $this->jsonResponse([
             'user_role' => $userRole,
             'current_branch' => $branch,
-            'visits_week' => $visitsWeek,
+            'visits_today' => $visitsToday,
             'total_registered' => $totalRegistered,
             'unattended' => $unattended,
             'pending_rechecks' => $pendingRechecks,
