@@ -122,6 +122,12 @@ try {
         // Ignore error
     }
 
+    try {
+        $pdo->exec("ALTER TABLE `borrowings` ADD COLUMN `released_by` INT DEFAULT NULL AFTER `expected_return_date`");
+    } catch (PDOException $e) {
+        // Ignore error
+    }
+
     // borrowed_items: track whether equipment stock was reserved
     try {
         $pdo->exec("ALTER TABLE `borrowed_items` ADD COLUMN `stock_reserved` TINYINT(1) NOT NULL DEFAULT 0 AFTER `status`");

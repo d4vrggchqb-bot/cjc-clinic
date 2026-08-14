@@ -47,11 +47,61 @@ const PatientList: React.FC = () => {
   const [search, setSearch] = useState('');
   const [type, setType] = useState<'all' | 'student' | 'employee' | 'guest'>('all');
   const [filterDept, setFilterDept] = useState('');
+  const [filterCourse, setFilterCourse] = useState('');
+  const [filterYearLevel, setFilterYearLevel] = useState('');
   const [sort, setSort] = useState('newest');
   const [globalSettings, setGlobalSettings] = useState<any>({});
   
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const { availablePrograms, availableYearLevels } = React.useMemo(() => {
+    let progs = new Set<string>();
+    let years = new Set<string>();
+    const dept = filterDept;
+
+    const branch = currentUser?.clinic_branch || 'All Branches';
+    const isSuperadmin = currentUser?.role === 'Superadmin';
+
+    const defaultCollegeYears = Array.isArray(globalSettings?.college_year_levels) && globalSettings.college_year_levels.length > 0
+      ? globalSettings.college_year_levels
+      : ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'];
+
+    const processHierarchy = (arr: any[], idField: string, defaultYears: string[]) => {
+      if (!Array.isArray(arr)) return;
+      arr.forEach((item: any) => {
+        const name = item[idField] || item.name;
+        if (!dept || name === dept) {
+          if (Array.isArray(item.programs)) {
+            item.programs.forEach((p: string) => progs.add(p));
+          }
+          const itemYears = Array.isArray(item.year_levels) && item.year_levels.length > 0 ? item.year_levels : defaultYears;
+          itemYears.forEach((y: string) => years.add(y));
+        }
+      });
+    };
+
+    if (isSuperadmin || branch === 'College Clinic' || branch === 'All Branches') {
+      processHierarchy(globalSettings?.departments_hierarchy, 'department', defaultCollegeYears);
+      processHierarchy(globalSettings?.post_graduate_hierarchy, 'school', defaultCollegeYears);
+    }
+    
+    if (isSuperadmin || branch === 'BED Clinic' || branch === 'All Branches') {
+      processHierarchy(globalSettings?.bed_hierarchy, 'program', []);
+    }
+
+    processHierarchy(globalSettings?.custom_categories_hierarchy, 'category', defaultCollegeYears);
+
+    return { 
+      availablePrograms: Array.from(progs).sort(), 
+      availableYearLevels: Array.from(years) 
+    };
+  }, [filterDept, globalSettings, currentUser]);
+
+  useEffect(() => {
+    setFilterCourse('');
+    setFilterYearLevel('');
+  }, [filterDept, type]);
 
   // Admit Patient with Cue State
   const [isAdmitModalOpen, setIsAdmitModalOpen] = useState(false);
@@ -86,17 +136,38 @@ const PatientList: React.FC = () => {
 
   const allDepartments = React.useMemo(() => {
     const depts = new Set<string>();
-    depts.add('Basic Education');
-    if (Array.isArray(globalSettings?.departments_hierarchy)) {
-      globalSettings.departments_hierarchy.forEach((d: any) => {
-        if (d && d.department) depts.add(d.department);
-      });
+
+    if (type === 'employee') {
+      if (Array.isArray(globalSettings?.employee_departments)) {
+        globalSettings.employee_departments.forEach((d: string) => depts.add(d));
+      }
+      return Array.from(depts).sort();
     }
-    if (Array.isArray(globalSettings?.post_graduate_hierarchy)) {
-      globalSettings.post_graduate_hierarchy.forEach((s: any) => {
-        if (s && s.school) depts.add(s.school);
-      });
+
+    const branch = currentUser?.clinic_branch || 'All Branches';
+    const isSuperadmin = currentUser?.role === 'Superadmin';
+
+    if (isSuperadmin || branch === 'BED Clinic' || branch === 'All Branches') {
+      if (Array.isArray(globalSettings?.bed_hierarchy)) {
+        globalSettings.bed_hierarchy.forEach((b: any) => {
+          if (b && b.program) depts.add(b.program);
+        });
+      }
     }
+
+    if (isSuperadmin || branch === 'College Clinic' || branch === 'All Branches') {
+      if (Array.isArray(globalSettings?.departments_hierarchy)) {
+        globalSettings.departments_hierarchy.forEach((d: any) => {
+          if (d && d.department) depts.add(d.department);
+        });
+      }
+      if (Array.isArray(globalSettings?.post_graduate_hierarchy)) {
+        globalSettings.post_graduate_hierarchy.forEach((s: any) => {
+          if (s && s.school) depts.add(s.school);
+        });
+      }
+    }
+
     if (Array.isArray(globalSettings?.custom_categories_hierarchy)) {
       globalSettings.custom_categories_hierarchy.forEach((c: any) => {
         if (c && Array.isArray(c.programs)) {
@@ -105,7 +176,7 @@ const PatientList: React.FC = () => {
       });
     }
     return Array.from(depts).sort();
-  }, [globalSettings]);
+  }, [globalSettings, currentUser]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -181,7 +252,7 @@ const PatientList: React.FC = () => {
         body: JSON.stringify({ id })
       });
       if (res.success) {
-        fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort);
+        fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel);
       } else {
         alert(res.error || 'Failed to delete patient profile.');
       }
@@ -203,13 +274,13 @@ const PatientList: React.FC = () => {
   }, [search]);
 
   useEffect(() => {
-    fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort);
-  }, [pagination.page, debouncedSearch, type, filterDept, sort]);
+    fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel);
+  }, [pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel]);
 
-  const fetchPatients = async (page: number, searchQuery: string, filterType: string, dept: string = '', sortOption: string = 'newest') => {
+  const fetchPatients = async (page: number, searchQuery: string, filterType: string, dept: string = '', sortOption: string = 'newest', course: string = '', year: string = '') => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/index.php?route=patients&action=list&page=${page}&search=${encodeURIComponent(searchQuery)}&type=${filterType}&dept=${encodeURIComponent(dept)}&sort=${sortOption}`);
+      const res = await apiFetch(`/api/index.php?route=patients&action=list&page=${page}&search=${encodeURIComponent(searchQuery)}&type=${filterType}&dept=${encodeURIComponent(dept)}&sort=${sortOption}&program=${encodeURIComponent(course)}&year=${encodeURIComponent(year)}`);
       if (res && res.profiles) {
         setPatients(res.profiles);
         if (res.pagination) {
@@ -244,10 +315,10 @@ const PatientList: React.FC = () => {
       )}
 
       {/* Control Bar */}
-      <div className="bg-white rounded-t-md border-t border-l border-r border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div className="bg-white rounded-t-md border-t border-l border-r border-slate-200 p-4 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         
         {/* Search & Filter */}
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full xl:w-auto xl:flex-1">
           <div className="relative w-full sm:w-80">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <FiSearch className="h-4 w-4 text-slate-400" />
@@ -270,6 +341,30 @@ const PatientList: React.FC = () => {
               <option key={idx} value={dept}>{dept}</option>
             ))}
           </select>
+          {type === 'student' && availablePrograms.length > 0 && (
+            <select
+              value={filterCourse}
+              onChange={(e) => { setFilterCourse(e.target.value); setPagination(prev => ({...prev, page: 1})); }}
+              className="block w-full sm:w-48 px-3 py-2 border border-slate-200 rounded-md leading-5 bg-[#FAFAFA] focus:outline-none focus:bg-white focus:border-[#C01D38] sm:text-sm transition-colors text-slate-700"
+            >
+              <option value="">All Programs</option>
+              {availablePrograms.map((prog, idx) => (
+                <option key={idx} value={prog}>{prog}</option>
+              ))}
+            </select>
+          )}
+          {type === 'student' && availableYearLevels.length > 0 && (
+            <select
+              value={filterYearLevel}
+              onChange={(e) => { setFilterYearLevel(e.target.value); setPagination(prev => ({...prev, page: 1})); }}
+              className="block w-full sm:w-48 px-3 py-2 border border-slate-200 rounded-md leading-5 bg-[#FAFAFA] focus:outline-none focus:bg-white focus:border-[#C01D38] sm:text-sm transition-colors text-slate-700"
+            >
+              <option value="">All Year Levels</option>
+              {availableYearLevels.map((yr, idx) => (
+                <option key={idx} value={yr}>{yr}</option>
+              ))}
+            </select>
+          )}
           <select
             value={sort}
             onChange={(e) => { setSort(e.target.value); setPagination(prev => ({...prev, page: 1})); }}
@@ -460,7 +555,7 @@ const PatientList: React.FC = () => {
       <PatientModal 
         isOpen={isEditModalOpen} 
         onClose={() => setIsEditModalOpen(false)} 
-        onSave={() => fetchPatients(pagination.page, debouncedSearch, type)} 
+        onSave={() => fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel)} 
         patientId={selectedPatientId} 
       />
       

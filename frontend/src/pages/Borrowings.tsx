@@ -77,80 +77,110 @@ function fmtDateShort(d: string | null) {
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   Print Slip — window.open approach (reliable, no ref timing issues)
+   Print Slip — window.open approach (reliable, mode-aware)
 ───────────────────────────────────────────────────────────────── */
-function printBorrowingSlip(b: any) {
+function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
   if (!b) return;
 
-  // Logo URL (base64-encode inline or use absolute URL to the med cert image)
-  const logoSrc = `${window.location.origin}/med cert.png`;
+  const logoSrc = `${window.location.origin}/med_cert_header.png`;
+  const isHistory = mode === 'history' || b.borrowing_status === 'returned' || Boolean(b.returned_at);
 
-  const itemRows = (b.items || []).map((item: any, idx: number) => `
-    <tr style="background:${idx % 2 === 0 ? '#fff' : '#f9f9f9'};border-bottom:1px solid #eee">
-      <td style="padding:6px 10px">${idx + 1}</td>
-      <td style="padding:6px 10px;font-weight:600">${item.brand_name ? item.brand_name + (item.generic_name ? ' &#8212; ' + item.generic_name : '') : item.generic_name}</td>
-      <td style="padding:6px 10px;text-align:center;text-transform:capitalize">${item.category || item.item_type}</td>
-      <td style="padding:6px 10px;text-align:center">
-        <span style="background:${item.item_type === 'equipment' ? '#dbeafe' : '#dcfce7'};color:${item.item_type === 'equipment' ? '#1d4ed8' : '#15803d'};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">
-          ${item.item_type === 'equipment' ? 'To Return' : 'Consumable'}
-        </span>
-      </td>
-      <td style="padding:6px 10px;text-align:center;font-weight:700">${item.quantity}</td>
-    </tr>
-  `).join('');
+  let tableHeaderHtml = '';
+  let itemRowsHtml = '';
+
+  if (isHistory) {
+    tableHeaderHtml = `
+      <tr>
+        <th style="padding:6px 10px;text-align:left">#</th>
+        <th style="padding:6px 10px;text-align:left">Item Name</th>
+        <th style="padding:6px 10px;text-align:center">Category</th>
+        <th style="padding:6px 10px;text-align:center">Borrowed</th>
+        <th style="padding:6px 10px;text-align:center">Returned (Restocked)</th>
+        <th style="padding:6px 10px;text-align:center">Consumed / Lost</th>
+        <th style="padding:6px 10px;text-align:center">Status</th>
+      </tr>
+    `;
+
+    itemRowsHtml = (b.items || []).map((item: any, idx: number) => {
+      const ret = item.quantity_returned !== null ? item.quantity_returned : (item.status === 'returned' ? item.quantity : 0);
+      const cons = item.quantity_consumed !== null ? item.quantity_consumed : (item.item_type === 'supply' && item.status !== 'returned' ? item.quantity : 0);
+
+      return `
+        <tr style="background:${idx % 2 === 0 ? '#fff' : '#f9f9f9'};border-bottom:1px solid #eee">
+          <td style="padding:6px 10px">${idx + 1}</td>
+          <td style="padding:6px 10px;font-weight:600">${item.brand_name ? item.brand_name + (item.generic_name ? ' &#8212; ' + item.generic_name : '') : item.generic_name}</td>
+          <td style="padding:6px 10px;text-align:center;text-transform:capitalize">${item.category || item.item_type}</td>
+          <td style="padding:6px 10px;text-align:center;font-weight:700">${item.quantity}</td>
+          <td style="padding:6px 10px;text-align:center;font-weight:700;color:#15803d;background:#f0fdf4">${ret}</td>
+          <td style="padding:6px 10px;text-align:center;font-weight:700;color:#b45309;background:#fffbeb">${cons}</td>
+          <td style="padding:6px 10px;text-align:center">
+            <span style="background:${item.status === 'returned' ? '#dcfce7' : '#fef3c7'};color:${item.status === 'returned' ? '#15803d' : '#b45309'};padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase">
+              ${item.status}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+  } else {
+    // Checkout mode
+    tableHeaderHtml = `
+      <tr>
+        <th style="padding:6px 10px;text-align:left">#</th>
+        <th style="padding:6px 10px;text-align:left">Item Name</th>
+        <th style="padding:6px 10px;text-align:center">Category</th>
+        <th style="padding:6px 10px;text-align:center">Type</th>
+        <th style="padding:6px 10px;text-align:center">Qty Borrowed</th>
+      </tr>
+    `;
+
+    itemRowsHtml = (b.items || []).map((item: any, idx: number) => `
+      <tr style="background:${idx % 2 === 0 ? '#fff' : '#f9f9f9'};border-bottom:1px solid #eee">
+        <td style="padding:6px 10px">${idx + 1}</td>
+        <td style="padding:6px 10px;font-weight:600">${item.brand_name ? item.brand_name + (item.generic_name ? ' &#8212; ' + item.generic_name : '') : item.generic_name}</td>
+        <td style="padding:6px 10px;text-align:center;text-transform:capitalize">${item.category || item.item_type}</td>
+        <td style="padding:6px 10px;text-align:center">
+          <span style="background:${item.item_type === 'equipment' ? '#dbeafe' : '#dcfce7'};color:${item.item_type === 'equipment' ? '#1d4ed8' : '#15803d'};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">
+            ${item.item_type === 'equipment' ? 'To Return' : 'Consumable'}
+          </span>
+        </td>
+        <td style="padding:6px 10px;text-align:center;font-weight:700">${item.quantity}</td>
+      </tr>
+    `).join('');
+  }
+
+  const docTitle = isHistory ? 'EQUIPMENT BORROWING & RETURN RECEIPT' : 'EQUIPMENT BORROWING SLIP';
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-  <title>Borrowing Slip &#8212; ${b.booking_code}</title>
+  <title>${docTitle} &#8212; ${b.booking_code}</title>
   <style>
-    body{font-family:Arial,sans-serif;margin:0;padding:0;color:#000;font-size:13px}
+    body{font-family:Arial,sans-serif;margin:0;padding:0;color:#000;font-size:12px}
     *{box-sizing:border-box}
     @page{margin:10mm 12mm}
     @media print{body{padding:0}}
     .wrap{max-width:700px;margin:0 auto;padding:0}
-    /* ---- COR JESU HEADER ---- */
-    .cjc-header{display:flex;align-items:center;justify-content:space-between;padding:10px 0 6px;border-bottom:3px solid #1a237e}
-    .cjc-logo{width:70px;height:70px;object-fit:contain}
-    .cjc-title-block{flex:1;text-align:center;padding:0 10px}
-    .cjc-title{font-size:26px;font-weight:900;color:#c00;font-family:Arial,sans-serif;line-height:1;margin:0}
-    .cjc-sub{font-size:11px;color:#7a4a00;font-weight:600;margin:2px 0 0}
-    .cjc-addr{font-size:10px;color:#555;margin:1px 0 0}
-    .cjc-index-box{border:1px solid #333;padding:4px 8px;font-size:9px;min-width:130px;line-height:1.8}
-    .cjc-index-box div{display:flex;justify-content:space-between;gap:12px}
-    .cjc-index-box span{border-bottom:1px solid #999;display:inline-block;width:70px}
-    .doc-title{text-align:center;font-size:15px;font-weight:900;color:#A5192D;letter-spacing:1.5px;text-transform:uppercase;margin:10px 0 2px;padding:6px;border-bottom:1px solid #ddd}
-    /* ---- Content ---- */
+    .cjc-banner{width:100%;max-width:700px;height:auto;display:block;margin:0 auto 10px}
+    .doc-title{text-align:center;font-size:14px;font-weight:900;color:#A5192D;letter-spacing:1.5px;text-transform:uppercase;margin:6px 0;padding:4px 0;border-bottom:2px solid #A5192D}
     .meta-row{display:flex;justify-content:space-between;gap:12px;margin:10px 0;font-size:12px}
     .meta-block{flex:1}
     .label{font-size:9px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
     .section{border:1px solid #ddd;border-radius:5px;padding:10px;margin-bottom:10px}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
     table{width:100%;border-collapse:collapse}
-    th{background:#A5192D;color:#fff;padding:6px 10px;text-align:left;font-weight:700;font-size:11px}
+    th{background:#A5192D;color:#fff;padding:6px 10px;font-weight:700;font-size:11px}
     td{padding:6px 10px;font-size:12px}
-    .sigline{border-bottom:1.5px solid #333;min-height:26px;margin-bottom:3px}
+    .sigline{border-bottom:1.5px solid #333;min-height:22px;margin-bottom:3px}
     .siglabel{font-size:10px;color:#555}
     .footer{text-align:center;font-size:9px;color:#aaa;margin-top:10px;border-top:1px solid #eee;padding-top:6px}
   </style>
   </head><body>
   <div class="wrap">
-    <!-- COR JESU HEADER -->
-    <div class="cjc-header">
-      <img class="cjc-logo" src="${logoSrc}" alt="CJC Logo" onerror="this.style.display='none'" />
-      <div class="cjc-title-block">
-        <div class="cjc-title">COR JESU COLLEGE, INC.</div>
-        <div class="cjc-sub">COLLEGE CLINIC</div>
-        <div class="cjc-addr">Sacred Heart Avenue, Digos City, Davao del Sur, Philippines</div>
-        <div class="cjc-addr">Tel. No.: (082) 553-2433 local 101 &bull; www.cjc.edu.ph</div>
-      </div>
-      <div class="cjc-index-box">
-        <div>Index No.: <span></span></div>
-        <div>Revision No.: <span></span></div>
-        <div>Effective Date: <span></span></div>
-        <div>Control No.: <span></span></div>
-      </div>
-    </div>
+    <!-- OFFICIAL MED CERT BANNER HEADER -->
+    <img class="cjc-banner" src="${logoSrc}" alt="Cor Jesu College Clinic Header" />
+    
     <!-- DOCUMENT TITLE -->
-    <div class="doc-title">&#x1F4CB; Equipment Borrowing Slip</div>
+    <div class="doc-title">${docTitle}</div>
+    
     <!-- META -->
     <div class="meta-row">
       <div class="meta-block">
@@ -160,10 +190,12 @@ function printBorrowingSlip(b: any) {
       <div style="text-align:right">
         <div class="label">Date Borrowed</div>
         <div style="font-weight:600">${fmtDate(b.created_at)}</div>
-        ${b.expected_return_date ? `<div class="label" style="margin-top:6px">Expected Return</div><div style="font-weight:600;color:${b.is_overdue ? '#c00' : '#000'}">${fmtDate(b.expected_return_date)}</div>` : ''}
+        ${b.expected_return_date ? `<div class="label" style="margin-top:4px">Expected Return</div><div style="font-weight:600;color:${b.is_overdue ? '#c00' : '#000'}">${fmtDate(b.expected_return_date)}</div>` : ''}
+        ${b.returned_at ? `<div class="label" style="margin-top:4px">Actual Date Returned</div><div style="font-weight:700;color:#15803d">${fmtDate(b.returned_at)}</div>` : ''}
       </div>
     </div>
-    <!-- BORROWER -->
+    
+    <!-- BORROWER INFORMATION -->
     <div class="section">
       <div class="label">Borrower Information</div>
       <div class="grid2" style="margin-top:6px">
@@ -174,29 +206,64 @@ function printBorrowingSlip(b: any) {
         <div style="grid-column:1/-1"><strong>Purpose:</strong> ${b.purpose}</div>
       </div>
     </div>
+    
     <!-- ITEMS TABLE -->
     <div style="margin-bottom:10px">
-      <div class="label">Items Borrowed</div>
-      <table style="margin-top:4px"><thead><tr><th>#</th><th>Item Name</th><th style="text-align:center">Category</th><th style="text-align:center">Type</th><th style="text-align:center">Qty</th></tr></thead>
-      <tbody>${itemRows}</tbody></table>
+      <div class="label">${isHistory ? 'Items & Reconciliation Status' : 'Items Borrowed'}</div>
+      <table style="margin-top:4px">
+        <thead>${tableHeaderHtml}</thead>
+        <tbody>${itemRowsHtml}</tbody>
+      </table>
     </div>
-    <!-- SIGNATURES -->
+    
+    <!-- ACKNOWLEDGMENT & AUTO-FILLED SIGNATURES -->
     <div class="section">
-      <div class="label">Acknowledgment &amp; Signatures</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px">
-        <div><div class="sigline"></div><div class="siglabel">Released by (Staff) + Date</div></div>
-        <div><div class="sigline"></div><div class="siglabel">Received by (Borrower) + Date</div></div>
-        <div><div class="sigline"></div><div class="siglabel">Returned to (Staff) + Date</div></div>
-        <div><div class="sigline"></div><div class="siglabel">Borrower's Signature + Date</div></div>
+      <div class="label" style="margin-bottom:8px">Acknowledgment &amp; Signatures</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-top:4px">
+        <div>
+          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
+            ${b.released_by_name || 'College Admin'} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.created_at)}</span>
+          </div>
+          <div class="siglabel" style="margin-top:3px">Released by / Date</div>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
+            ${b.first_name} ${b.last_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.created_at)}</span>
+          </div>
+          <div class="siglabel" style="margin-top:3px">Received by / Date</div>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
+            ${b.returned_to_name ? `${b.returned_to_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.returned_at)}</span>` : (b.returned_at ? `College Admin &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.returned_at)}</span>` : '&nbsp;')}
+          </div>
+          <div class="siglabel" style="margin-top:3px">Returned to / Date</div>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
+            ${b.first_name} ${b.last_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${b.returned_at ? fmtDate(b.returned_at) : fmtDate(b.created_at)}</span>
+          </div>
+          <div class="siglabel" style="margin-top:3px">Borrower's Signature / Date</div>
+        </div>
       </div>
     </div>
+    
     <!-- TERMS -->
     <div style="font-size:9.5px;color:#888;line-height:1.5;border-top:1px solid #eee;padding-top:8px">
-      <strong>Terms &amp; Conditions:</strong> The borrower is responsible for returning all equipment in the same condition as when borrowed. Equipment that is lost or damaged must be replaced or the cost reimbursed to the clinic. Consumable supplies are permanently dispensed and non-returnable. This slip must be presented upon return.
+      <strong>Terms &amp; Conditions:</strong> The borrower is responsible for returning all equipment in the same condition as when borrowed. Equipment that is lost or damaged must be replaced or the cost reimbursed to the clinic. Consumable supplies are permanently dispensed upon use. Unused returned items are restocked to clinic inventory.
     </div>
-    <div class="footer">CJC Clinic Patient Records System &bull; Generated: ${new Date().toLocaleString()}</div>
+    <div class="footer">CJC Clinic Patient Records System &bull; Printed: ${new Date().toLocaleString()}</div>
   </div>
-  <script>window.onload=function(){window.print();}<\/script>
+  <script>
+    window.onload = function() {
+      var img = document.querySelector('.cjc-banner');
+      if (img && (!img.complete || img.naturalWidth === 0)) {
+        img.onload = function() { window.print(); };
+        img.onerror = function() { window.print(); };
+      } else {
+        window.print();
+      }
+    };
+  <\/script>
   </body></html>`;
 
   const win = window.open('', '_blank', 'width=860,height=780');
@@ -446,7 +513,7 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
         {/* Modal footer */}
         <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0 bg-slate-50/50 rounded-b-2xl">
           <button
-            onClick={() => detail && printBorrowingSlip(detail)}
+            onClick={() => detail && printBorrowingSlip(detail, 'history')}
             className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg px-3 py-2 hover:bg-slate-100 transition-colors"
           >
             <FiPrinter size={15} />
@@ -558,7 +625,7 @@ const CheckedOutList: React.FC = () => {
                 {/* Actions */}
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => printBorrowingSlip(row)}
+                    onClick={() => printBorrowingSlip(row, 'checkout')}
                     title="Print borrowing slip"
                     className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                   >
@@ -765,7 +832,7 @@ const NewBookingForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-center">
           <button
-            onClick={() => printBorrowingSlip(printData)}
+            onClick={() => printBorrowingSlip(printData, 'checkout')}
             className="flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-slate-700 transition-colors shadow-sm"
           >
             <FiPrinter size={16} /> Print Borrowing Slip
@@ -1085,7 +1152,7 @@ const HistoryDetailModal: React.FC<HistoryDetailModalProps> = ({ record, onClose
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between shrink-0 bg-slate-50 rounded-b-2xl">
-          <button onClick={() => printBorrowingSlip(record)} className="flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-100 transition-colors">
+          <button onClick={() => printBorrowingSlip(record, 'history')} className="flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-100 transition-colors">
             <FiPrinter size={15} /> Print Borrowing Slip
           </button>
           <button onClick={onClose} className="bg-slate-800 text-white px-5 py-2 rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors">
@@ -1163,7 +1230,7 @@ const BookingHistoryList: React.FC = () => {
                     >
                       <FiEye size={14} /> View Details
                     </button>
-                    <button onClick={() => printBorrowingSlip(record)} title="Print borrowing slip"
+                    <button onClick={() => printBorrowingSlip(record, 'history')} title="Print borrowing slip"
                       className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
                       <FiPrinter size={16} />
                     </button>
