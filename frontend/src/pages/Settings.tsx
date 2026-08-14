@@ -275,6 +275,7 @@ export default function Settings() {
                 childKey="programs"
                 childLabel="Program"
                 onSave={(newHierarchy: any) => handleHierarchySave('departments_hierarchy', newHierarchy)}
+                requireAcronym={true}
               />
 
               <ConfigListEditor 
