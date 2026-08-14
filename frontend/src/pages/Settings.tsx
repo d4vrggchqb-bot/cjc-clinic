@@ -630,36 +630,60 @@ const ConfigListEditor = ({ title, description, items = [], onAdd, onRemove, onE
 
 
 // Master-Detail Hierarchy Editor Component
-const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, childLabel, onSave }: any) => {
+const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, childLabel, onSave, requireAcronym = false }: any) => {
   const [val, setVal] = useState('');
+  const [acronymVal, setAcronymVal] = useState('');
   const [expandedIdx, setExpandedIdx] = useState(-1);
   const [editingParentIdx, setEditingParentIdx] = useState(-1);
   const [editParentVal, setEditParentVal] = useState('');
+  const [editParentAcronymVal, setEditParentAcronymVal] = useState('');
   const { confirm } = useConfirm();
 
   const handleAddParent = async () => {
     if (!val.trim()) return;
-    const exists = items.some((i: any) => i[parentKey].toLowerCase() === val.trim().toLowerCase());
+    let finalVal = val.trim();
+    if (requireAcronym) {
+      if (!acronymVal.trim()) return alert('Acronym is required.');
+      finalVal = `${val.trim()} (${acronymVal.trim()})`;
+    }
+
+    const exists = items.some((i: any) => i[parentKey].toLowerCase() === finalVal.toLowerCase());
     if (exists) return alert('This item already exists.');
 
     const confirmed = await confirm({
       title: 'Add Category',
-      message: `Are you sure you want to add "${val.trim()}"?`,
+      message: `Are you sure you want to add "${finalVal}"?`,
       type: 'info'
     });
     if (confirmed) {
-      const newItems = [...items, { [parentKey]: val.trim(), [childKey]: [] }];
+      const newItems = [...items, { [parentKey]: finalVal, [childKey]: [] }];
       onSave(newItems);
       setVal('');
+      setAcronymVal('');
     }
   };
 
   const handleEditParentSave = async (idx: number, oldName: string) => {
-    if (!editParentVal.trim() || editParentVal === oldName) {
+    if (!editParentVal.trim()) {
       setEditingParentIdx(-1);
       return;
     }
-    const exists = items.some((i: any, iIdx: number) => iIdx !== idx && i[parentKey].toLowerCase() === editParentVal.trim().toLowerCase());
+    
+    let finalVal = editParentVal.trim();
+    if (requireAcronym) {
+      if (!editParentAcronymVal.trim()) {
+        alert('Acronym is required.');
+        return;
+      }
+      finalVal = `${editParentVal.trim()} (${editParentAcronymVal.trim()})`;
+    }
+
+    if (finalVal === oldName) {
+      setEditingParentIdx(-1);
+      return;
+    }
+
+    const exists = items.some((i: any, iIdx: number) => iIdx !== idx && i[parentKey].toLowerCase() === finalVal.toLowerCase());
     if (exists) {
         alert('This category already exists.');
         return;
@@ -667,13 +691,13 @@ const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, 
     
     const confirmed = await confirm({
       title: 'Save Changes',
-      message: `Are you sure you want to rename "${oldName}" to "${editParentVal.trim()}"?`,
+      message: `Are you sure you want to rename "${oldName}" to "${finalVal}"?`,
       type: 'info'
     });
     
     if (confirmed) {
       const newItems = [...items];
-      newItems[idx][parentKey] = editParentVal.trim();
+      newItems[idx][parentKey] = finalVal;
       onSave(newItems);
       setEditingParentIdx(-1);
     }
@@ -735,12 +759,22 @@ const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, 
           value={val} 
           onChange={e=>setVal(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleAddParent()}
-          placeholder={`Add new category...`}
-          className="border border-slate-300 rounded px-3 py-1.5 focus:border-[#007bff] focus:outline-none w-64 text-sm"
+          placeholder={requireAcronym ? "Department Name (e.g. College of Engineering)" : `Add new category...`}
+          className="border border-slate-300 rounded px-3 py-1.5 focus:border-[#007bff] focus:outline-none w-64 text-sm flex-1"
         />
+        {requireAcronym && (
+          <input 
+            type="text" 
+            value={acronymVal} 
+            onChange={e=>setAcronymVal(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === 'Enter' && handleAddParent()}
+            placeholder="Acronym (e.g. COE)"
+            className="border border-slate-300 rounded px-3 py-1.5 focus:border-[#007bff] focus:outline-none w-36 text-sm uppercase"
+          />
+        )}
         <button 
           onClick={handleAddParent}
-          disabled={!val.trim()}
+          disabled={!val.trim() || (requireAcronym && !acronymVal.trim())}
           className="bg-[#007bff] hover:bg-[#0069d9] text-white px-4 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm disabled:opacity-50"
         >
           <FiPlus /> Add
@@ -776,7 +810,21 @@ const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, 
                           }}
                           autoFocus
                           className="border border-slate-300 rounded px-2 py-1 text-sm flex-1 focus:border-[#007bff] focus:outline-none"
+                          placeholder={requireAcronym ? "Department Name" : ""}
                         />
+                        {requireAcronym && (
+                          <input 
+                            type="text"
+                            value={editParentAcronymVal}
+                            onChange={e => setEditParentAcronymVal(e.target.value.toUpperCase())}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleEditParentSave(idx, parentName);
+                              if (e.key === 'Escape') setEditingParentIdx(-1);
+                            }}
+                            className="border border-slate-300 rounded px-2 py-1 text-sm w-24 focus:border-[#007bff] focus:outline-none uppercase"
+                            placeholder="Acronym"
+                          />
+                        )}
                         <button onClick={(e) => { e.stopPropagation(); handleEditParentSave(idx, parentName); }} className="text-green-600 hover:bg-green-100 p-1 rounded transition-colors"><FiCheck /></button>
                         <button onClick={(e) => { e.stopPropagation(); setEditingParentIdx(-1); }} className="text-red-500 hover:bg-red-100 p-1 rounded transition-colors"><FiX /></button>
                       </div>
@@ -791,7 +839,22 @@ const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, 
                   {editingParentIdx !== idx && (
                     <div className="flex gap-1 group">
                       <button 
-                        onClick={(e) => { e.stopPropagation(); setEditingParentIdx(idx); setEditParentVal(parentName); }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setEditingParentIdx(idx); 
+                          if (requireAcronym) {
+                            const match = parentName.match(/^(.*?)\s*\((.*?)\)$/);
+                            if (match) {
+                              setEditParentVal(match[1]);
+                              setEditParentAcronymVal(match[2]);
+                            } else {
+                              setEditParentVal(parentName);
+                              setEditParentAcronymVal('');
+                            }
+                          } else {
+                            setEditParentVal(parentName); 
+                          }
+                        }}
                         className="text-blue-500 hover:text-blue-700 p-1 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                         title="Edit Category"
                       >
