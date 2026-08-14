@@ -347,7 +347,7 @@ class BorrowingController {
 
                 // Restore ANY returned quantity (equipment or supply) to inventory batch
                 if ($qtyReturned > 0) {
-                    // Find best batch to restore to (most recent active or non-expired batch)
+                    // Find best batch to restore to in current branch
                     $batchStmt = $pdo->prepare("
                         SELECT id FROM inventory_batches
                         WHERE item_id = ? AND clinic_branch = ?
@@ -355,6 +355,24 @@ class BorrowingController {
                     ");
                     $batchStmt->execute([$inventoryId, $branch]);
                     $restoreBatch = $batchStmt->fetch(PDO::FETCH_ASSOC);
+
+                    if (!$restoreBatch) {
+                        // Fallback: try any batch for this item regardless of branch
+                        $batchStmt = $pdo->prepare("
+                            SELECT id FROM inventory_batches
+                            WHERE item_id = ?
+                            ORDER BY (clinic_branch = ?) DESC, status = 'active' DESC, date_arrived DESC, id DESC LIMIT 1
+                        ");
+                        $batchStmt->execute([$inventoryId, $branch]);
+                        $restoreBatch = $batchStmt->fetch(PDO::FETCH_ASSOC);
+                    }
+
+                    if (!$restoreBatch) {
+                        // If still no batch exists at all, auto-create a return batch for this branch
+                        $createBatch = $pdo->prepare("INSERT INTO inventory_batches (item_id, clinic_branch, batch_number, stock_remaining, date_arrived, status) VALUES (?, ?, ?, 0, CURDATE(), 'active')");
+                        $createBatch->execute([$inventoryId, $branch, 'RET-' . date('Ymd')]);
+                        $restoreBatch = ['id' => $pdo->lastInsertId()];
+                    }
 
                     if ($restoreBatch) {
                         $pdo->prepare("UPDATE inventory_batches SET stock_remaining = stock_remaining + ?, status = 'active' WHERE id = ?")
