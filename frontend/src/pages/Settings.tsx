@@ -34,6 +34,7 @@ export default function Settings() {
             post_graduate_hierarchy: Array.isArray(res.settings.post_graduate_hierarchy) ? res.settings.post_graduate_hierarchy : [],
             custom_categories_hierarchy: Array.isArray(res.settings.custom_categories_hierarchy) ? res.settings.custom_categories_hierarchy : [],
             college_year_levels: Array.isArray(res.settings.college_year_levels) ? res.settings.college_year_levels : [],
+            hidden_setups: Array.isArray(res.settings.hidden_setups) ? res.settings.hidden_setups : [],
             employee_departments: Array.isArray(res.settings.employee_departments) ? res.settings.employee_departments : [],
             cues: Array.isArray(res.settings.cues) ? res.settings.cues : [],
             common_conditions: Array.isArray(res.settings.common_conditions) ? res.settings.common_conditions : ['Febrile Illness', 'Tension Headache', 'Dysmenorrhea', 'Upper Respiratory Infection', 'Hyperacidity', 'Acute Gastroenteritis', 'Allergic Rhinitis'],
@@ -300,43 +301,134 @@ export default function Settings() {
 
 
               {/* BED Config - Hierarchical */}
-              <div className="mt-8 border-t border-slate-200 pt-6">
-                <HierarchyEditor
-                  title="Basic Education (BED) Setup"
-                  description="Manage BED Programs (e.g., Grade School, Junior High School) and their specific Year Levels."
-                  items={settings.bed_hierarchy}
-                  parentKey="program"
-                  childKey="year_levels"
-                  childLabel="Year Level"
-                  onSave={(newHierarchy: any) => handleHierarchySave('bed_hierarchy', newHierarchy)}
-                />
-              </div>
+              {!settings.hidden_setups?.includes('bed_hierarchy') && (
+                <div className="mt-8 border-t border-slate-200 pt-6">
+                  <HierarchyEditor
+                    title="Basic Education (BED) Setup"
+                    description="Manage BED Programs (e.g., Grade School, Junior High School) and their specific Year Levels."
+                    items={settings.bed_hierarchy}
+                    parentKey="program"
+                    childKey="year_levels"
+                    childLabel="Year Level"
+                    onSave={(newHierarchy: any) => handleHierarchySave('bed_hierarchy', newHierarchy)}
+                    onDeleteSetup={async () => {
+                      const confirmed = await confirm({
+                        title: 'Remove Setup',
+                        message: 'Are you sure you want to completely remove the Basic Education (BED) Setup block?',
+                        type: 'danger'
+                      });
+                      if (confirmed) {
+                        const newHidden = [...(settings.hidden_setups || []), 'bed_hierarchy'];
+                        const updated = { ...settings, hidden_setups: newHidden };
+                        setSettings(updated);
+                        saveSettings({ hidden_setups: newHidden });
+                      }
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Post Graduate Config - Hierarchical */}
-              <div className="mt-8 border-t border-slate-200 pt-6">
-                <HierarchyEditor
-                  title="Post Graduate Setup"
-                  description="Manage Post Graduate schools (e.g., Law School) and their programs (e.g., Juris Doctor)."
-                  items={settings.post_graduate_hierarchy || []}
-                  parentKey="school"
-                  childKey="programs"
-                  childLabel="Program"
-                  onSave={(newHierarchy: any) => handleHierarchySave('post_graduate_hierarchy', newHierarchy)}
-                />
-              </div>
+              {!settings.hidden_setups?.includes('post_graduate_hierarchy') && (
+                <div className="mt-8 border-t border-slate-200 pt-6">
+                  <HierarchyEditor
+                    title="Post Graduate Setup"
+                    description="Manage Post Graduate schools (e.g., Law School) and their programs (e.g., Juris Doctor)."
+                    items={settings.post_graduate_hierarchy || []}
+                    parentKey="school"
+                    childKey="programs"
+                    childLabel="Program"
+                    onSave={(newHierarchy: any) => handleHierarchySave('post_graduate_hierarchy', newHierarchy)}
+                    onDeleteSetup={async () => {
+                      const confirmed = await confirm({
+                        title: 'Remove Setup',
+                        message: 'Are you sure you want to completely remove the Post Graduate Setup block?',
+                        type: 'danger'
+                      });
+                      if (confirmed) {
+                        const newHidden = [...(settings.hidden_setups || []), 'post_graduate_hierarchy'];
+                        const updated = { ...settings, hidden_setups: newHidden };
+                        setSettings(updated);
+                        saveSettings({ hidden_setups: newHidden });
+                      }
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Custom Categories Config - Hierarchical */}
-              <div className="mt-8 border-t border-slate-200 pt-6">
-                <HierarchyEditor
-                  title="Custom Student Categories"
-                  description="Manage custom categories (e.g., Vocational, Senior High) and their specific departments/programs."
-                  items={settings.custom_categories_hierarchy || []}
-                  parentKey="category"
-                  childKey="programs"
-                  childLabel="Department/Program"
-                  onSave={(newHierarchy: any) => handleHierarchySave('custom_categories_hierarchy', newHierarchy)}
-                />
-              </div>
+              {!settings.hidden_setups?.includes('custom_categories_hierarchy') && (
+                <div className="mt-8 border-t border-slate-200 pt-6">
+                  <HierarchyEditor
+                    title="Custom Student Categories"
+                    description="Manage custom categories (e.g., Vocational, Senior High) and their specific departments/programs."
+                    items={settings.custom_categories_hierarchy || []}
+                    parentKey="category"
+                    childKey="programs"
+                    childLabel="Department/Program"
+                    onSave={(newHierarchy: any) => handleHierarchySave('custom_categories_hierarchy', newHierarchy)}
+                    onDeleteSetup={async () => {
+                      const confirmed = await confirm({
+                        title: 'Remove Setup',
+                        message: 'Are you sure you want to completely remove the Custom Student Categories block?',
+                        type: 'danger'
+                      });
+                      if (confirmed) {
+                        const newHidden = [...(settings.hidden_setups || []), 'custom_categories_hierarchy'];
+                        const updated = { ...settings, hidden_setups: newHidden };
+                        setSettings(updated);
+                        saveSettings({ hidden_setups: newHidden });
+                      }
+                    }}
+                  />
+                </div>
+              )}
+              
+              {/* Restore Removed Setups Section */}
+              {settings.hidden_setups?.length > 0 && (
+                <div className="mt-8 border-t border-slate-200 pt-6">
+                  <h3 className="text-[#8c1526] font-bold text-lg mb-2">Restore Removed Setups</h3>
+                  <p className="text-slate-500 text-sm mb-4">You have previously removed some setup blocks. You can restore them below.</p>
+                  <div className="flex gap-2">
+                    {settings.hidden_setups.includes('bed_hierarchy') && (
+                      <button 
+                        onClick={() => {
+                          const newHidden = settings.hidden_setups.filter((k: string) => k !== 'bed_hierarchy');
+                          setSettings({ ...settings, hidden_setups: newHidden });
+                          saveSettings({ hidden_setups: newHidden });
+                        }}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-sm border border-slate-300"
+                      >
+                        Restore Basic Education (BED) Setup
+                      </button>
+                    )}
+                    {settings.hidden_setups.includes('post_graduate_hierarchy') && (
+                      <button 
+                        onClick={() => {
+                          const newHidden = settings.hidden_setups.filter((k: string) => k !== 'post_graduate_hierarchy');
+                          setSettings({ ...settings, hidden_setups: newHidden });
+                          saveSettings({ hidden_setups: newHidden });
+                        }}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-sm border border-slate-300"
+                      >
+                        Restore Post Graduate Setup
+                      </button>
+                    )}
+                    {settings.hidden_setups.includes('custom_categories_hierarchy') && (
+                      <button 
+                        onClick={() => {
+                          const newHidden = settings.hidden_setups.filter((k: string) => k !== 'custom_categories_hierarchy');
+                          setSettings({ ...settings, hidden_setups: newHidden });
+                          saveSettings({ hidden_setups: newHidden });
+                        }}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-sm border border-slate-300"
+                      >
+                        Restore Custom Categories Setup
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -631,7 +723,7 @@ const ConfigListEditor = ({ title, description, items = [], onAdd, onRemove, onE
 
 
 // Master-Detail Hierarchy Editor Component
-const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, childLabel, onSave, requireAcronym = false }: any) => {
+const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, childLabel, onSave, requireAcronym = false, onDeleteSetup }: any) => {
   const [val, setVal] = useState('');
   const [acronymVal, setAcronymVal] = useState('');
   const [expandedIdx, setExpandedIdx] = useState(-1);
@@ -749,8 +841,16 @@ const HierarchyEditor = ({ title, description, items = [], parentKey, childKey, 
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-      <h3 className="text-[#8c1526] font-bold text-lg mb-2">{title}</h3>
+    <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 relative">
+      {onDeleteSetup && (
+        <button 
+          onClick={onDeleteSetup} 
+          className="absolute top-4 right-4 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded text-sm flex items-center gap-1 transition-colors"
+        >
+          <FiTrash2 /> Remove Setup
+        </button>
+      )}
+      <h3 className="text-[#8c1526] font-bold text-lg mb-2 pr-32">{title}</h3>
       <p className="text-slate-500 text-sm mb-4">{description}</p>
       
       {/* Add Parent */}
