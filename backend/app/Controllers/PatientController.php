@@ -1,8 +1,7 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class PatientController {
+class PatientController extends BaseController {
 
     public function list() {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -364,6 +363,7 @@ class PatientController {
 
         cjcRequireAuth();
         cjcRequireRole(['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff']);
+        cjcCsrfValidate();
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
 
@@ -474,6 +474,7 @@ class PatientController {
 
         cjcRequireAuth();
         cjcRequireRole(['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff']);
+        cjcCsrfValidate();
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         
@@ -717,12 +718,5 @@ class PatientController {
         } catch (PDOException $e) {
             $this->jsonResponse(['error' => 'Database error: ' . $e->getMessage()], 500);
         }
-    }
-
-    private function jsonResponse(array $data, int $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
     }
 }

@@ -68,17 +68,14 @@ class SyncManager {
     }
 
     try {
-      // Fast probe to verify external internet connectivity (handles case where loopback localhost is up but Wi-Fi/Internet is off)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       
-      // Probe public DNS/ping with cache-busting
-      const res = await fetch(`https://cloudflare-dns.com/dns-query?name=google.com&type=A&_t=${Date.now()}`, {
+      // Probe our own clinic API health check endpoint
+      const res = await fetch(`/api/index.php?route=sync&action=ping&_t=${Date.now()}`, {
         method: 'GET',
-        headers: { 'accept': 'application/dns-json' },
         signal: controller.signal,
         cache: 'no-store',
-        mode: 'cors',
       });
       clearTimeout(timeoutId);
 
@@ -86,9 +83,10 @@ class SyncManager {
       this.setOnlineStatus(online);
       return online;
     } catch {
-      // If external probe fails, we are truly offline from the internet
-      this.setOnlineStatus(false);
-      return false;
+      // Fallback: If server is temporarily unreachable, evaluate based on browser network status
+      const fallbackOnline = typeof navigator !== 'undefined' ? navigator.onLine : false;
+      this.setOnlineStatus(fallbackOnline);
+      return fallbackOnline;
     }
   }
 
@@ -146,11 +144,21 @@ class SyncManager {
       }
     }, 15000);
 
-    // Periodic internet connectivity check every 5 seconds
+    // Periodic connectivity check every 30 seconds (or on browser online/offline events)
     if (this.pingInterval) clearInterval(this.pingInterval);
     this.pingInterval = setInterval(() => {
       this.checkConnectivity();
-    }, 5000);
+    }, 30000);
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => this.checkConnectivity());
+      window.addEventListener('offline', () => this.setOnlineStatus(false));
+    }
+  }
+
+  public destroy() {
+    if (this.autoSyncInterval) clearInterval(this.autoSyncInterval);
+    if (this.pingInterval) clearInterval(this.pingInterval);
   }
 
   /**

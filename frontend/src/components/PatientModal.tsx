@@ -206,7 +206,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
         apiFetch(`/api/index.php?route=patients&action=get&id=${patientId}`)
           .then(res => {
             if (res.profile) {
-              setFormData({ ...formData, ...res.profile });
+              setFormData(prev => ({ ...prev, ...res.profile }));
               // Parse health_history if it is JSON
               if (res.profile.health_history) {
                 try {
@@ -442,19 +442,17 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     }
   };
 
-  const handleHealthCheck = (key: string) => {
-    setHealthHistoryObj((prev: any) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const handleHealthText = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setHealthHistoryObj((prev: any) => ({ ...prev, OthersText: e.target.value }));
-  };
-
   const calculateAge = (dob: string) => {
     if (!dob) return '--';
-    const diff_ms = Date.now() - new Date(dob).getTime();
-    const age_dt = new Date(diff_ms); 
-    return Math.abs(age_dt.getUTCFullYear() - 1970);
+    const today = new Date();
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return '--';
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return Math.max(0, age);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -471,6 +469,11 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
 
     if (!validateCurrentStep(1)) {
       setStep(1);
+      return;
+    }
+
+    if (!validateCurrentStep(2)) {
+      setStep(2);
       return;
     }
     

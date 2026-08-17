@@ -1,39 +1,31 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class SscController {
-
-    private function jsonResponse($data, $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
-    }
+class SscController extends BaseController {
 
     /**
-     * SSC Database student records pool
+     * SSC Database student records pool (generic mock records for offline/fallback)
      */
     private function getSampleSscDatabase() {
         return [
             [
-                "studentId" => "2022-0027-8",
-                "familyName" => "Saludo",
-                "givenName" => "Gielou Charls",
-                "middleName" => "L.",
+                "studentId" => "2024-0001",
+                "familyName" => "Dela Cruz",
+                "givenName" => "Juan",
+                "middleName" => "M.",
                 "suffix" => "",
-                "fullName" => "Gielou Charls L. Saludo",
-                "email" => "saludogielou@g.cjc.edu.ph",
+                "fullName" => "Juan M. Dela Cruz",
+                "email" => "juan.delacruz@g.cjc.edu.ph",
                 "departmentId" => 1,
                 "department" => "CCIS",
-                "program" => "BS Computer Science",
-                "major" => "Software Engineering",
+                "program" => "BS Information Technology",
+                "major" => "Network and Security",
                 "yearLevel" => "3rd Year",
                 "academicStatus" => "Regular",
                 "studentType" => "Continuing",
-                "contactNumber" => "09123456789",
+                "contactNumber" => "09120000001",
                 "isActive" => true,
-                "dateOfBirth" => "2003-05-15",
+                "dateOfBirth" => "2004-05-15",
                 "placeOfBirth" => "Digos City",
                 "sex" => "Male",
                 "civilStatus" => "Single",
@@ -41,28 +33,28 @@ class SscController {
                 "permanentAddress" => "Digos City, Davao del Sur",
                 "currentAddress" => "Digos City, Davao del Sur",
                 "guardianName" => "Parent / Guardian Name",
-                "guardianContactNumber" => "09987654321",
+                "guardianContactNumber" => "09980000001",
                 "emergencyContactName" => "Emergency Contact Name",
-                "emergencyContactNumber" => "09987654321"
+                "emergencyContactNumber" => "09980000001"
             ],
             [
-                "studentId" => "2021-0492",
-                "familyName" => "Shellstrop",
-                "givenName" => "Eleanor",
-                "middleName" => "",
+                "studentId" => "2024-0002",
+                "familyName" => "Santos",
+                "givenName" => "Maria",
+                "middleName" => "A.",
                 "suffix" => "",
-                "fullName" => "Eleanor Shellstrop",
-                "email" => "eleanor@uni.edu.ph",
+                "fullName" => "Maria A. Santos",
+                "email" => "maria.santos@g.cjc.edu.ph",
                 "departmentId" => 1,
                 "department" => "CCIS",
                 "program" => "BS Computer Science",
-                "major" => "",
+                "major" => "Software Engineering",
                 "yearLevel" => "4th Year",
                 "academicStatus" => "Regular",
                 "studentType" => "Continuing",
-                "contactNumber" => "09129998888",
+                "contactNumber" => "09120000002",
                 "isActive" => true,
-                "dateOfBirth" => "2002-11-20",
+                "dateOfBirth" => "2003-11-20",
                 "placeOfBirth" => "Digos City",
                 "sex" => "Female",
                 "civilStatus" => "Single",
@@ -70,28 +62,28 @@ class SscController {
                 "permanentAddress" => "Digos City, Davao del Sur",
                 "currentAddress" => "Digos City, Davao del Sur",
                 "guardianName" => "Guardian Name",
-                "guardianContactNumber" => "09981112222",
+                "guardianContactNumber" => "09980000002",
                 "emergencyContactName" => "Emergency Contact",
-                "emergencyContactNumber" => "09981112222"
+                "emergencyContactNumber" => "09980000002"
             ],
             [
-                "studentId" => "2022-1103",
-                "familyName" => "Anagonye",
-                "givenName" => "Chidi",
-                "middleName" => "",
+                "studentId" => "2024-0003",
+                "familyName" => "Reyes",
+                "givenName" => "Alex",
+                "middleName" => "B.",
                 "suffix" => "",
-                "fullName" => "Chidi Anagonye",
-                "email" => "chidi@uni.edu.ph",
+                "fullName" => "Alex B. Reyes",
+                "email" => "alex.reyes@g.cjc.edu.ph",
                 "departmentId" => 2,
                 "department" => "COE",
                 "program" => "BS Civil Engineering",
                 "major" => "",
-                "yearLevel" => "3rd Year",
+                "yearLevel" => "2nd Year",
                 "academicStatus" => "Regular",
                 "studentType" => "Continuing",
-                "contactNumber" => "09127776666",
+                "contactNumber" => "09120000003",
                 "isActive" => true,
-                "dateOfBirth" => "2003-01-10",
+                "dateOfBirth" => "2005-01-10",
                 "placeOfBirth" => "Digos City",
                 "sex" => "Male",
                 "civilStatus" => "Single",
@@ -99,9 +91,9 @@ class SscController {
                 "permanentAddress" => "Digos City, Davao del Sur",
                 "currentAddress" => "Digos City, Davao del Sur",
                 "guardianName" => "Guardian Name",
-                "guardianContactNumber" => "09983334444",
+                "guardianContactNumber" => "09980000003",
                 "emergencyContactName" => "Emergency Contact",
-                "emergencyContactNumber" => "09983334444"
+                "emergencyContactNumber" => "09980000003"
             ]
         ];
     }
@@ -110,9 +102,13 @@ class SscController {
      * Attempts to query the live remote SSC API masterlist endpoint
      */
     private function fetchFromRemoteSscMasterlist() {
-        $baseUrl = getenv('SSC_API_BASE_URL') ?: 'https://candidates-stay-table-both.trycloudflare.com';
-        $clientName = getenv('SSC_MASTERLIST_CLIENT_NAME') ?: 'clinic-system';
-        $clientKey = getenv('SSC_MASTERLIST_CLIENT_KEY') ?: '326bcd86b8a63778f42289729eede712f47e356478fad0092fd47e975dc2ab7f';
+        $baseUrl = getenv('SSC_API_BASE_URL') ?: ($_ENV['SSC_API_BASE_URL'] ?? '');
+        $clientName = getenv('SSC_MASTERLIST_CLIENT_NAME') ?: ($_ENV['SSC_MASTERLIST_CLIENT_NAME'] ?? 'clinic-system');
+        $clientKey = getenv('SSC_MASTERLIST_CLIENT_KEY') ?: ($_ENV['SSC_MASTERLIST_CLIENT_KEY'] ?? '');
+
+        if (empty($baseUrl) || empty($clientKey)) {
+            return null;
+        }
 
         $url = rtrim($baseUrl, '/') . '/api/v1/integration/masterlist';
 
@@ -120,7 +116,7 @@ class SscController {
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Accept: application/json',
             'X-API-Key: ' . $clientKey,

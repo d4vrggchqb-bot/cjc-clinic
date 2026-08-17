@@ -44,12 +44,18 @@ if (php_sapi_name() !== 'cli') {
     }
 
     // ─── Secure session cookie parameters (must be set BEFORE session_start) ───────
+    $isHttps = (
+        (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ||
+        (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
+        (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+    );
+
     session_set_cookie_params([
         'lifetime' => 0,              // expires when browser closes
         'path'     => '/',
         'httponly' => true,           // JS cannot read the cookie (XSS mitigation)
-        'secure'   => false,          // Set to TRUE when served over HTTPS
-        'samesite' => 'Lax',          // allow cross-port requests during local dev
+        'secure'   => $isHttps,       // Auto-enabled whenever served over HTTPS
+        'samesite' => $isHttps ? 'None' : 'Lax', // allow cross-origin requests when on HTTPS tunnel
     ]);
 
     if (session_status() === PHP_SESSION_NONE) {
@@ -196,9 +202,24 @@ function cjcRedirectToLogin(): void
 }
 
 // ─── Cryptographic Helpers ───────────────────────────────────────────────────
-// Fallback key if not provided by environment. In production, set this securely.
-define('CJC_APP_KEY', getenv('CJC_APP_KEY') ?: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08');
-define('CJC_GOOGLE_CLIENT_ID', getenv('GOOGLE_CLIENT_ID') ?: '814203352511-rp2uq7eajh56v8k9gnspbmureb2hpk3a.apps.googleusercontent.com');
+$rawAppKey = getenv('CJC_APP_KEY') ?: ($_ENV['CJC_APP_KEY'] ?? '');
+$appEnv = getenv('APP_ENV') ?: ($_ENV['APP_ENV'] ?? 'production');
+
+if (empty($rawAppKey) || $rawAppKey === '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08' || $rawAppKey === 'CHANGE_THIS_TO_A_STRONG_RANDOM_64_CHAR_HEX_KEY') {
+    if ($appEnv === 'production') {
+        throw new RuntimeException('FATAL SECURITY ERROR: CJC_APP_KEY must be set to a secure, unique 64-character key in .env for production.');
+    } else {
+        // Safe development-only ephemeral key fallback to avoid crashing local tests
+        $rawAppKey = 'dev_cjc_' . hash('sha256', __DIR__ . php_uname());
+    }
+}
+define('CJC_APP_KEY', $rawAppKey);
+
+$googleClientId = getenv('GOOGLE_CLIENT_ID') ?: ($_ENV['GOOGLE_CLIENT_ID'] ?? '');
+if (empty($googleClientId)) {
+    $googleClientId = '814203352511-rp2uq7eajh56v8k9gnspbmureb2hpk3a.apps.googleusercontent.com';
+}
+define('CJC_GOOGLE_CLIENT_ID', $googleClientId);
 
 /**
  * Encrypts data using AES-256-CBC.

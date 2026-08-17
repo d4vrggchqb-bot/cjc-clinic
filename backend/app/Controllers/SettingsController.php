@@ -1,8 +1,7 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class SettingsController {
+class SettingsController extends BaseController {
 
     public function getSettings() {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -74,6 +73,7 @@ class SettingsController {
         }
 
         cjcRequireAuth();
+        cjcRequireRole(['Admin', 'Superadmin']);
         cjcCsrfValidate();
 
         if (!isset($_FILES['file'])) {
@@ -104,7 +104,7 @@ class SettingsController {
 
         try {
             $stmt = $pdo->prepare("
-                INSERT INTO profiles (patient_id_number, last_name, first_name, middle_initial, gender, birthdate, course, year_level, college_dept, contact_number, profile_type) 
+                INSERT INTO profiles (patient_id_number, last_name, first_name, middle_initial, gender, birthdate, course, year_level, college_dept, contact, profile_type) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
@@ -166,17 +166,65 @@ class SettingsController {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
         cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin']);
         
-        // Simulating backup generation (real one requires mysqldump path in Windows)
+        $pdo = cjcDatabaseConnection();
         $date = date('Y-m-d_H-i-s');
         $filename = "cjc_clinic_backup_$date.sql";
-        $backupDir = __DIR__ . '/../../public/uploads/backups';
-        if (!is_dir($backupDir)) mkdir($backupDir, 0755, true);
+        
+        // Store in non-public storage directory
+        $backupDir = __DIR__ . '/../../storage/backups';
+        if (!is_dir($backupDir)) {
+            mkdir($backupDir, 0750, true);
+        }
         
         $filepath = "$backupDir/$filename";
-        // Fake dump for now since mysqldump path is complex to guess across WAMP/XAMPP
-        file_put_contents($filepath, "-- CJC Clinic Backup\n-- Date: $date\n");
-        
-        $this->jsonResponse(['success' => true, 'message' => "Backup saved to $filename"]);
+
+        try {
+            $tables = [];
+            $stmt = $pdo->query('SHOW TABLES');
+            while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
+                $tables[] = $row[0];
+            }
+
+            $sqlDump = "-- CJC Clinic Database Backup\n";
+            $sqlDump .= "-- Generated: " . date('Y-m-d H:i:s') . "\n";
+            $sqlDump .= "-- Host: " . (getenv('DB_HOST') ?: 'localhost') . "\n";
+            $sqlDump .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
+
+            foreach ($tables as $table) {
+                // Table schema
+                $createStmt = $pdo->query("SHOW CREATE TABLE `$table`")->fetch(PDO::FETCH_NUM);
+                $sqlDump .= "DROP TABLE IF EXISTS `$table`;\n";
+                $sqlDump .= $createStmt[1] . ";\n\n";
+
+                // Table data
+                $dataStmt = $pdo->query("SELECT * FROM `$table`");
+                $rows = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                if (!empty($rows)) {
+                    $columns = array_keys($rows[0]);
+                    $colList = implode('`, `', $columns);
+
+                    foreach ($rows as $r) {
+                        $values = array_map(function($v) use ($pdo) {
+                            if ($v === null) return 'NULL';
+                            return $pdo->quote($v);
+                        }, array_values($r));
+
+                        $sqlDump .= "INSERT INTO `$table` (`$colList`) VALUES (" . implode(', ', $values) . ");\n";
+                    }
+                    $sqlDump .= "\n";
+                }
+            }
+
+            $sqlDump .= "SET FOREIGN_KEY_CHECKS=1;\n";
+            file_put_contents($filepath, $sqlDump);
+
+            cjcLogAudit("Generated database backup: $filename", 'BACKUP', 'Settings');
+            $this->jsonResponse(['success' => true, 'message' => "Database backup successfully saved to server storage: $filename"]);
+        } catch (Exception $e) {
+            error_log('[CJC-CLINIC] Database backup error: ' . $e->getMessage());
+            $this->jsonResponse(['success' => false, 'message' => 'Failed to generate database backup.'], 500);
+        }
     }
 
     public function exportHealthRecords() {
@@ -195,7 +243,7 @@ class SettingsController {
             fputcsv($out, [
                 $row['patient_id_number'], $row['last_name'], $row['first_name'], $row['middle_initial'],
                 $row['gender'], $row['birthdate'], $row['course'], $row['year_level'], $row['college_dept'],
-                $row['contact_number'], $row['profile_type']
+                $row['contact'], $row['profile_type']
             ]);
         }
         fclose($out);
@@ -223,13 +271,6 @@ class SettingsController {
             fputcsv($out, $row);
         }
         fclose($out);
-        exit;
-    }
-
-    private function jsonResponse(array $data, int $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
         exit;
     }
 }

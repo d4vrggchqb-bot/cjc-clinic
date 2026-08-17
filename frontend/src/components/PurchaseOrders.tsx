@@ -125,9 +125,20 @@ const PurchaseOrders: React.FC = () => {
       type: 'warning'
     });
     if (!confirmed) return;
-    await apiFetch('/api/index.php?route=inventory&action=update_purchase', { method: 'POST', body: JSON.stringify({ id, status }) });
-    toast.success(`Purchase order status updated to ${status}`);
-    fetchOrders();
+    try {
+      const res = await apiFetch('/api/index.php?route=inventory&action=update_purchase', { 
+        method: 'POST', 
+        body: JSON.stringify({ id, status }) 
+      });
+      if (res && res.success !== false) {
+        toast.success(`Purchase order status updated to ${status}`);
+        fetchOrders();
+      } else {
+        toast.error(res?.message || 'Failed to update purchase order status');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Network error updating purchase order status');
+    }
   };
 
   const handleReceive = async (e: React.FormEvent) => {

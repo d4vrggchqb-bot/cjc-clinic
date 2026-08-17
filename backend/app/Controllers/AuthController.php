@@ -1,8 +1,7 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class AuthController {
+class AuthController extends BaseController {
     
     public function login() {
         cjcCsrfValidate();
@@ -67,8 +66,7 @@ class AuthController {
         }
         
         // Validate Audience
-        if ($payload['aud'] !== CJC_GOOGLE_CLIENT_ID && CJC_GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com') {
-            // If the client ID is customized, verify audience. If not, bypass to allow testing, but warn in logs.
+        if ($payload['aud'] !== CJC_GOOGLE_CLIENT_ID) {
             $this->jsonResponse(['success' => false, 'error' => 'Token audience mismatch.'], 401);
         }
         
@@ -143,6 +141,18 @@ class AuthController {
         $name = trim($input['name'] ?? $username);
         $role = trim($input['role'] ?? 'Staff');
         $clinic_branch = trim($input['clinic_branch'] ?? 'College Clinic');
+        
+        $allowedRoles = ['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff', 'Clerk'];
+        if (!in_array($role, $allowedRoles, true)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Invalid role specified.'], 400);
+        }
+
+        // Only Superadmin can create Superadmin or Admin roles
+        $currentUser = cjcAuthUser();
+        $callerRole = $currentUser['role'] ?? 'Staff';
+        if (in_array($role, ['Superadmin', 'Admin'], true) && $callerRole !== 'Superadmin') {
+            $this->jsonResponse(['success' => false, 'message' => 'Only Superadmins can grant administrative privileges.'], 403);
+        }
         
         if (empty($username)) {
             $this->jsonResponse(['success' => false, 'message' => 'Username is required.'], 400);
@@ -267,8 +277,16 @@ class AuthController {
         $ins = $pdo->prepare('INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)');
         $ins->execute([$user['id'], $token, $expires]);
 
-        // In production you'd email the token; for local dev return it in the response
-        $this->jsonResponse(['success' => true, 'message' => 'Password reset created.', 'token' => $token]);
+        $appEnv = getenv('APP_ENV') ?: ($_ENV['APP_ENV'] ?? 'production');
+        if ($appEnv === 'development') {
+            error_log(sprintf('[CJC-CLINIC] DEV-MODE Password reset token for %s: %s', $username, $token));
+        }
+
+        // Never expose raw reset tokens in HTTP response bodies
+        $this->jsonResponse([
+            'success' => true,
+            'message' => 'If the account exists, password reset instructions have been dispatched.'
+        ]);
     }
 
     public function performPasswordReset() {
@@ -306,10 +324,15 @@ class AuthController {
         $this->jsonResponse(['success' => true, 'message' => 'Password has been reset for ' . $row['username']]);
     }
 
-    // --- Private Helpers (copied from old login.php) ---
+    // --- Private Helpers ---
+
+    private function getRateLimitKey(string $username): string {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        return 'login_attempts_' . hash('sha256', strtolower($username) . '_' . $ip);
+    }
 
     private function isRateLimited(string $username): bool {
-        $key = 'login_attempts_' . hash('sha256', strtolower($username));
+        $key = $this->getRateLimitKey($username);
         if (!isset($_SESSION[$key])) return false;
         
         if (time() - $_SESSION[$key]['first_attempt'] > 300) {
@@ -320,7 +343,7 @@ class AuthController {
     }
 
     private function recordFailedAttempt(string $username): void {
-        $key = 'login_attempts_' . hash('sha256', strtolower($username));
+        $key = $this->getRateLimitKey($username);
         if (!isset($_SESSION[$key]) || time() - $_SESSION[$key]['first_attempt'] > 300) {
             $_SESSION[$key] = ['count' => 0, 'first_attempt' => time()];
         }
@@ -328,7 +351,7 @@ class AuthController {
     }
 
     private function resetAttempts(string $username): void {
-        $key = 'login_attempts_' . hash('sha256', strtolower($username));
+        $key = $this->getRateLimitKey($username);
         unset($_SESSION[$key]);
     }
 
@@ -352,12 +375,5 @@ class AuthController {
             error_log('[CJC-CLINIC] Login DB error: ' . $exception->getMessage());
         }
         return null;
-    }
-
-    private function jsonResponse(array $data, int $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
     }
 }

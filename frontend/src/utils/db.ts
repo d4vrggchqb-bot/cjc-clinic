@@ -148,8 +148,8 @@ class OfflineDB {
       const req = store.getAll();
       req.onsuccess = () => {
         const list = (req.result || []) as SyncQueueItem[];
-        // Filter and sort by id (insertion order)
-        resolve(list.filter(item => item.status !== 'syncing'));
+        // Filter: only items not currently syncing and within max 5 retries
+        resolve(list.filter(item => item.status !== 'syncing' && (item.retryCount || 0) < 5));
       };
       req.onerror = () => reject(req.error);
     });

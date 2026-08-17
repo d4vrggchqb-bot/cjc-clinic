@@ -1,8 +1,7 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class AppointmentController {
+class AppointmentController extends BaseController {
 
     public function list() {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
@@ -170,7 +169,8 @@ class AppointmentController {
             $purpose = mb_substr($purpose, 0, 255);
         }
         $group_name = trim($input['group_name'] ?? '');
-        $branch = 'College Clinic'; 
+        $currentUser = cjcAuthUser();
+        $branch = trim($input['clinic_branch'] ?? ($currentUser['clinic_branch'] ?? 'College Clinic')); 
 
         if (empty($profile_ids) || !is_array($profile_ids) || !$date || !$time || !$purpose) {
             $this->jsonResponse(['success' => false, 'message' => 'Missing required fields.'], 400);
@@ -218,8 +218,13 @@ class AppointmentController {
         $id = (int)($input['id'] ?? 0);
         $status = trim($input['status'] ?? '');
 
+        $allowedStatuses = ['Scheduled', 'Completed', 'Cancelled', 'No-Show'];
         if (!$id || !$status) {
             $this->jsonResponse(['success' => false, 'message' => 'ID and Status required.'], 400);
+        }
+
+        if (!in_array($status, $allowedStatuses, true)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Invalid appointment status.'], 400);
         }
 
         try {
@@ -259,12 +264,5 @@ class AppointmentController {
         } catch (Exception $e) {
             $this->jsonResponse(['success' => false, 'message' => 'Failed to update appointment details.'], 500);
         }
-    }
-
-    private function jsonResponse(array $data, int $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
     }
 }

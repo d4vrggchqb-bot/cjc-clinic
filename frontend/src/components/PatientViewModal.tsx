@@ -16,9 +16,15 @@ const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, pa
   
   const calculateAge = (dob: string) => {
     if (!dob) return '--';
-    const diff_ms = Date.now() - new Date(dob).getTime();
-    const age_dt = new Date(diff_ms); 
-    return Math.abs(age_dt.getUTCFullYear() - 1970);
+    const today = new Date();
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return '--';
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return Math.max(0, age);
   };
   const [history, setHistory] = useState<any[]>([]);
   const [borrowingHistory, setBorrowingHistory] = useState<any[]>([]);

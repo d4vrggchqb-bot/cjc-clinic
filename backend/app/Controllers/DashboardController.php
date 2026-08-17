@@ -1,8 +1,7 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class DashboardController {
+class DashboardController extends BaseController {
 
     public function stats() {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -281,12 +280,5 @@ class DashboardController {
             'currently_checked_out' => $currentlyCheckedOut,
             'recent_borrowings' => $recentBorrowings
         ]);
-    }
-
-    private function jsonResponse(array $data, int $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
     }
 }

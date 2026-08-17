@@ -191,7 +191,29 @@ try {
         ");
     } catch (Exception $e) {}
 
-    echo "Tables created/updated successfully. Recovered {$recoveredExtracts} OCR extract(s).\n";
+    // Performance Indexes
+    $indexes = [
+        "ALTER TABLE `profiles` ADD INDEX `idx_profiles_pid` (`patient_id_number`)",
+        "ALTER TABLE `profiles` ADD INDEX `idx_profiles_name` (`last_name`, `first_name`)",
+        "ALTER TABLE `profiles` ADD INDEX `idx_profiles_dept` (`college_dept`, `year_level`)",
+        "ALTER TABLE `consultations` ADD INDEX `idx_consultations_branch_date` (`clinic_branch`, `created_at`)",
+        "ALTER TABLE `consultations` ADD INDEX `idx_consultations_status` (`status`)",
+        "ALTER TABLE `inventory_batches` ADD INDEX `idx_batches_lookup` (`item_id`, `clinic_branch`, `status`)",
+        "ALTER TABLE `inventory_logs` ADD INDEX `idx_logs_created` (`created_at`, `action_type`)",
+        "ALTER TABLE `appointments` ADD INDEX `idx_appointments_date_branch` (`appointment_date`, `clinic_branch`, `status`)",
+        "ALTER TABLE `borrowings` ADD INDEX `idx_borrowings_booking_code` (`booking_code`)",
+        "ALTER TABLE `borrowings` ADD INDEX `idx_borrowings_status` (`status`, `created_at`)"
+    ];
+
+    foreach ($indexes as $sql) {
+        try {
+            $pdo->exec($sql);
+        } catch (Exception $e) {
+            // Index already exists or non-critical error
+        }
+    }
+
+    echo "Tables and performance indexes created/updated successfully. Recovered {$recoveredExtracts} OCR extract(s).\n";
 
 
 } catch (Exception $e) {

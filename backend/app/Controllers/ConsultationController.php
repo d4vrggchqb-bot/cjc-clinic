@@ -1,8 +1,7 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class ConsultationController {
+class ConsultationController extends BaseController {
 
     public function list() {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -385,12 +384,20 @@ class ConsultationController {
         cjcCsrfValidate();
         
         $pdo = cjcDatabaseConnection();
+        $currentUser = cjcAuthUser();
+        $branch = $currentUser['clinic_branch'] ?? 'College Clinic';
+        $userRole = $currentUser['role'] ?? 'Staff';
 
         try {
-            $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE status IN ('active', 'waiting', 'in-progress') AND DATE(created_at) = CURDATE()");
-            $stmt->execute();
+            if ($userRole === 'Superadmin' && isset($_POST['branch']) && $_POST['branch'] === 'All Branches') {
+                $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE status IN ('active', 'waiting', 'in-progress') AND DATE(created_at) = CURDATE()");
+                $stmt->execute();
+            } else {
+                $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE status IN ('active', 'waiting', 'in-progress') AND DATE(created_at) = CURDATE() AND clinic_branch = :branch");
+                $stmt->execute(['branch' => $branch]);
+            }
 
-            $this->jsonResponse(['success' => true, 'message' => 'All active visitors today have been timed out.']);
+            $this->jsonResponse(['success' => true, 'message' => "All active visitors for $branch today have been timed out."]);
         } catch (PDOException $e) {
             error_log('[CJC-CLINIC] Checkout All error: ' . $e->getMessage());
             $this->jsonResponse(['success' => false, 'message' => 'Unable to checkout all.'], 500);
@@ -480,12 +487,5 @@ class ConsultationController {
             'suggested_diagnosis' => array_values(array_unique($suggestedDiagnosis)),
             'suggested_treatment' => array_values(array_unique($suggestedTreatment))
         ]);
-    }
-
-    private function jsonResponse(array $data, int $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
     }
 }

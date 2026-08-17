@@ -1,8 +1,7 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class InventoryController {
+class InventoryController extends BaseController {
     
     // --- CATALOG ITEMS ---
     public function getItems() {
@@ -308,7 +307,7 @@ class InventoryController {
             }
 
             $newStock = $currentStock - $disposeQty;
-            $newStatus = ($newStock === 0) ? 'expired' : $batch['status'];
+            $newStatus = ($newStock === 0) ? 'depleted' : $batch['status'];
 
             $upd = $pdo->prepare("UPDATE inventory_batches SET stock_remaining = ?, status = ? WHERE id = ?");
             $upd->execute([$newStock, $newStatus, $batchId]);
@@ -939,13 +938,6 @@ class InventoryController {
         $del->execute([$id]);
 
         $this->jsonResponse(['success' => true, 'message' => 'Calibration record deleted successfully.']);
-    }
-
-    private function jsonResponse(array $data, int $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
     }
 }
 

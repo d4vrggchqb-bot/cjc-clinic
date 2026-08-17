@@ -221,5 +221,14 @@ CREATE TABLE IF NOT EXISTS `equipment_calibrations` (
 );
 
 
-#php -S localhost:8000 -t backend/public
+-- 12. Performance Indexes
+CREATE INDEX IF NOT EXISTS `idx_profiles_pid` ON `profiles` (`patient_id_number`);
+CREATE INDEX IF NOT EXISTS `idx_profiles_name` ON `profiles` (`last_name`, `first_name`);
+CREATE INDEX IF NOT EXISTS `idx_profiles_dept` ON `profiles` (`college_dept`, `year_level`);
+CREATE INDEX IF NOT EXISTS `idx_consultations_branch_date` ON `consultations` (`clinic_branch`, `created_at`);
+CREATE INDEX IF NOT EXISTS `idx_consultations_status` ON `consultations` (`status`);
+CREATE INDEX IF NOT EXISTS `idx_batches_lookup` ON `inventory_batches` (`item_id`, `clinic_branch`, `status`);
+CREATE INDEX IF NOT EXISTS `idx_logs_created` ON `inventory_logs` (`created_at`, `action_type`);
+CREATE INDEX IF NOT EXISTS `idx_appointments_date_branch` ON `appointments` (`appointment_date`, `clinic_branch`, `status`);
+CREATE INDEX IF NOT EXISTS `idx_borrowings_status` ON `borrowings` (`status`, `created_at`);
 

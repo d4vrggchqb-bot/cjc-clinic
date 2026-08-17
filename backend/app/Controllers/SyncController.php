@@ -1,8 +1,7 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class SyncController {
+class SyncController extends BaseController {
 
     /**
      * Heartbeat ping to test network connectivity and sync status
@@ -46,7 +45,15 @@ class SyncController {
             $uuid   = $item['uuid'] ?? '';
             $action = $item['action'] ?? '';
             $payload = $item['payload'] ?? [];
-            $timestamp = $item['timestamp'] ?? date('Y-m-d H:i:s');
+            $rawTimestamp = $item['timestamp'] ?? '';
+            $ts = !empty($rawTimestamp) ? strtotime($rawTimestamp) : false;
+            $now = time();
+            // Ensure timestamp is valid and within realistic bounds (-90 days to +1 day)
+            if ($ts !== false && $ts >= ($now - (90 * 86400)) && $ts <= ($now + 86400)) {
+                $timestamp = date('Y-m-d H:i:s', $ts);
+            } else {
+                $timestamp = date('Y-m-d H:i:s', $now);
+            }
 
             if (empty($uuid) || empty($action)) {
                 $results[] = ['uuid' => $uuid, 'success' => false, 'error' => 'Invalid queue item'];
@@ -324,12 +331,5 @@ class SyncController {
             'results' => $results,
             'synced_at' => date('Y-m-d H:i:s')
         ]);
-    }
-
-    private function jsonResponse(array $data, int $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
     }
 }

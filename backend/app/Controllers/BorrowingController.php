@@ -1,8 +1,7 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class BorrowingController {
+class BorrowingController extends BaseController {
 
     /**
      * Submit a new borrowing request.
@@ -530,12 +529,5 @@ class BorrowingController {
         }
 
         $this->jsonResponse(['borrowings' => array_values($borrowings)]);
-    }
-
-    private function jsonResponse(array $data, int $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
     }
 }

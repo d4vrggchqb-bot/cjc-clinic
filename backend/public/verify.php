@@ -80,9 +80,13 @@ try {
                 </div>
                 <div class="flex justify-between">
                     <span class="text-slate-500 uppercase text-xs font-semibold">Valid Until</span>
-                    <span class="font-medium <?= (strtotime($cert['valid_until']) < time()) ? 'text-red-600' : 'text-slate-900' ?>">
-                        <?= htmlspecialchars($cert['valid_until']) ?> 
-                        <?php if (strtotime($cert['valid_until']) < time()) echo "(Expired)"; ?>
+                    <?php 
+                        $hasExpiry = !empty($cert['valid_until']);
+                        $isExpired = $hasExpiry && (strtotime($cert['valid_until']) < time());
+                    ?>
+                    <span class="font-medium <?= $isExpired ? 'text-red-600' : 'text-slate-900' ?>">
+                        <?= $hasExpiry ? htmlspecialchars($cert['valid_until']) : 'N/A (No Expiration)' ?> 
+                        <?php if ($isExpired) echo "(Expired)"; ?>
                     </span>
                 </div>
             </div>

@@ -1,8 +1,7 @@
 <?php
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/BaseController.php';
 
-class MedcertController {
+class MedcertController extends BaseController {
 
     public function generate() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -176,12 +175,5 @@ class MedcertController {
         $preview .= "<div class='grid grid-cols-1 md:grid-cols-2 gap-4 mb-4'><div class='rounded-2xl border border-slate-200 p-4'><p class='text-sm uppercase text-slate-400 mb-2'>Signature</p><div class='mt-4 border-b border-slate-300' style='min-height:2rem;'></div></div><div class='rounded-2xl border border-slate-200 p-4'><p class='text-sm uppercase text-slate-400 mb-2'>Clinic Seal</p><div class='mt-4 rounded-xl bg-white' style='height:5rem;'></div></div></div>";
         $preview .= "</div>";
         return $preview;
-    }
-
-    private function jsonResponse(array $data, int $status = 200) {
-        http_response_code($status);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
     }
 }

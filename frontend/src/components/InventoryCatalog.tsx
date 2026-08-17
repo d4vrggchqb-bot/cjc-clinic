@@ -208,12 +208,23 @@ const InventoryCatalog: React.FC = () => {
     fetchData();
   }, []);
 
+  const batchesByItemId = React.useMemo(() => {
+    const map = new Map<number, InventoryBatch[]>();
+    for (const b of batches) {
+      const list = map.get(b.item_id) || [];
+      list.push(b);
+      map.set(b.item_id, list);
+    }
+    return map;
+  }, [batches]);
+
   const getRemainingStock = (itemId: number) => {
-    return batches.filter(b => b.item_id === itemId && b.status !== 'depleted').reduce((sum, b) => sum + b.stock_remaining, 0);
+    const itemBatches = batchesByItemId.get(itemId) || [];
+    return itemBatches.filter(b => b.status !== 'depleted').reduce((sum, b) => sum + b.stock_remaining, 0);
   };
 
   const getOverallStock = (item: InventoryItem) => {
-    const itemBatches = batches.filter(b => b.item_id === item.id);
+    const itemBatches = batchesByItemId.get(item.id) || [];
     if (itemBatches.length === 0) return item.overall_stock || 0;
     const computedOverall = itemBatches.reduce((sum, b) => {
       const bInitial = b.initial_stock !== undefined ? b.initial_stock : (b.stock_remaining + (b.dispensed_qty || 0) + (b.disposed_qty || 0));
@@ -223,7 +234,8 @@ const InventoryCatalog: React.FC = () => {
   };
 
   const getEarliestExpiringBatch = (itemId: number) => {
-    const activeBatches = batches.filter(b => b.item_id === itemId && b.stock_remaining > 0 && b.expired_on);
+    const itemBatches = batchesByItemId.get(itemId) || [];
+    const activeBatches = itemBatches.filter(b => b.stock_remaining > 0 && b.expired_on);
     if (activeBatches.length === 0) return null;
     return activeBatches.reduce((earliest, b) => {
       if (!earliest || (b.expired_on && b.expired_on < earliest.expired_on!)) {
@@ -241,8 +253,7 @@ const InventoryCatalog: React.FC = () => {
   };
 
   const isItemCalibrationDue = (item: InventoryItem) => {
-    if (!item.calibration_due && item.category !== 'equipment') return false;
-    if (!item.calibration_due) return false;
+    if (item.category !== 'equipment' || !item.calibration_due) return false;
     const diff = getDaysDifference(item.calibration_due);
     return diff !== null && diff <= 30;
   };
@@ -251,13 +262,13 @@ const InventoryCatalog: React.FC = () => {
     return getRemainingStock(item.id) <= item.alert_threshold;
   };
 
-  // Live filter counters
-  const counts = {
+  // Live filter counters memoized
+  const counts = React.useMemo(() => ({
     all: items.length,
     nearExpiry: items.filter(isItemNearlyExpired).length,
     calibrationDue: items.filter(isItemCalibrationDue).length,
     lowStock: items.filter(isItemLowStock).length
-  };
+  }), [items, batchesByItemId]);
 
   const handleOpenBatchDetails = async (batchId: number) => {
     setIsLoadingBatchDetails(true);
@@ -417,8 +428,7 @@ const InventoryCatalog: React.FC = () => {
           confirmText: 'OK',
           hideCancel: true
         });
-        fetchItems();
-        fetchBatches();
+        fetchData();
       } else {
         await confirm({
           title: 'Upload Failed',
@@ -455,8 +465,7 @@ const InventoryCatalog: React.FC = () => {
           notes: certFormDetails.notes || item.calibration_notes || 'Generated CJC Calibration Certificate'
         })
       });
-      fetchItems();
-      fetchBatches();
+      fetchData();
     } catch (e) {
       console.error(e);
     }
@@ -481,7 +490,7 @@ const InventoryCatalog: React.FC = () => {
       });
       if (res.success) {
         fetchCalibHistory(itemId);
-        fetchItems();
+        fetchData();
       }
     } catch (e) {
       console.error(e);
@@ -555,13 +564,21 @@ const InventoryCatalog: React.FC = () => {
       type: 'info'
     });
     if (!confirmed) return;
-    await apiFetch('/api/index.php?route=inventory&action=add_batch', { 
-      method: 'POST', 
-      body: JSON.stringify({ ...newBatch, item_id: showAddBatch }) 
-    });
-    setShowAddBatch(null);
-    setNewBatch({ item_id: 0, clinic_branch: 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '' });
-    fetchData();
+    try {
+      const res = await apiFetch('/api/index.php?route=inventory&action=add_batch', { 
+        method: 'POST', 
+        body: JSON.stringify({ ...newBatch, item_id: showAddBatch }) 
+      });
+      if (res && res.success !== false) {
+        setShowAddBatch(null);
+        setNewBatch({ item_id: 0, clinic_branch: 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
+        fetchData();
+      } else {
+        alert(res?.message || 'Failed to add batch.');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Network error adding batch.');
+    }
   };
 
   const handleEditBatch = async (e: React.FormEvent) => {
@@ -602,34 +619,36 @@ const InventoryCatalog: React.FC = () => {
     setExpandedItemId(prev => prev === id ? null : id);
   };
 
-  // Filtered items computation
-  const filteredItems = items.filter(item => {
-    if (categoryFilter !== 'all') {
-      if (categoryFilter === 'other') {
-        if (['medicine', 'supply', 'equipment'].includes(item.category)) return false;
-      } else if (item.category !== categoryFilter) {
-        return false;
+  // Filtered items computation memoized
+  const filteredItems = React.useMemo(() => {
+    return items.filter(item => {
+      if (categoryFilter !== 'all') {
+        if (categoryFilter === 'other') {
+          if (['medicine', 'supply', 'equipment'].includes(item.category)) return false;
+        } else if (item.category !== categoryFilter) {
+          return false;
+        }
       }
-    }
 
-    if (statusFilter === 'low_stock' && !isItemLowStock(item)) return false;
-    if (statusFilter === 'near_expiry' && !isItemNearlyExpired(item)) return false;
-    if (statusFilter === 'calibration_due' && !isItemCalibrationDue(item)) return false;
+      if (statusFilter === 'low_stock' && !isItemLowStock(item)) return false;
+      if (statusFilter === 'near_expiry' && !isItemNearlyExpired(item)) return false;
+      if (statusFilter === 'calibration_due' && !isItemCalibrationDue(item)) return false;
 
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      const matchesGeneric = (item.generic_name || '').toLowerCase().includes(term);
-      const matchesBrand = (item.brand_name || '').toLowerCase().includes(term);
-      const matchesDosage = (item.dosage || '').toLowerCase().includes(term);
-      const matchesFormulation = (item.formulation || '').toLowerCase().includes(term);
-      const matchesNotes = (item.calibration_notes || '').toLowerCase().includes(term);
-      if (!matchesGeneric && !matchesBrand && !matchesDosage && !matchesFormulation && !matchesNotes) {
-        return false;
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase();
+        const matchesGeneric = (item.generic_name || '').toLowerCase().includes(term);
+        const matchesBrand = (item.brand_name || '').toLowerCase().includes(term);
+        const matchesDosage = (item.dosage || '').toLowerCase().includes(term);
+        const matchesFormulation = (item.formulation || '').toLowerCase().includes(term);
+        const matchesNotes = (item.calibration_notes || '').toLowerCase().includes(term);
+        if (!matchesGeneric && !matchesBrand && !matchesDosage && !matchesFormulation && !matchesNotes) {
+          return false;
+        }
       }
-    }
 
-    return true;
-  });
+      return true;
+    });
+  }, [items, categoryFilter, statusFilter, searchTerm, batchesByItemId]);
 
   return (
     <div className="flex flex-col h-full space-y-4">
@@ -757,7 +776,7 @@ const InventoryCatalog: React.FC = () => {
                 const remainingStock = getRemainingStock(item.id);
                 const isLowStock = isItemLowStock(item);
                 const isExpanded = expandedItemId === item.id;
-                const itemBatches = batches.filter(b => b.item_id === item.id);
+                const itemBatches = batchesByItemId.get(item.id) || [];
                 
                 const earliestBatch = getEarliestExpiringBatch(item.id);
                 const expiryDiffDays = earliestBatch ? getDaysDifference(earliestBatch.expired_on) : null;
