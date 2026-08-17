@@ -45,7 +45,7 @@ class ConsultationController extends BaseController {
         // Handle branch filtering
         $requestBranch = $_GET['branch'] ?? 'All Branches';
         if ($userRole !== 'Superadmin') {
-            $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+            $branch = $this->getUserBranch();
             $whereClause .= " AND c.clinic_branch = :branch";
             $params['branch'] = $branch;
         } else {
@@ -154,19 +154,33 @@ class ConsultationController extends BaseController {
         $pdo = cjcDatabaseConnection();
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         
-        $profile_id    = (int)($input['profile_id'] ?? 0);
-        $purpose       = trim($input['purpose'] ?? '');
+        $rawProfileId      = $input['profile_id'] ?? null;
+        $profile_id        = is_numeric($rawProfileId) ? (int)$rawProfileId : 0;
+        $patient_id_number = trim($input['patient_id_number'] ?? '');
+        $purpose           = trim($input['purpose'] ?? '');
         
-        if (!$profile_id || !$purpose) {
-            $this->jsonResponse(['success' => false, 'message' => 'Profile ID and purpose are required.'], 400);
+        if ((!$profile_id && !$patient_id_number) || !$purpose) {
+            $this->jsonResponse(['success' => false, 'message' => 'Valid patient profile and purpose are required.'], 400);
         }
         
-        // Ensure patient exists
+        // Ensure patient exists (lookup by primary key id or fallback to patient_id_number)
         try {
-            $stmt = $pdo->prepare('SELECT id FROM profiles WHERE id = :id LIMIT 1');
-            $stmt->execute(['id' => $profile_id]);
-            if (!$stmt->fetch()) {
-                $this->jsonResponse(['success' => false, 'message' => 'Patient profile not found.'], 404);
+            $profile = null;
+            if ($profile_id > 0) {
+                $stmt = $pdo->prepare('SELECT id FROM profiles WHERE id = :id LIMIT 1');
+                $stmt->execute(['id' => $profile_id]);
+                $profile = $stmt->fetch();
+            }
+            if (!$profile && !empty($patient_id_number)) {
+                $stmt = $pdo->prepare('SELECT id FROM profiles WHERE patient_id_number = :idNum LIMIT 1');
+                $stmt->execute(['idNum' => $patient_id_number]);
+                $profile = $stmt->fetch();
+                if ($profile) {
+                    $profile_id = (int)$profile['id'];
+                }
+            }
+            if (!$profile) {
+                $this->jsonResponse(['success' => false, 'message' => 'Patient profile not found in database. The profile may have been deleted or not synced yet.'], 404);
             }
         } catch (PDOException $e) {
             $this->jsonResponse(['success' => false, 'message' => 'Database error.'], 500);
@@ -174,7 +188,7 @@ class ConsultationController extends BaseController {
             
         $currentUser = cjcCurrentUser();
         $attended_by = $currentUser['name'] ?? 'Clinic Staff';
-        $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+        $branch = $this->getUserBranch();
 
         try {
             $stmt = $pdo->prepare(

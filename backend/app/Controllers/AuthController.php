@@ -87,13 +87,13 @@ class AuthController extends BaseController {
         if (!$user) {
             // User does not exist in the database. Reject login.
             $this->jsonResponse(['success' => false, 'error' => 'Access Denied. Your account has not been authorized by the administrator.'], 403);
-        } else {
+            $branch = trim($user['clinic_branch'] ?? '');
             $user = [
                 'id' => $user['id'],
                 'username' => $user['username'],
                 'name' => $user['name'],
                 'role' => $user['role'],
-                'clinic_branch' => $user['clinic_branch']
+                'clinic_branch' => !empty($branch) ? $branch : 'College Clinic'
             ];
         }
         
@@ -363,12 +363,13 @@ class AuthController extends BaseController {
             $user = $stmt->fetch();
 
             if ($user && password_verify($password, $user['password_hash'])) {
+                $branch = trim($user['clinic_branch'] ?? '');
                 return [
                     'id'            => $user['id'],
                     'username'      => $user['username'],
                     'name'          => $user['name'],
                     'role'          => $user['role'],
-                    'clinic_branch' => $user['clinic_branch'],
+                    'clinic_branch' => !empty($branch) ? $branch : 'College Clinic',
                 ];
             }
         } catch (PDOException $exception) {

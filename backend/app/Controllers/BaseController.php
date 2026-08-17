@@ -33,10 +33,11 @@ abstract class BaseController {
     }
 
     /**
-     * Get current user's clinic branch
+     * Get current user's clinic branch (guaranteed non-empty)
      */
     protected function getUserBranch(): string {
         $user = $this->getCurrentUser();
-        return $user['clinic_branch'] ?? 'College Clinic';
+        $branch = trim($user['clinic_branch'] ?? '');
+        return !empty($branch) ? $branch : 'College Clinic';
     }
 }

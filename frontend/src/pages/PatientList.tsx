@@ -217,6 +217,7 @@ const PatientList: React.FC = () => {
         method: 'POST',
         body: JSON.stringify({
           profile_id: admittingPatient.id,
+          patient_id_number: admittingPatient.patient_id_number || '',
           purpose: finalCue,
           complaint: complaintNote
         })
@@ -227,11 +228,13 @@ const PatientList: React.FC = () => {
       } else {
         alert('Failed to admit patient: ' + (res.message || 'Unknown error'));
         setIsAdmitting(false);
+        fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Admission failed:', err);
-      alert('An error occurred while admitting the patient.');
+      alert('An error occurred while admitting the patient: ' + (err?.message || 'Network error'));
       setIsAdmitting(false);
+      fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel);
     }
   };
 

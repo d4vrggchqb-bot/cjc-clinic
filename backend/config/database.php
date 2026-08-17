@@ -16,13 +16,24 @@ require_once __DIR__ . '/config.php';
  *   DB_PASS     (NO default — must be set)
  *   DB_CHARSET  (default: utf8mb4)
  */
-function cjcIsPortOpen(string $host, int $port = 3306, float $timeout = 1.0): bool
+function cjcIsPortOpen(string $host, int $port = 3306, float $timeout = 0.2): bool
 {
     if ($host === '127.0.0.1' || $host === 'localhost') return true;
+    
+    // Check if recently determined to be unreachable in this session
+    if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['cjc_db_unreachable_until']) && time() < $_SESSION['cjc_db_unreachable_until']) {
+        return false;
+    }
+
     $s = @stream_socket_client("tcp://{$host}:{$port}", $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT);
     if ($s) {
         fclose($s);
         return true;
+    }
+    
+    // Cache unreachable for 60 seconds
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['cjc_db_unreachable_until'] = time() + 60;
     }
     return false;
 }
@@ -40,16 +51,15 @@ function cjcDatabaseConnection(): PDO
     $pass    = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '';
     $charset = getenv('DB_CHARSET') ?: 'utf8mb4';
 
-    // Primary host: Try School ICT Central Server (192.168.10.96) first
-    $primaryHost = getenv('DB_HOST') ?: '192.168.10.96';
+    // Primary host
+    $primaryHost = getenv('DB_HOST') ?: '127.0.0.1';
     
-    // Fast socket check: if 192.168.10.96 is unreachable, switch to 127.0.0.1 instantly
     $targetHost = $primaryHost;
     $targetUser = $user;
     $targetPass = $pass;
 
     if ($primaryHost !== '127.0.0.1' && $primaryHost !== 'localhost') {
-        if (!cjcIsPortOpen($primaryHost, 3306, 2.0)) {
+        if (!cjcIsPortOpen($primaryHost, 3306, 0.2)) {
             $targetHost = '127.0.0.1';
             $targetUser = 'root';
             $targetPass = '';
