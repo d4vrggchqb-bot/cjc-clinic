@@ -12,27 +12,24 @@ class DashboardController extends BaseController {
         $pdo = cjcDatabaseConnection();
 
         $userRole = $_SESSION['cjc_user']['role'] ?? 'Staff';
-        $userBranch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
-        $branch = $userBranch;
+        $branch = $this->getUserBranch();
         
-        if ($userRole === 'Superadmin' && isset($_GET['branch']) && $_GET['branch'] !== 'All Branches') {
-            $branch = $_GET['branch'];
+        if ($userRole === 'Superadmin') {
+            $branch = $_GET['branch'] ?? 'All Branches';
         }
 
         $branchConditionAnd = '';
         $branchConditionWhere = '';
         $branchParams = [];
-        if ($userRole !== 'Superadmin' || (isset($_GET['branch']) && $_GET['branch'] !== 'All Branches')) {
+        if ($branch !== 'All Branches') {
             $branchConditionAnd = 'AND clinic_branch = :branch';
             $branchConditionWhere = 'WHERE clinic_branch = :branch';
             $branchParams = ['branch' => $branch];
-        } else {
-            $branch = 'All Branches';
         }
 
         $visitsToday = 0;
         try {
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM consultations WHERE created_at >= CURDATE() $branchConditionAnd");
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM consultations WHERE DATE(created_at) = CURDATE() $branchConditionAnd");
             $stmt->execute($branchParams);
             $visitsToday = (int)$stmt->fetchColumn();
         } catch (PDOException $e) {
@@ -67,7 +64,8 @@ class DashboardController extends BaseController {
 
         $inventoryCount = 0;
         try {
-            $stmt = $pdo->prepare("SELECT COUNT(DISTINCT i.id) FROM inventory_items i LEFT JOIN inventory_batches b ON i.id = b.item_id $branchConditionAnd");
+            $bFilter = ($branch !== 'All Branches') ? "AND b.clinic_branch = :branch" : "";
+            $stmt = $pdo->prepare("SELECT COUNT(DISTINCT i.id) FROM inventory_items i LEFT JOIN inventory_batches b ON i.id = b.item_id WHERE 1=1 $bFilter");
             $stmt->execute($branchParams);
             $inventoryCount = (int)$stmt->fetchColumn();
         } catch (PDOException $e) {
@@ -186,12 +184,13 @@ class DashboardController extends BaseController {
 
         $topDispensed = [];
         try {
+            $bJoinFilter = ($branch !== 'All Branches') ? "AND b.clinic_branch = :branch" : "";
             $stmt = $pdo->prepare("
                 SELECT i.generic_name, SUM(ABS(l.quantity_changed)) as cnt
                 FROM inventory_logs l
                 JOIN inventory_batches b ON l.batch_id = b.id
                 JOIN inventory_items i ON b.item_id = i.id
-                WHERE l.action_type IN ('dispense', 'dispose') $branchConditionAnd
+                WHERE l.action_type IN ('dispense', 'dispose') $bJoinFilter
                 GROUP BY i.generic_name
                 ORDER BY cnt DESC LIMIT 5
             ");
@@ -201,13 +200,14 @@ class DashboardController extends BaseController {
 
         $expiringItems = [];
         try {
+            $bFilter = ($branch !== 'All Branches') ? "AND b.clinic_branch = :branch" : "";
             $sql = "
                 SELECT b.batch_number, i.generic_name, b.expired_on, b.stock_remaining, b.clinic_branch
                 FROM inventory_batches b
                 JOIN inventory_items i ON b.item_id = i.id
                 WHERE b.expired_on IS NOT NULL 
                   AND b.stock_remaining > 0 
-                  $branchConditionAnd
+                  $bFilter
                   AND b.expired_on <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
                 ORDER BY b.expired_on ASC LIMIT 10
             ";
@@ -218,12 +218,11 @@ class DashboardController extends BaseController {
 
         $lowStockItems = [];
         try {
-            // For low stock, we sum the batches for each item. 
-            // If branch is specific, we only sum for that branch.
+            $bFilter = ($branch !== 'All Branches') ? "AND b.clinic_branch = :branch" : "";
             $sql = "
                 SELECT i.generic_name, i.category, IFNULL(SUM(b.stock_remaining), 0) as total_stock, i.alert_threshold
                 FROM inventory_items i
-                LEFT JOIN inventory_batches b ON i.id = b.item_id $branchConditionAnd
+                LEFT JOIN inventory_batches b ON i.id = b.item_id $bFilter
                 GROUP BY i.id
                 HAVING total_stock <= i.alert_threshold
                 LIMIT 10
