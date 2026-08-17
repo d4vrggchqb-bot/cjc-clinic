@@ -1,0 +1,1 @@
+<?php require_once 'backend/config/config.php'; $pdo = cjcDatabaseConnection(); $stmt = $pdo->query('SELECT id, username, email, role, clinic_branch FROM users'); print_r($stmt->fetchAll(PDO::FETCH_ASSOC));

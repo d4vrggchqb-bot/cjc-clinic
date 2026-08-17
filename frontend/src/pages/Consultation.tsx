@@ -158,6 +158,14 @@ const Consultation: React.FC = () => {
   });
   const [showPrintView, setShowPrintView] = useState(false);
 
+  // Clinic Slip State
+  const [isClinicSlipModalOpen, setIsClinicSlipModalOpen] = useState(false);
+  const [clinicSlipData, setClinicSlipData] = useState({
+    advised: 'class', // 'home' or 'class'
+    personnel: ''
+  });
+  const [showClinicSlipPrintView, setShowClinicSlipPrintView] = useState(false);
+
   const fetchInventory = () => {
     apiFetch('/api/index.php?route=inventory&action=items')
       .then(res => {
@@ -1504,25 +1512,38 @@ const Consultation: React.FC = () => {
 
             {/* Modal Footer */}
             <div className="p-4 sm:px-6 border-t border-slate-200 flex justify-between items-center bg-white shrink-0">
-              <button 
-                onClick={() => {
-                  setMedcertData({ 
-                    ...medcertData, 
-                    issued_to: activeNoteEntry.patient_name, 
-                    is_essentially_normal: false,
-                    reason: '',
-                    valid_until: '',
-                    clinic_branch: activeNoteEntry.clinic_branch || 'College Clinic'
-                  });
-                  setIsMedcertModalOpen(true);
-                }} 
-                className="px-5 py-2.5 text-xs sm:text-sm font-extrabold text-slate-900 bg-white border-2 border-slate-300 hover:border-[#8c1526] hover:text-[#8c1526] rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 group"
-              >
-                <span className="p-1.5 rounded-lg bg-rose-100/80 text-[#8c1526] group-hover:bg-[#8c1526] group-hover:text-white transition-colors shadow-2xs">
-                  <FiPrinter className="w-4 h-4" />
-                </span>
-                <span>Generate Medcert / Prescription</span>
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => {
+                    setMedcertData({ 
+                      ...medcertData, 
+                      issued_to: activeNoteEntry.patient_name, 
+                      is_essentially_normal: false,
+                      reason: '',
+                      valid_until: '',
+                      clinic_branch: activeNoteEntry.clinic_branch || 'College Clinic'
+                    });
+                    setIsMedcertModalOpen(true);
+                  }} 
+                  className="px-5 py-2.5 text-xs sm:text-sm font-extrabold text-slate-900 bg-white border-2 border-slate-300 hover:border-[#8c1526] hover:text-[#8c1526] rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 group"
+                >
+                  <span className="p-1.5 rounded-lg bg-rose-100/80 text-[#8c1526] group-hover:bg-[#8c1526] group-hover:text-white transition-colors shadow-2xs">
+                    <FiPrinter className="w-4 h-4" />
+                  </span>
+                  <span>Generate Medcert / Prescription</span>
+                </button>
+                <button 
+                  onClick={() => {
+                    setIsClinicSlipModalOpen(true);
+                  }} 
+                  className="px-5 py-2.5 text-xs sm:text-sm font-extrabold text-slate-900 bg-white border-2 border-slate-300 hover:border-[#8c1526] hover:text-[#8c1526] rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 group"
+                >
+                  <span className="p-1.5 rounded-lg bg-rose-100/80 text-[#8c1526] group-hover:bg-[#8c1526] group-hover:text-white transition-colors shadow-2xs">
+                    <FiPrinter className="w-4 h-4" />
+                  </span>
+                  <span>Generate Clinic Slip</span>
+                </button>
+              </div>
 
               <div className="flex gap-3">
                 <button 
@@ -1629,6 +1650,78 @@ const Consultation: React.FC = () => {
             
             <div className="p-4 border-t border-slate-200 flex justify-end bg-slate-50 rounded-b-lg">
               <button onClick={() => setIsHistoryModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clinic Slip Form Modal */}
+      {isClinicSlipModalOpen && activeNoteEntry && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
+              <h2 className="text-lg font-bold text-[#8c1526]">Generate Clinic Slip</h2>
+              <button onClick={() => setIsClinicSlipModalOpen(false)} className="text-slate-400 hover:text-slate-700 font-bold text-xl">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Recommendation</label>
+                <div className="flex gap-4 mt-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="slip_advised" 
+                      checked={clinicSlipData.advised === 'home'} 
+                      onChange={() => setClinicSlipData({...clinicSlipData, advised: 'home'})} 
+                      className="accent-[#8c1526]"
+                    />
+                    Advised to go home
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="slip_advised" 
+                      checked={clinicSlipData.advised === 'class'} 
+                      onChange={() => setClinicSlipData({...clinicSlipData, advised: 'class'})} 
+                      className="accent-[#8c1526]"
+                    />
+                    May resume to class
+                  </label>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Signatory (Nurse/Clerk)</label>
+                <select 
+                  required 
+                  value={clinicSlipData.personnel} 
+                  onChange={e => setClinicSlipData({...clinicSlipData, personnel: e.target.value})} 
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
+                >
+                  <option value="" disabled>Select personnel...</option>
+                  {medcertPersonnel.map((p, idx) => (
+                    <option key={idx} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setIsClinicSlipModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded">Cancel</button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    if (!clinicSlipData.personnel) {
+                      toast.error('Please select a signatory.');
+                      return;
+                    }
+                    setIsClinicSlipModalOpen(false);
+                    setShowClinicSlipPrintView(true);
+                  }} 
+                  className="px-4 py-2 text-sm font-bold text-white bg-[#8c1526] hover:bg-[#7a1221] rounded shadow-sm flex items-center gap-2"
+                >
+                  <FiPrinter /> Preview & Print
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1858,7 +1951,147 @@ const Consultation: React.FC = () => {
         </div>
       )}
 
-      {/* Staff Dedicated Vital Signs Record Modal */}
+      {/* Clinic Slip Print View */}
+      {showClinicSlipPrintView && activeNoteEntry && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] overflow-auto flex flex-col items-center py-8 print:py-0 print:bg-white print:block">
+          
+          {/* Action Header Bar (Hidden during printing) */}
+          <div className="w-full max-w-[148mm] flex justify-between items-center bg-slate-800 text-white px-6 py-3 rounded-2xl mb-4 print:hidden shadow-lg">
+            <div className="flex items-center gap-2 font-bold text-sm">
+              <FiPrinter className="text-[#C01D38]" /> Clinic Slip Preview
+            </div>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => window.print()} 
+                className="px-5 py-2 bg-[#C01D38] hover:bg-[#A5192D] text-white rounded-xl font-bold text-xs shadow transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <FiPrinter /> Print Document Now
+              </button>
+              <button 
+                onClick={() => setShowClinicSlipPrintView(false)} 
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+
+          {/* A5-ish or Half A4 Paper Printable Sheet */}
+          <div className="w-[148mm] min-h-[210mm] bg-white shadow-2xl print:shadow-none p-8 relative flex flex-col text-slate-900 font-sans border border-slate-200 print:border-none print:p-8">
+            
+            <div>
+              <div className="mb-4 relative">
+                
+                {/* Header Image Background */}
+                <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto" />
+
+                {/* Right: Document Info Box overlay */}
+                <div className="absolute top-[5%] right-[0%] bottom-[41%] w-[17%] z-10 overflow-visible">
+                  <div className="w-[200%] h-[200%] scale-50 origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-1 shadow-sm font-sans leading-none">
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Index No.:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">9.4</span>
+                    </div>
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Revision No.:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">01</span>
+                    </div>
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Effective Date:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[14px]">08/01/2024</span>
+                    </div>
+                    <div className="flex items-end justify-between gap-1">
+                      <span className="text-slate-800 whitespace-nowrap text-[13px]">Control No.:</span>
+                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[13px]">9.4 -C- 2025</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Certificate Header Title */}
+              <div className="text-center mb-6 mt-4">
+                <h3 className="text-xl font-bold uppercase tracking-wide text-slate-800 font-sans">CLINIC SLIP</h3>
+              </div>
+
+              {/* Main Form Fields */}
+              <div className="text-slate-800 text-[14px] space-y-4 font-sans leading-relaxed">
+                
+                <div className="flex justify-between items-end gap-4">
+                  <div className="flex items-end gap-2 flex-1">
+                    <span className="whitespace-nowrap">Date:</span>
+                    <span className="border-b border-black w-full min-w-[120px] pb-0.5">{new Date().toLocaleDateString('en-US')}</span>
+                  </div>
+                  <div className="flex items-end gap-2 flex-1">
+                    <span className="whitespace-nowrap">Time:</span>
+                    <span className="border-b border-black w-full min-w-[120px] pb-0.5">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-end gap-2">
+                  <span className="whitespace-nowrap">Name:</span>
+                  <span className="border-b border-black w-full pb-0.5 font-bold uppercase">{activeNoteEntry.patient_name}</span>
+                </div>
+
+                <div className="flex items-end gap-2">
+                  <span className="whitespace-nowrap">Year & Course:</span>
+                  <span className="border-b border-black w-full pb-0.5">{selectedProfileDetails?.course ? `${selectedProfileDetails.year_level || ''} - ${selectedProfileDetails.course}` : ''}</span>
+                </div>
+
+                <div className="flex items-end gap-2 mt-6">
+                  <span className="whitespace-nowrap">Chief Complaint:</span>
+                  <span className="border-b border-black w-full pb-0.5">{activeNoteEntry.purpose}</span>
+                </div>
+
+                <div className="mt-4">
+                  <div className="mb-1">Cues:</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[0] : ''}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[1] || '' : ''}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[2] || '' : ''}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
+                </div>
+
+                <div className="mt-4">
+                  <div className="mb-1">Intervention/Remarks:</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[0] : ''}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[1] || '' : ''}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[2] || '' : ''}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
+                </div>
+
+                <div className="mt-8 pl-4 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-[14px] h-[14px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-[10px] pb-0.5">
+                      {clinicSlipData.advised === 'home' && <span>✓</span>}
+                    </div>
+                    <span>Advised to go home</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-[14px] h-[14px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-[10px] pb-0.5">
+                      {clinicSlipData.advised === 'class' && <span>✓</span>}
+                    </div>
+                    <span>May resume to class</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Bottom Signatures Section */}
+            <div className="pt-4 pb-8 mt-auto">
+              <div className="flex justify-end pr-8">
+                <div className="text-center w-[250px]">
+                  <div className="border-b border-black w-full font-bold uppercase text-[15px] pb-1 mb-1">
+                    {clinicSlipData.personnel}
+                  </div>
+                  <div className="text-[13px] text-slate-800">School Nurse/ Clinic Clerk</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
       {isStaffVitalsModalOpen && activeNoteEntry && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 transition-all duration-300">
           <div className="bg-white rounded-3xl shadow-[0_25px_70px_-15px_rgba(0,0,0,0.3)] w-full max-w-2xl flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-300">

@@ -1,0 +1,1 @@
+<?php require_once '../../config/config.php'; require_once '../../config/database.php'; $pdo = cjcDatabaseConnection(); $stmt = $pdo->query('DESCRIBE profiles'); print_r($stmt->fetchAll(PDO::FETCH_ASSOC));
