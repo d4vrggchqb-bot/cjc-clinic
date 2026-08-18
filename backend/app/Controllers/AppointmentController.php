@@ -14,7 +14,19 @@ class AppointmentController extends BaseController {
         $params = [];
         if (!in_array($userRole, ['Admin', 'Superadmin'])) {
             $branchFilter = " WHERE a.clinic_branch = ? ";
-            $params[] = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+            $params[] = $this->getUserBranch();
+        }
+
+        // Auto-update past-due scheduled appointments to No-Show
+        try {
+            $pdo->exec("
+                UPDATE appointments 
+                SET status = 'No-Show' 
+                WHERE status = 'Scheduled' 
+                  AND (appointment_date < CURDATE() OR (appointment_date = CURDATE() AND appointment_time < CURTIME()))
+            ");
+        } catch (Exception $e) {
+            error_log('[CJC-CLINIC] auto-update No-Show error: ' . $e->getMessage());
         }
 
         try {

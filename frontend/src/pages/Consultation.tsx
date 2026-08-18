@@ -637,19 +637,24 @@ const Consultation: React.FC = () => {
 
   const handleCheckoutAll = async () => {
     const confirmed = await confirm({
-      title: 'Checkout All',
-      message: 'Are you sure you want to time-out all active visitors today?',
+      title: 'Checkout All Active Visitors',
+      message: 'Are you sure you want to time-out and complete all active visitors for today?',
       type: 'warning'
     });
     if (!confirmed) return;
     try {
-      await apiFetch(`/api/index.php?route=consultations&action=checkoutAll`, {
+      const res = await apiFetch(`/api/index.php?route=consultations&action=checkoutAll`, {
         method: 'POST'
       });
+      if (res.success) {
+        toast.success(res.message || 'All active visitors timed out successfully.');
+      } else {
+        toast.error(res.message || 'Failed to set time-out.');
+      }
       fetchEntries();
     } catch (err) {
       console.error(err);
-      alert('Failed to set all time-out.');
+      toast.error('Failed to set all time-out.');
     }
   };
 

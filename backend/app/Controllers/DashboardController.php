@@ -44,10 +44,17 @@ class DashboardController extends BaseController {
         } catch (PDOException $e) {}
 
         $unattended = 0;
+        $pastUnattended = 0;
         try {
-            $stmt       = $pdo->prepare("SELECT COUNT(*) FROM consultations WHERE status IN ('pending','waiting','no-show') $branchConditionAnd");
+            // Count today's unattended queue
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM consultations WHERE DATE(created_at) = CURDATE() AND status IN ('pending','waiting','in-progress') $branchConditionAnd");
             $stmt->execute($branchParams);
             $unattended = (int)$stmt->fetchColumn();
+
+            // Count unclosed leftovers from past dates
+            $stmtPast = $pdo->prepare("SELECT COUNT(*) FROM consultations WHERE DATE(created_at) < CURDATE() AND status IN ('pending','waiting','in-progress') $branchConditionAnd");
+            $stmtPast->execute($branchParams);
+            $pastUnattended = (int)$stmtPast->fetchColumn();
         } catch (PDOException $e) {}
 
         $pendingRechecks = 0;
@@ -73,14 +80,21 @@ class DashboardController extends BaseController {
         }
 
         $colleges = [];
+        $programToDept = [];
         try {
-            $stmt = $pdo->query("SELECT setting_value FROM settings WHERE setting_key IN ('departments_hierarchy', 'bed_hierarchy')");
+            $stmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('departments_hierarchy', 'bed_hierarchy')");
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $values = json_decode($row['setting_value'], true);
                 if (is_array($values)) {
                     foreach ($values as $item) {
                         if (isset($item['department'])) {
-                            $colleges[] = $item['department'];
+                            $deptName = $item['department'];
+                            $colleges[] = $deptName;
+                            if (isset($item['programs']) && is_array($item['programs'])) {
+                                foreach ($item['programs'] as $prog) {
+                                    $programToDept[strtolower(trim($prog))] = $deptName;
+                                }
+                            }
                         } elseif (isset($item['program'])) {
                             $colleges[] = $item['program'];
                         }
@@ -93,45 +107,71 @@ class DashboardController extends BaseController {
         $visitsByCollege = empty($colleges) ? [] : array_fill_keys($colleges, 0);
 
         try {
-            $hasCollegeInConsult = false;
-            $colCheck = $pdo->query("SHOW COLUMNS FROM consultations LIKE 'college'");
-            if ($colCheck && $colCheck->fetch()) {
-                $hasCollegeInConsult = true;
-                $stmt = $pdo->prepare("SELECT college, COUNT(*) AS cnt FROM consultations WHERE 1=1 $branchConditionAnd GROUP BY college");
-                $stmt->execute($branchParams);
-                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                    $key = $row['college'];
-                    if ($key && array_key_exists($key, $visitsByCollege)) {
-                        $visitsByCollege[$key] = (int)$row['cnt'];
-                    }
-                }
-            }
+            $sql = "SELECT p.college_dept, p.course, p.sub_type, p.profile_type, COUNT(c.id) AS cnt
+                    FROM consultations c
+                    LEFT JOIN profiles p ON p.id = c.profile_id
+                    WHERE 1=1 $branchConditionAnd
+                    GROUP BY p.college_dept, p.course, p.sub_type, p.profile_type";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($branchParams);
 
-            if (!$hasCollegeInConsult) {
-                $profileCollegeCol = null;
-                $possibleCols      = ['college', 'program', 'department', 'course'];
-                foreach ($possibleCols as $col) {
-                    $check = $pdo->query("SHOW COLUMNS FROM profiles LIKE '{$col}'");
-                    if ($check && $check->fetch()) {
-                        $profileCollegeCol = $col;
-                        break;
-                    }
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $dept = trim($row['college_dept'] ?? '');
+                $course = trim($row['course'] ?? '');
+                $cnt = (int)$row['cnt'];
+                $matchedKey = null;
+
+                // 1. Direct exact match on college_dept
+                if (!empty($dept) && array_key_exists($dept, $visitsByCollege)) {
+                    $matchedKey = $dept;
                 }
 
-                if ($profileCollegeCol !== null) {
-                    $sql  = "SELECT p.{$profileCollegeCol} AS college, COUNT(c.id) AS cnt
-                             FROM consultations c
-                             LEFT JOIN profiles p ON p.id = c.profile_id
-                             WHERE 1=1 $branchConditionAnd
-                             GROUP BY p.{$profileCollegeCol}";
-                    $stmt = $pdo->prepare($sql);
-                    $stmt->execute($branchParams);
-                    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                        $key = $row['college'];
-                        if ($key && array_key_exists($key, $visitsByCollege)) {
-                            $visitsByCollege[$key] = (int)$row['cnt'];
+                // 2. Direct match on course (for BED levels such as Junior High School)
+                if (!$matchedKey && !empty($course) && array_key_exists($course, $visitsByCollege)) {
+                    $matchedKey = $course;
+                }
+
+                // 3. Lookup parent department via program-to-department hierarchy
+                if (!$matchedKey && !empty($course)) {
+                    $courseLower = strtolower($course);
+                    if (isset($programToDept[$courseLower])) {
+                        $matchedKey = $programToDept[$courseLower];
+                    } else {
+                        if (str_contains($courseLower, 'computer') || str_contains($courseLower, 'information') || $courseLower === 'bscs' || $courseLower === 'bsit') {
+                            $matchedKey = 'College of Computing and Information Sciences (CCIS)';
+                        } elseif (str_contains($courseLower, 'criminology') || $courseLower === 'bscrim') {
+                            $matchedKey = 'College of Special Programs (CSP)';
+                        } elseif (str_contains($courseLower, 'nursing') || $courseLower === 'bsn') {
+                            $matchedKey = 'College of Health Sciences (CHS)';
+                        } elseif (str_contains($courseLower, 'engineering')) {
+                            $matchedKey = 'College of Engineering (COE)';
+                        } elseif (str_contains($courseLower, 'accountancy') || str_contains($courseLower, 'business')) {
+                            $matchedKey = 'College of Accounting Business and Entreprenuership (CABE)';
                         }
                     }
+                }
+
+                // 4. Substring & acronym match on department name
+                if (!$matchedKey && !empty($dept)) {
+                    $deptLower = strtolower($dept);
+                    foreach (array_keys($visitsByCollege) as $k) {
+                        $kLower = strtolower($k);
+                        if (str_contains($deptLower, $kLower) || str_contains($kLower, $deptLower)) {
+                            $matchedKey = $k;
+                            break;
+                        }
+                        if (preg_match('/\(([^)]+)\)/', $k, $matches)) {
+                            $acronym = strtolower($matches[1]);
+                            if (str_contains($deptLower, $acronym)) {
+                                $matchedKey = $k;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if ($matchedKey && array_key_exists($matchedKey, $visitsByCollege)) {
+                    $visitsByCollege[$matchedKey] += $cnt;
                 }
             }
         } catch (PDOException $e) {
@@ -268,6 +308,7 @@ class DashboardController extends BaseController {
             'visits_today' => $visitsToday,
             'total_registered' => $totalRegistered,
             'unattended' => $unattended,
+            'past_unattended' => $pastUnattended,
             'pending_rechecks' => $pendingRechecks,
             'inventory_count' => $inventoryCount,
             'visits_by_college' => $visitsByCollege,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiCalendar, FiPlus, FiClock, FiCheck, FiX, FiSearch, FiUserPlus, FiEdit, FiFilter, FiUsers, FiRefreshCw, FiAlertCircle, FiArrowDown, FiArrowUp } from 'react-icons/fi';
+import { FiCalendar, FiPlus, FiClock, FiCheck, FiX, FiSearch, FiUserPlus, FiEdit, FiFilter, FiUsers, FiRefreshCw, FiAlertCircle, FiArrowDown, FiArrowUp, FiUserX } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
 import PatientModal from '../components/PatientModal';
@@ -970,9 +970,21 @@ const Appointments: React.FC = () => {
                               <div className="text-slate-800 text-sm font-medium">{apt.purpose}</div>
                             </td>
                             <td className="p-4 align-top">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-                                Mixed / Group
-                              </span>
+                              {(() => {
+                                const statuses = Array.from(new Set(groupMembers.map(m => m.status)));
+                                const displayStatus = statuses.length === 1 ? statuses[0] : 'Mixed / Group';
+                                return (
+                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
+                                    ${displayStatus === 'Scheduled' ? 'bg-blue-50 text-blue-700' : ''}
+                                    ${displayStatus === 'Completed' ? 'bg-emerald-50 text-emerald-700' : ''}
+                                    ${displayStatus === 'Cancelled' ? 'bg-red-50 text-red-700' : ''}
+                                    ${displayStatus === 'No-Show' ? 'bg-slate-100 text-slate-700' : ''}
+                                    ${displayStatus === 'Mixed / Group' ? 'bg-indigo-50 text-indigo-700' : ''}
+                                  `}>
+                                    {displayStatus}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td className="p-4 align-top text-right">
                               <button 
@@ -1015,12 +1027,21 @@ const Appointments: React.FC = () => {
                                   </span>
                                 </td>
                                 <td className="p-4 align-top text-right">
-                                  {member.status === 'Scheduled' && (
-                                    <div className="flex justify-end gap-2">
-                                      <button onClick={() => handleUpdate(member.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed"><FiCheck size={16} /></button>
-                                      <button onClick={() => handleUpdate(member.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip" title="Cancel Appointment"><FiX size={16} /></button>
-                                    </div>
-                                  )}
+                                  <div className="flex justify-end gap-2">
+                                    {member.status === 'Scheduled' && (
+                                      <>
+                                        <button onClick={() => handleUpdate(member.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed"><FiCheck size={16} /></button>
+                                        <button onClick={() => handleUpdate(member.id, 'No-Show')} className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors tooltip" title="Mark No-Show"><FiUserX size={16} /></button>
+                                        <button onClick={() => handleUpdate(member.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip" title="Cancel Appointment"><FiX size={16} /></button>
+                                      </>
+                                    )}
+                                    {member.status === 'No-Show' && (
+                                      <>
+                                        <button onClick={() => handleUpdate(member.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed (Arrived Late)"><FiCheck size={16} /></button>
+                                        <button onClick={() => handleUpdate(member.id, 'Scheduled')} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors tooltip" title="Re-schedule"><FiCalendar size={16} /></button>
+                                      </>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -1097,7 +1118,14 @@ const Appointments: React.FC = () => {
                                   <FiEdit size={16} />
                                 </button>
                                 <button onClick={() => handleUpdate(apt.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed"><FiCheck size={16} /></button>
+                                <button onClick={() => handleUpdate(apt.id, 'No-Show')} className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors tooltip" title="Mark No-Show"><FiUserX size={16} /></button>
                                 <button onClick={() => handleUpdate(apt.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip" title="Cancel Appointment"><FiX size={16} /></button>
+                              </div>
+                            )}
+                            {apt.status === 'No-Show' && (
+                              <div className="flex justify-end gap-2">
+                                <button onClick={() => handleUpdate(apt.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed (Arrived Late)"><FiCheck size={16} /></button>
+                                <button onClick={() => handleUpdate(apt.id, 'Scheduled')} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors tooltip" title="Re-schedule"><FiCalendar size={16} /></button>
                               </div>
                             )}
                           </td>

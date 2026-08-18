@@ -10,6 +10,10 @@ class ConsultationController extends BaseController {
 
         cjcRequireAuth();
         $pdo = cjcDatabaseConnection();
+
+        // Automatically roll-over and clean up leftover unclosed consultations from previous days
+        $this->autoRollOverPastConsultations($pdo);
+
         $sessions = [];
 
         $period = $_GET['period'] ?? 'today';
@@ -501,5 +505,82 @@ class ConsultationController extends BaseController {
             'suggested_diagnosis' => array_values(array_unique($suggestedDiagnosis)),
             'suggested_treatment' => array_values(array_unique($suggestedTreatment))
         ]);
+    }
+
+    /**
+     * Automatically roll-over and clean up leftover unclosed consultations from previous days
+     */
+    private function autoRollOverPastConsultations(PDO $pdo): void {
+        try {
+            // 1. Past 'waiting' or 'pending' items auto-transition to 'no-show'
+            $pdo->exec("
+                UPDATE consultations 
+                SET status = 'no-show', 
+                    time_out = COALESCE(time_out, created_at)
+                WHERE status IN ('waiting', 'pending') 
+                  AND DATE(created_at) < CURDATE()
+            ");
+
+            // 2. Past 'in-progress' or 'active' items with notes auto-complete; without notes auto-transition to 'no-show'
+            $pdo->exec("
+                UPDATE consultations 
+                SET status = CASE 
+                        WHEN (diagnosis IS NOT NULL AND diagnosis != '') OR (treatment IS NOT NULL AND treatment != '') THEN 'completed' 
+                        ELSE 'no-show' 
+                    END,
+                    time_out = COALESCE(time_out, created_at)
+                WHERE status IN ('active', 'in-progress') 
+                  AND DATE(created_at) < CURDATE()
+            ");
+        } catch (Exception $e) {
+            error_log('[CJC-CLINIC] auto roll-over consultations error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Manual bulk resolution for leftover consultations from past days
+     */
+    public function resolvePastLeftovers() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth();
+        cjcCsrfValidate();
+        $pdo = cjcDatabaseConnection();
+        $branch = $this->getUserBranch();
+        $currentUser = cjcCurrentUser();
+        $userRole = $currentUser['role'] ?? 'Staff';
+
+        $branchSql = "";
+        $params = [];
+        if ($userRole !== 'Superadmin') {
+            $branchSql = "AND clinic_branch = :branch";
+            $params['branch'] = $branch;
+        }
+
+        try {
+            $stmt = $pdo->prepare("
+                UPDATE consultations 
+                SET status = CASE 
+                        WHEN (diagnosis IS NOT NULL AND diagnosis != '') OR (treatment IS NOT NULL AND treatment != '') THEN 'completed' 
+                        ELSE 'no-show' 
+                    END,
+                    time_out = COALESCE(time_out, created_at)
+                WHERE status IN ('waiting', 'pending', 'active', 'in-progress') 
+                  AND DATE(created_at) < CURDATE()
+                  $branchSql
+            ");
+            $stmt->execute($params);
+            $affected = $stmt->rowCount();
+
+            $this->jsonResponse([
+                'success' => true, 
+                'message' => "Successfully resolved $affected unclosed consultation(s) from previous days.",
+                'resolved_count' => $affected
+            ]);
+        } catch (PDOException $e) {
+            $this->jsonResponse(['success' => false, 'message' => 'Failed to resolve past consultations.'], 500);
+        }
     }
 }
