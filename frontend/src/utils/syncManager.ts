@@ -69,9 +69,11 @@ class SyncManager {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      // Probe our own clinic API health check endpoint
+      // Probe our own clinic API health check endpoint.
+      // Any HTTP response at all means the server is reachable → we are online.
+      // Only a network-level failure (fetch throws) means we are truly offline.
       const res = await fetch(`/api/index.php?route=sync&action=ping&_t=${Date.now()}`, {
         method: 'GET',
         signal: controller.signal,
@@ -79,11 +81,13 @@ class SyncManager {
       });
       clearTimeout(timeoutId);
 
-      const online = res.ok;
-      this.setOnlineStatus(online);
-      return online;
+      // Server replied with ANY status → LAN/server is reachable → online
+      const online = res.status !== undefined; // always true if we got a response
+      this.setOnlineStatus(true);
+      return true;
     } catch {
-      // Fallback: If server is temporarily unreachable, evaluate based on browser network status
+      // Fetch threw (AbortError = timeout, TypeError = no network)
+      // Fall back to the browser's own network flag
       const fallbackOnline = typeof navigator !== 'undefined' ? navigator.onLine : false;
       this.setOnlineStatus(fallbackOnline);
       return fallbackOnline;

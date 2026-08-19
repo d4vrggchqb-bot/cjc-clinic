@@ -164,10 +164,6 @@ class InventoryController extends BaseController {
         
         $branch = $_GET['branch'] ?? 'all';
         $includeAll = isset($_GET['include_all']) ? (int)$_GET['include_all'] : 1;
-        $userRole = $_SESSION['cjc_user']['role'] ?? 'Staff';
-        if (!in_array($userRole, ['Admin', 'Superadmin'])) {
-            $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
-        }
 
         $params = [];
         $whereClauses = [];
@@ -643,16 +639,36 @@ class InventoryController extends BaseController {
     public function predictive_alerts() {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
         cjcRequireAuth();
-        $pdo = cjcDatabaseConnection();
+        $userRole = $_SESSION['cjc_user']['role'] ?? 'Staff';
+        $branch = $this->getUserBranch();
+        if ($userRole === 'Superadmin') {
+            $branch = $_GET['branch'] ?? 'All Branches';
+        }
 
-        // 1. Get current total stock for all items
-        $stockStmt = $pdo->query("
-            SELECT i.id as item_id, i.generic_name as name, COALESCE(SUM(b.stock_remaining), 0) as current_stock
-            FROM inventory_items i
-            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.status = 'active'
-            GROUP BY i.id
-        ");
         $itemsData = [];
+
+        $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+
+        // 1. Get current stock for all items in this branch
+        if ($branch !== 'All Branches') {
+            $stockStmt = $pdo->prepare("
+                SELECT i.id as item_id, i.generic_name as name, 
+                       COALESCE(SUM(CASE WHEN (b.clinic_branch = ? OR b.clinic_branch = ?) AND b.status = 'active' THEN b.stock_remaining ELSE 0 END), 0) as current_stock
+                FROM inventory_items i
+                LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
+                GROUP BY i.id
+            ");
+            $stockStmt->execute([$branch, $branchAlt, $branch, $branchAlt]);
+        } else {
+            $stockStmt = $pdo->query("
+                SELECT i.id as item_id, i.generic_name as name, 
+                       COALESCE(SUM(CASE WHEN b.status = 'active' THEN b.stock_remaining ELSE 0 END), 0) as current_stock
+                FROM inventory_items i
+                LEFT JOIN inventory_batches b ON i.id = b.item_id
+                GROUP BY i.id
+            ");
+        }
+
         while ($row = $stockStmt->fetch(PDO::FETCH_ASSOC)) {
             $itemsData[$row['item_id']] = [
                 'item_id' => (int)$row['item_id'],
@@ -662,16 +678,30 @@ class InventoryController extends BaseController {
             ];
         }
 
-        // 2. Get daily dispensing history for the last 30 days
-        $historyStmt = $pdo->query("
-            SELECT b.item_id, DATE(l.created_at) as date, SUM(ABS(l.quantity_changed)) as dispensed
-            FROM inventory_logs l
-            JOIN inventory_batches b ON l.batch_id = b.id
-            WHERE l.action_type = 'dispense' 
-              AND l.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY b.item_id, DATE(l.created_at)
-            ORDER BY DATE(l.created_at) ASC
-        ");
+        // 2. Get daily dispensing history for the last 30 days for this branch
+        if ($branch !== 'All Branches') {
+            $historyStmt = $pdo->prepare("
+                SELECT b.item_id, DATE(l.created_at) as date, SUM(ABS(l.quantity_changed)) as dispensed
+                FROM inventory_logs l
+                JOIN inventory_batches b ON l.batch_id = b.id
+                WHERE l.action_type = 'dispense' 
+                  AND (b.clinic_branch = ? OR b.clinic_branch = ?)
+                  AND l.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                GROUP BY b.item_id, DATE(l.created_at)
+                ORDER BY DATE(l.created_at) ASC
+            ");
+            $historyStmt->execute([$branch, $branchAlt]);
+        } else {
+            $historyStmt = $pdo->query("
+                SELECT b.item_id, DATE(l.created_at) as date, SUM(ABS(l.quantity_changed)) as dispensed
+                FROM inventory_logs l
+                JOIN inventory_batches b ON l.batch_id = b.id
+                WHERE l.action_type = 'dispense' 
+                  AND l.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                GROUP BY b.item_id, DATE(l.created_at)
+                ORDER BY DATE(l.created_at) ASC
+            ");
+        }
 
         while ($row = $historyStmt->fetch(PDO::FETCH_ASSOC)) {
             $itemId = (int)$row['item_id'];

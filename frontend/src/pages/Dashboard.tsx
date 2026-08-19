@@ -122,11 +122,14 @@ const Dashboard: React.FC = () => {
       })
       .catch(err => console.error("Failed to fetch dashboard stats:", err));
 
-    apiFetch('/api/index.php?route=inventory&action=predictive_alerts')
+    const branchParam = selectedBranch && selectedBranch !== 'All Branches' ? `&branch=${encodeURIComponent(selectedBranch)}` : '';
+    apiFetch(`/api/index.php?route=inventory&action=predictive_alerts${branchParam}`)
       .then(res => {
         if (res && res.success && res.predictions) {
           // Filter to only show critical/warning predictions
           setPredictiveAlerts(res.predictions.filter((p: any) => p.alert_level === 'critical' || p.alert_level === 'warning'));
+        } else {
+          setPredictiveAlerts([]);
         }
       })
       .catch(err => console.error("Failed to fetch predictive alerts:", err));

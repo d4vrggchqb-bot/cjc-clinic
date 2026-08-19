@@ -258,19 +258,41 @@ class DashboardController extends BaseController {
 
         $lowStockItems = [];
         try {
-            $bFilter = ($branch !== 'All Branches') ? "AND b.clinic_branch = :branch" : "";
-            $sql = "
-                SELECT i.generic_name, i.category, IFNULL(SUM(b.stock_remaining), 0) as total_stock, i.alert_threshold
-                FROM inventory_items i
-                LEFT JOIN inventory_batches b ON i.id = b.item_id $bFilter
-                GROUP BY i.id
-                HAVING total_stock <= i.alert_threshold
-                LIMIT 10
-            ";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($branchParams);
-            $lowStockItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {}
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            
+            if ($branch !== 'All Branches') {
+                $sql = "
+                    SELECT i.generic_name, i.category, 
+                           COALESCE(SUM(CASE WHEN (b.clinic_branch = ? OR b.clinic_branch = ?) AND b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as total_stock, 
+                           i.alert_threshold
+                    FROM inventory_items i
+                    LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
+                    GROUP BY i.id
+                    HAVING total_stock <= i.alert_threshold
+                    ORDER BY total_stock ASC, i.generic_name ASC
+                    LIMIT 10
+                ";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([$branch, $branchAlt, $branch, $branchAlt]);
+                $lowStockItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } else {
+                $sql = "
+                    SELECT i.generic_name, i.category, 
+                           COALESCE(SUM(CASE WHEN b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as total_stock, 
+                           i.alert_threshold
+                    FROM inventory_items i
+                    LEFT JOIN inventory_batches b ON i.id = b.item_id
+                    GROUP BY i.id
+                    HAVING total_stock <= i.alert_threshold
+                    ORDER BY total_stock ASC, i.generic_name ASC
+                    LIMIT 10
+                ";
+                $stmt = $pdo->query($sql);
+                $lowStockItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+        } catch (PDOException $e) {
+            error_log("[CJC-CLINIC] dashboard low_stock_items error: " . $e->getMessage());
+        }
 
         $currentlyCheckedOut = 0;
         try {

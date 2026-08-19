@@ -48,10 +48,32 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
   const isOnline = syncManager.getIsOnline();
 
-  // Handle Offline Immediately for Mutations if offline
-  if (!isOnline && method !== 'GET') {
+  // These routes must ALWAYS go to the server — never silently queue offline.
+  // A stale isOnline=false flag (e.g. from a failed ping) should never block them.
+  const ALWAYS_ONLINE_ROUTES = [
+    'route=auth',       // all user management: create_user, delete_user, change_password
+    'route=settings',
+    'route=users',
+    'action=add_user',
+    'action=delete_user',
+    'action=change_password',
+    'action=login',
+    'action=google_login',
+    'action=request_password_reset',
+    'action=perform_password_reset',
+  ];
+  const mustBeLive = ALWAYS_ONLINE_ROUTES.some(r => endpoint.includes(r));
+
+  // Also trust the browser's own live network flag — if navigator.onLine is true,
+  // the device has connectivity regardless of what our cached ping result says.
+  const browserSaysOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+  // Only short-circuit to offline queue when we are CERTAIN we are offline:
+  // – syncManager says offline AND browser also says offline AND route is not in the bypass list
+  if (!isOnline && !browserSaysOnline && !mustBeLive && method !== 'GET') {
     return handleOfflineMutation(endpoint, options);
   }
+
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -66,7 +88,17 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     });
     clearTimeout(timeoutId);
 
-    const data = await res.json();
+    const text = await res.text();
+    let data: any;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      const cleanText = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+      return {
+        success: false,
+        error: cleanText ? `Server returned: ${cleanText.substring(0, 150)}` : `Server error (${res.status})`
+      };
+    }
 
     // Cache successful GET responses in background for offline use
     if (method === 'GET' && data) {
@@ -83,8 +115,8 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
       if (fallbackData !== null) {
         return fallbackData;
       }
-    } else {
-      // POST/PUT/DELETE failed due to network error -> queue it
+    } else if (!mustBeLive) {
+      // POST/PUT/DELETE failed due to network error -> queue it only if not mustBeLive
       return handleOfflineMutation(endpoint, options);
     }
 

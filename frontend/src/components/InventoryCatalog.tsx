@@ -193,6 +193,8 @@ const InventoryCatalog: React.FC = () => {
 
   const [dispenseData, setDispenseData] = useState({ clinic_branch: 'College Clinic', quantity: 1, disposed_to: '', reason: '' });
 
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
+
   const fetchData = async () => {
     try {
       const itemsRes = await apiFetch('/api/index.php?route=inventory&action=items');
@@ -211,12 +213,15 @@ const InventoryCatalog: React.FC = () => {
   const batchesByItemId = React.useMemo(() => {
     const map = new Map<number, InventoryBatch[]>();
     for (const b of batches) {
+      if (selectedBranchFilter !== 'all' && b.clinic_branch !== selectedBranchFilter) {
+        continue;
+      }
       const list = map.get(b.item_id) || [];
       list.push(b);
       map.set(b.item_id, list);
     }
     return map;
-  }, [batches]);
+  }, [batches, selectedBranchFilter]);
 
   const getRemainingStock = (itemId: number) => {
     const itemBatches = batchesByItemId.get(itemId) || [];
@@ -670,11 +675,24 @@ const InventoryCatalog: React.FC = () => {
             />
           </div>
           
+          {/* Branch Filter Dropdown */}
+          <select 
+            value={selectedBranchFilter} 
+            onChange={(e) => setSelectedBranchFilter(e.target.value)}
+            className="border border-slate-300 text-sm rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:border-red-700 bg-white font-medium"
+            title="Filter stock by clinic branch"
+          >
+            <option value="all">🏢 All Branches (Combined)</option>
+            <option value="College Clinic">College Clinic</option>
+            <option value="Basic Education Clinic">Basic Education Clinic</option>
+            <option value="Power Campus Clinic">Power Campus Clinic</option>
+          </select>
+
           {/* Category Dropdown */}
           <select 
             value={categoryFilter} 
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="border border-slate-300 text-sm rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:border-red-700 bg-white"
+            className="border border-slate-300 text-sm rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:border-red-700 bg-white font-medium"
           >
             <option value="all">All Categories</option>
             <option value="medicine">Medicine</option>

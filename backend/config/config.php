@@ -165,6 +165,12 @@ function cjcCurrentUser(): array
     return $_SESSION['cjc_user'];
 }
 
+function cjcAuthUser(): array
+{
+    return cjcCurrentUser();
+}
+
+
 /**
  * Validates that the current user has one of the allowed roles.
  * Terminates with 403 Forbidden if not.
@@ -197,6 +203,25 @@ function cjcRequireRole(array $allowedRoles): void
 // ─── Redirect Helpers ────────────────────────────────────────────────────────
 function cjcRedirectToLogin(): void
 {
+    // Detect API requests — return JSON 401 instead of an HTML redirect.
+    // The PHP CLI built-in dev server has no login.php, and Apache rewrites
+    // may not be active, so a redirect to /login.php would produce a 404.
+    $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+    $phpSelf    = $_SERVER['PHP_SELF'] ?? '';
+    $isApi      = str_contains($requestUri, '/api/')
+               || (str_ends_with($phpSelf, '.php') && str_contains($requestUri, '/api/'));
+
+    if ($isApi) {
+        http_response_code(401);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Unauthenticated. Please log in.',
+            'code'    => 401,
+        ]);
+        exit;
+    }
+
     header('Location: ' . CJC_BASE_URL . 'login.php');
     exit;
 }

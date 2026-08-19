@@ -1538,7 +1538,18 @@ const Consultation: React.FC = () => {
                   <span>Generate Medcert / Prescription</span>
                 </button>
                 <button 
-                  onClick={() => {
+                  onClick={async () => {
+                    // Fetch the patient profile so Year & Course auto-populate on the slip
+                    if (activeNoteEntry && (!selectedProfileDetails || selectedProfileDetails.id !== activeNoteEntry.profile_id)) {
+                      try {
+                        const profileRes = await apiFetch(`/api/index.php?route=patients&action=get&id=${activeNoteEntry.profile_id}`);
+                        if (profileRes.profile) {
+                          setSelectedProfileDetails(profileRes.profile);
+                        }
+                      } catch (err) {
+                        console.error('Failed to fetch patient profile for clinic slip', err);
+                      }
+                    }
                     setIsClinicSlipModalOpen(true);
                   }} 
                   className="px-5 py-2.5 text-xs sm:text-sm font-extrabold text-slate-900 bg-white border-2 border-slate-300 hover:border-[#8c1526] hover:text-[#8c1526] rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 group"
@@ -2038,8 +2049,15 @@ const Consultation: React.FC = () => {
                 </div>
 
                 <div className="flex items-end gap-2">
-                  <span className="whitespace-nowrap">Year & Course:</span>
-                  <span className="border-b border-black w-full pb-0.5">{selectedProfileDetails?.course ? `${selectedProfileDetails.year_level || ''} - ${selectedProfileDetails.course}` : ''}</span>
+                  <span className="whitespace-nowrap">Year &amp; Course:</span>
+                  <span className="border-b border-black w-full pb-0.5">
+                    {selectedProfileDetails
+                      ? [
+                          selectedProfileDetails.year_level,
+                          selectedProfileDetails.course || selectedProfileDetails.college_dept
+                        ].filter(Boolean).join(' - ')
+                      : ''}
+                  </span>
                 </div>
 
                 <div className="flex items-end gap-2 mt-6">
@@ -2049,18 +2067,18 @@ const Consultation: React.FC = () => {
 
                 <div className="mt-4">
                   <div className="mb-1">Cues:</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[0] : ''}</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[1] || '' : ''}</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[2] || '' : ''}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{diagnosis ? diagnosis.split('\n')[0] : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[0] : '')}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{diagnosis ? diagnosis.split('\n')[1] || '' : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[1] || '' : '')}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{diagnosis ? diagnosis.split('\n')[2] || '' : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[2] || '' : '')}</div>
                   <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
                   <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
                 </div>
 
                 <div className="mt-4">
                   <div className="mb-1">Intervention/Remarks:</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[0] : ''}</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[1] || '' : ''}</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[2] || '' : ''}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{treatment ? treatment.split('\n')[0] : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[0] : '')}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{treatment ? treatment.split('\n')[1] || '' : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[1] || '' : '')}</div>
+                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{treatment ? treatment.split('\n')[2] || '' : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[2] || '' : '')}</div>
                   <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
                 </div>
 

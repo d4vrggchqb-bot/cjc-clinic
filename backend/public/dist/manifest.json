@@ -3,12 +3,12 @@
   "name": "Cor Jesu College Clinic Records & Inventory",
   "icons": [
     {
-      "src": "/cjc-logo.png",
+      "src": "/assets/logo.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "/cjc-logo.png",
+      "src": "/assets/logo.png",
       "type": "image/png",
       "sizes": "512x512"
     }

@@ -1,16 +1,16 @@
-const CACHE_NAME = 'cjc-clinic-v1';
+const CACHE_NAME = 'cjc-clinic-v3';
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
   '/manifest.json',
-  '/cjc-logo.png'
+  '/assets/logo.png'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    }).then(() => self.skipWaiting())
+      return cache.addAll(STATIC_ASSETS).catch((err) => console.warn('Cache addAll warning:', err));
+    })
   );
 });
 
@@ -31,15 +31,30 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Skip non-GET requests and API calls from default cache (API handles its own IndexedDB sync)
+  // Never intercept or cache API requests or non-GET methods
   if (event.request.method !== 'GET' || url.pathname.includes('/api/')) {
     return;
   }
 
-  // Handle static assets & navigation
+  // For localhost or HTML navigation, always try network first so dev & updates are instant
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/index.html')))
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for other assets in production
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // Stale-while-revalidate for static assets
       const fetchPromise = fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
@@ -48,13 +63,7 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      }).catch(() => {
-        // If offline and request is HTML navigation, return cached index.html
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html') || cachedResponse;
-        }
-        return cachedResponse;
-      });
+      }).catch(() => cachedResponse);
 
       return cachedResponse || fetchPromise;
     })
