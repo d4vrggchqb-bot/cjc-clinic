@@ -9,6 +9,7 @@ interface SyncContextType {
   lastSyncedAt: Date | null;
   isForcedOffline: boolean;
   triggerSync: () => Promise<void>;
+  checkConnectivity: () => Promise<boolean>;
   toggleForceOffline: () => boolean;
 }
 
@@ -19,6 +20,7 @@ const SyncContext = createContext<SyncContextType>({
   lastSyncedAt: null,
   isForcedOffline: false,
   triggerSync: async () => {},
+  checkConnectivity: async () => true,
   toggleForceOffline: () => false,
 });
 
@@ -51,6 +53,16 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const handleCheckConnectivity = async (): Promise<boolean> => {
+    const online = await syncManager.checkConnectivity();
+    if (online) {
+      toast.success('Connected to Clinic Server!', { icon: '🌐' });
+    } else {
+      toast.error('Clinic Server is unreachable. Working in Offline Mode.', { icon: '📴' });
+    }
+    return online;
+  };
+
   const handleToggleOffline = () => {
     const forced = syncManager.toggleForceOffline();
     if (forced) {
@@ -66,6 +78,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         ...syncState,
         triggerSync: handleManualSync,
+        checkConnectivity: handleCheckConnectivity,
         toggleForceOffline: handleToggleOffline,
       }}
     >

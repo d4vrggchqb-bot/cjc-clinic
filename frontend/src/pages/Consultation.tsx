@@ -690,7 +690,15 @@ const Consultation: React.FC = () => {
   };
 
   const formatTimeOnly = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!dateStr) return '-';
+    try {
+      const formatted = dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr;
+      const d = new Date(formatted);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return dateStr;
+    }
   };
 
   return (

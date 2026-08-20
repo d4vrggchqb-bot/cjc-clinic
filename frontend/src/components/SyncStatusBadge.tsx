@@ -3,61 +3,55 @@ import { FiWifi, FiWifiOff, FiRefreshCw } from 'react-icons/fi';
 import { useSync } from '../context/SyncContext';
 
 export const SyncStatusBadge: React.FC = () => {
-  const { isOnline, isSyncing, pendingCount, isForcedOffline, triggerSync, toggleForceOffline } = useSync();
+  const { isOnline, isSyncing, pendingCount, triggerSync, checkConnectivity } = useSync();
 
+  // 1. Currently Syncing
   if (isSyncing) {
     return (
-      <button
-        disabled
-        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-300 text-amber-900 rounded-lg text-xs font-bold shadow-xs animate-pulse cursor-wait"
-        title="Syncing pending offline data to central server..."
+      <div
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-300 text-amber-900 rounded-lg text-xs font-bold shadow-xs animate-pulse cursor-wait select-none"
+        title="Syncing pending offline data to central clinic server..."
       >
         <FiRefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
         <span>Syncing{pendingCount > 0 ? ` (${pendingCount})` : '...'}</span>
-      </button>
-    );
-  }
-
-  if (!isOnline) {
-    return (
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => {
-            if (pendingCount > 0) triggerSync();
-            else toggleForceOffline();
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 border border-rose-300 text-rose-800 rounded-lg text-xs font-bold shadow-xs hover:bg-rose-100 transition-colors cursor-pointer"
-          title={
-            pendingCount > 0
-              ? `${pendingCount} offline records queued. Click to force sync attempt.`
-              : isForcedOffline
-              ? 'Simulation Offline Mode. Click to switch to Online.'
-              : 'Disconnected from Internet. Click to reconnect / retry.'
-          }
-        >
-          <FiWifiOff className="w-3.5 h-3.5 text-rose-600" />
-          <span>Offline{pendingCount > 0 ? ` (${pendingCount} queued)` : ''}</span>
-        </button>
-
-        {isForcedOffline && (
-          <button
-            onClick={() => toggleForceOffline()}
-            className="text-[10px] bg-rose-100 text-rose-700 hover:bg-rose-200 px-1.5 py-1 rounded-md font-semibold border border-rose-300 cursor-pointer"
-            title="Click to exit offline simulation"
-          >
-            Go Online
-          </button>
-        )}
       </div>
     );
   }
 
+  // 2. Disconnected / Offline Mode
+  if (!isOnline) {
+    return (
+      <button
+        onClick={() => {
+          if (pendingCount > 0) {
+            triggerSync();
+          } else {
+            checkConnectivity();
+          }
+        }}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 border border-rose-300 text-rose-800 rounded-lg text-xs font-bold shadow-xs hover:bg-rose-100 transition-colors cursor-pointer"
+        title={
+          pendingCount > 0
+            ? `${pendingCount} offline record(s) queued. Click to retry connection and sync.`
+            : 'Disconnected from Clinic Server. Click to retry connection.'
+        }
+      >
+        <FiWifiOff className="w-3.5 h-3.5 text-rose-600" />
+        <span>Offline{pendingCount > 0 ? ` (${pendingCount})` : ''}</span>
+        <span className="text-[10px] uppercase font-bold text-rose-700 bg-rose-200/80 px-1 py-0.2 rounded ml-0.5">
+          Retry
+        </span>
+      </button>
+    );
+  }
+
+  // 3. Online with Pending Unsynced Records
   if (pendingCount > 0) {
     return (
       <button
         onClick={() => triggerSync()}
         className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-300 text-amber-800 rounded-lg text-xs font-bold shadow-xs hover:bg-amber-100 transition-colors cursor-pointer"
-        title="Click to sync pending offline records to central server"
+        title={`${pendingCount} offline record(s) ready to sync. Click to upload now.`}
       >
         <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
         <span>{pendingCount} Pending Sync</span>
@@ -66,15 +60,15 @@ export const SyncStatusBadge: React.FC = () => {
     );
   }
 
+  // 4. Fully Connected (Normal Operational State)
   return (
-    <button
-      onClick={() => toggleForceOffline()}
-      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-xs font-bold shadow-2xs hover:bg-emerald-100 transition-all cursor-pointer"
-      title="Connected to Server. Click to test / switch to Offline Mode."
+    <div
+      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-xs font-bold shadow-2xs select-none"
+      title="Connected to Clinic Server (LAN)"
     >
       <FiWifi className="w-3.5 h-3.5 text-emerald-600" />
       <span>Online</span>
-    </button>
+    </div>
   );
 };
 

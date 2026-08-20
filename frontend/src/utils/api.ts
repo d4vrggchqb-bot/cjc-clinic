@@ -124,6 +124,15 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   }
 }
 
+function parseSafeDate(d: any): number {
+  if (!d) return 0;
+  if (typeof d === 'number') return d;
+  const str = String(d).trim();
+  const formatted = str.includes(' ') ? str.replace(' ', 'T') : str;
+  const time = new Date(formatted).getTime();
+  return isNaN(time) ? 0 : time;
+}
+
 /**
  * Handle caching GET API responses into IndexedDB & localStorage
  */
@@ -134,39 +143,37 @@ async function handleCacheResponse(endpoint: string, data: any) {
     } else if (endpoint.includes('route=settings&action=get') && data.settings) {
       localStorage.setItem('cjc_cached_settings', JSON.stringify(data.settings));
     } else if (endpoint.includes('route=patients&action=list') && Array.isArray(data.profiles)) {
-      const pendingQueue = await offlineDb.getPendingQueue();
-      const pendingTempIds = new Set(
-        pendingQueue.filter(q => q.action === 'create_patient').map(q => q.payload?.temp_id).filter(Boolean)
-      );
       const allLocal = await offlineDb.getAll<any>('patients');
-      const validPendingOffline = allLocal.filter(p => pendingTempIds.has(String(p.id)));
+      const pendingOffline = allLocal.filter(p => String(p.id).startsWith('temp-') || p.sync_status === 'pending_sync');
 
       // Save normalized server profiles + pending offline profiles
       const normalizedServer = data.profiles.map((p: any) => ({
         ...p,
         id: p.id,
         name: p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unnamed Patient',
-        first_name: p.first_name || '',
-        last_name: p.last_name || '',
+        first_name: String(p.first_name || ''),
+        last_name: String(p.last_name || ''),
         patient_id_number: String(p.patient_id_number || ''),
         contact: String(p.contact || ''),
-        program_department: p.program_department || p.college_dept || p.course || '',
+        program_department: String(p.program_department || p.college_dept || p.course || ''),
       }));
 
+      const serverIdSet = new Set(normalizedServer.map((p: any) => String(p.id)));
+      const uniquePending = pendingOffline.filter(p => !serverIdSet.has(String(p.id)));
+
       await offlineDb.clear('patients');
-      await offlineDb.setMany('patients', [...normalizedServer, ...validPendingOffline]);
+      await offlineDb.setMany('patients', [...normalizedServer, ...uniquePending]);
     } else if (endpoint.includes('route=inventory&action=items') && Array.isArray(data.items)) {
       await offlineDb.setMany('inventory', data.items);
     } else if (endpoint.includes('route=consultation') && Array.isArray(data.sessions)) {
-      const pendingQueue = await offlineDb.getPendingQueue();
-      const pendingTempIds = new Set(
-        pendingQueue.filter(q => q.action === 'create_consultation').map(q => q.payload?.temp_id).filter(Boolean)
-      );
       const allLocal = await offlineDb.getAll<any>('consultations');
-      const validPendingOffline = allLocal.filter(c => pendingTempIds.has(String(c.id)));
+      const pendingOffline = allLocal.filter(c => String(c.id).startsWith('temp-') || c.sync_status === 'pending_sync');
+
+      const serverIdSet = new Set(data.sessions.map((s: any) => String(s.id)));
+      const uniquePending = pendingOffline.filter(c => !serverIdSet.has(String(c.id)));
 
       await offlineDb.clear('consultations');
-      await offlineDb.setMany('consultations', [...data.sessions, ...validPendingOffline]);
+      await offlineDb.setMany('consultations', [...data.sessions, ...uniquePending]);
     } else if (endpoint.includes('route=borrowings') && (Array.isArray(data.checked_out) || Array.isArray(data.history))) {
       const list = data.checked_out || data.history || [];
       await offlineDb.setMany('borrowings', list);
@@ -399,16 +406,19 @@ async function handleOfflineGetFallback(endpoint: string): Promise<any | null> {
 
       // Hydrate missing patient details
       cachedConsultations = cachedConsultations.map(c => {
-        if (!c.patient_name) {
+        let pName = c.patient_name || '';
+        let pIdNum = c.patient_id_number || '';
+        if (!pName || !pIdNum) {
           const p = allPatients.find(item => String(item.id) === String(c.profile_id));
           if (p) {
-            c.patient_name = p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim();
-            c.patient_id_number = p.patient_id_number || c.patient_id_number || '';
+            pName = pName || p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim();
+            pIdNum = pIdNum || p.patient_id_number || '';
           }
         }
         return {
           ...c,
-          patient_name: c.patient_name || 'Patient',
+          patient_name: pName || 'Patient',
+          patient_id_number: String(pIdNum || ''),
           time_in: c.time_in || c.created_at || new Date().toISOString(),
           status: c.status || 'waiting',
         };
@@ -421,8 +431,17 @@ async function handleOfflineGetFallback(endpoint: string): Promise<any | null> {
         return true;
       });
 
-      // Sort newest first
-      filtered.sort((a, b) => new Date(b.time_in || b.created_at).getTime() - new Date(a.time_in || a.created_at).getTime());
+      // Sort newest first: Pending sync offline items always at the top, then newest time_in
+      filtered.sort((a, b) => {
+        const aIsTemp = String(a.id).startsWith('temp-') || a.sync_status === 'pending_sync';
+        const bIsTemp = String(b.id).startsWith('temp-') || b.sync_status === 'pending_sync';
+        if (aIsTemp && !bIsTemp) return -1;
+        if (!aIsTemp && bIsTemp) return 1;
+
+        const timeA = parseSafeDate(a.time_in || a.created_at);
+        const timeB = parseSafeDate(b.time_in || b.created_at);
+        return timeB - timeA;
+      });
 
       const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
       const pageItems = filtered.slice((page - 1) * perPage, page * perPage);
@@ -533,10 +552,14 @@ async function handleOfflineMutation(endpoint: string, options: RequestInit): Pr
     let clinicBranch = bodyData.clinic_branch || 'College Clinic';
 
     if (bodyData.profile_id) {
-      const patient = await offlineDb.get<any>('patients', bodyData.profile_id);
+      let patient = await offlineDb.get<any>('patients', bodyData.profile_id);
+      if (!patient) {
+        const allPatients = await offlineDb.getAll<any>('patients');
+        patient = allPatients.find(p => String(p.id) === String(bodyData.profile_id));
+      }
       if (patient) {
         patientName = patient.name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
-        patientIdNum = patient.patient_id_number || patientIdNum;
+        patientIdNum = String(patient.patient_id_number || patientIdNum || '');
         if (patient.sub_type === 'BED') clinicBranch = 'Basic Education Clinic';
       }
     }

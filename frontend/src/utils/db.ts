@@ -73,7 +73,24 @@ class OfflineDB {
       const tx = db.transaction(storeName, 'readonly');
       const store = tx.objectStore(storeName);
       const req = store.get(key);
-      req.onsuccess = () => resolve(req.result || null);
+      req.onsuccess = () => {
+        if (req.result) {
+          resolve(req.result);
+          return;
+        }
+        // Fallback: If key is string number, try numeric key
+        if (typeof key === 'string' && /^\d+$/.test(key)) {
+          const numReq = store.get(Number(key));
+          numReq.onsuccess = () => resolve(numReq.result || null);
+          numReq.onerror = () => resolve(null);
+        } else if (typeof key === 'number') {
+          const strReq = store.get(String(key));
+          strReq.onsuccess = () => resolve(strReq.result || null);
+          strReq.onerror = () => resolve(null);
+        } else {
+          resolve(null);
+        }
+      };
       req.onerror = () => reject(req.error);
     });
   }
