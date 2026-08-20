@@ -38,7 +38,15 @@ class DashboardController extends BaseController {
 
         $totalRegistered = 0;
         try {
-            $stmt            = $pdo->prepare("SELECT COUNT(*) FROM profiles");
+            $profileBranchCondition = "";
+            if ($userRole !== 'Superadmin') {
+                if ($branch === 'Basic Education Clinic') {
+                    $profileBranchCondition = " WHERE ((profile_type = 'student' AND sub_type = 'BED') OR (profile_type = 'employee' AND college_dept = 'Basic Education') OR (profile_type = 'guest' AND sub_type = 'BED'))";
+                } else if (in_array($branch, ['College Clinic', 'Power Campus Clinic'])) {
+                    $profileBranchCondition = " WHERE ((profile_type = 'student' AND (sub_type != 'BED' OR sub_type IS NULL)) OR (profile_type = 'employee' AND (college_dept != 'Basic Education' OR college_dept IS NULL)) OR (profile_type = 'guest' AND (sub_type != 'BED' OR sub_type IS NULL)))";
+                }
+            }
+            $stmt            = $pdo->prepare("SELECT COUNT(*) FROM profiles" . $profileBranchCondition);
             $stmt->execute();
             $totalRegistered = (int)$stmt->fetchColumn();
         } catch (PDOException $e) {}
@@ -246,6 +254,7 @@ class DashboardController extends BaseController {
                 FROM inventory_batches b
                 JOIN inventory_items i ON b.item_id = i.id
                 WHERE b.expired_on IS NOT NULL 
+                  AND b.expired_on != '0000-00-00'
                   AND b.stock_remaining > 0 
                   $bFilter
                   AND b.expired_on <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
