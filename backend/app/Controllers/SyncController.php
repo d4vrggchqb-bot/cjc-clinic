@@ -147,6 +147,70 @@ class SyncController extends BaseController {
                     $pdo->commit();
                     $results[] = ['uuid' => $uuid, 'success' => true, 'server_id' => $serverId];
 
+                } elseif ($action === 'update_patient') {
+                    $patientId = $payload['id'] ?? null;
+                    if (isset($tempIdMap[$patientId])) {
+                        $patientId = $tempIdMap[$patientId];
+                    }
+
+                    if (!$patientId) {
+                        throw new Exception('Patient ID required for update');
+                    }
+
+                    $history = $payload['health_history'] ?? null;
+                    if (is_array($history)) {
+                        $history = json_encode($history);
+                    }
+                    $vitals = $payload['vital_stats'] ?? null;
+                    if (is_array($vitals)) {
+                        $vitals = json_encode($vitals);
+                    }
+
+                    $sql = "UPDATE profiles SET 
+                                profile_type = :type, patient_id_number = :id_num, school_year = :school_year,
+                                first_name = :fname, last_name = :lname, middle_initial = :mi,
+                                birthdate = :bdate, gender = :gender, height = :height,
+                                mother_name = :mname, father_name = :fname_parent, weight = :weight,
+                                sub_type = :sub_type, college_dept = :dept, year_level = :ylevel, course = :course,
+                                contact = :contact, email = :email, address = :address,
+                                emergency_contact_name = :e_name, emergency_contact_number = :e_num,
+                                emergency_relation = :e_rel, blood_type = :blood,
+                                health_history = COALESCE(:history, health_history),
+                                vital_stats = COALESCE(:vitals, vital_stats)
+                            WHERE id = :id";
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->execute([
+                        'id' => $patientId,
+                        'type' => $payload['profile_type'] ?? 'student',
+                        'id_num' => !empty($payload['patient_id_number']) ? $payload['patient_id_number'] : null,
+                        'school_year' => $payload['school_year'] ?? null,
+                        'fname' => trim($payload['first_name'] ?? ''),
+                        'lname' => trim($payload['last_name'] ?? ''),
+                        'mi' => $payload['middle_initial'] ?? null,
+                        'bdate' => !empty($payload['birthdate']) ? $payload['birthdate'] : null,
+                        'gender' => $payload['gender'] ?? null,
+                        'height' => $payload['height'] ?? null,
+                        'mname' => $payload['mother_name'] ?? null,
+                        'fname_parent' => $payload['father_name'] ?? null,
+                        'weight' => $payload['weight'] ?? null,
+                        'sub_type' => $payload['sub_type'] ?? null,
+                        'dept' => $payload['college_dept'] ?? null,
+                        'ylevel' => $payload['year_level'] ?? null,
+                        'course' => $payload['course'] ?? null,
+                        'contact' => $payload['contact'] ?? null,
+                        'email' => $payload['email'] ?? null,
+                        'address' => $payload['address'] ?? null,
+                        'e_name' => $payload['emergency_contact_name'] ?? null,
+                        'e_num' => $payload['emergency_contact_number'] ?? null,
+                        'e_rel' => $payload['emergency_relation'] ?? null,
+                        'blood' => $payload['blood_type'] ?? null,
+                        'history' => $history,
+                        'vitals' => $vitals
+                    ]);
+
+                    $pdo->commit();
+                    $results[] = ['uuid' => $uuid, 'success' => true, 'server_id' => $patientId];
+
                 } elseif ($action === 'create_consultation') {
                     $profileId = $payload['profile_id'] ?? null;
                     if (isset($tempIdMap[$profileId])) {
@@ -173,8 +237,83 @@ class SyncController extends BaseController {
                     ]);
                     $serverId = $pdo->lastInsertId();
 
+                    if (isset($payload['temp_id'])) {
+                        $tempIdMap[$payload['temp_id']] = $serverId;
+                    }
+                    $tempIdMap[$uuid] = $serverId;
+
                     $pdo->commit();
                     $results[] = ['uuid' => $uuid, 'success' => true, 'server_id' => $serverId];
+
+                } elseif ($action === 'save_notes' || $action === 'update_consultation') {
+                    $consId = $payload['id'] ?? null;
+                    if (isset($tempIdMap[$consId])) {
+                        $consId = $tempIdMap[$consId];
+                    }
+
+                    if (!$consId) {
+                        throw new Exception('Consultation ID required');
+                    }
+
+                    $stmt = $pdo->prepare("
+                        UPDATE consultations 
+                        SET blood_pressure = COALESCE(?, blood_pressure),
+                            temperature = COALESCE(?, temperature),
+                            weight = COALESCE(?, weight),
+                            diagnosis = COALESCE(?, diagnosis),
+                            treatment = COALESCE(?, treatment),
+                            status = 'completed',
+                            time_out = COALESCE(time_out, ?)
+                        WHERE id = ?
+                    ");
+                    $stmt->execute([
+                        !empty($payload['blood_pressure']) ? $payload['blood_pressure'] : null,
+                        !empty($payload['temperature']) ? $payload['temperature'] : null,
+                        !empty($payload['weight']) ? $payload['weight'] : null,
+                        !empty($payload['diagnosis']) ? $payload['diagnosis'] : null,
+                        !empty($payload['treatment']) ? $payload['treatment'] : null,
+                        $timestamp,
+                        $consId
+                    ]);
+
+                    // Deduct dispensed items if present
+                    if (!empty($payload['dispensed_items']) && is_array($payload['dispensed_items'])) {
+                        // Find consultation's profile_id
+                        $cStmt = $pdo->prepare("SELECT profile_id FROM consultations WHERE id = ?");
+                        $cStmt->execute([$consId]);
+                        $cProfileId = $cStmt->fetchColumn() ?: null;
+
+                        foreach ($payload['dispensed_items'] as $di) {
+                            $itemId = $di['item_id'] ?? null;
+                            $qty = (int)($di['quantity'] ?? 1);
+                            if (!$itemId || $qty <= 0) continue;
+
+                            $batchStmt = $pdo->prepare("
+                                SELECT id, stock_remaining 
+                                FROM inventory_batches 
+                                WHERE item_id = :item_id AND stock_remaining > 0
+                                ORDER BY (clinic_branch = :branch) DESC, expired_on ASC, date_arrived ASC
+                            ");
+                            $batchStmt->execute(['item_id' => $itemId, 'branch' => $branch]);
+                            $batches = $batchStmt->fetchAll();
+
+                            $rem = $qty;
+                            foreach ($batches as $b) {
+                                if ($rem <= 0) break;
+                                $avail = (int)$b['stock_remaining'];
+                                $consumed = min($avail, $rem);
+                                $newStock = $avail - $consumed;
+                                $pdo->prepare("UPDATE inventory_batches SET stock_remaining = :stock, status = IF(:stock2=0,'depleted','active') WHERE id = :id")
+                                    ->execute(['stock' => $newStock, 'stock2' => $newStock, 'id' => $b['id']]);
+                                $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by, created_at) VALUES (?, 'dispense', ?, ?, ?, ?, ?)")
+                                    ->execute([$b['id'], -$consumed, 'Dispensed PO (Synced)', $cProfileId, $userId, $timestamp]);
+                                $rem -= $consumed;
+                            }
+                        }
+                    }
+
+                    $pdo->commit();
+                    $results[] = ['uuid' => $uuid, 'success' => true, 'server_id' => $consId];
 
                 } elseif ($action === 'create_borrowing') {
                     $profileId = $payload['profile_id'] ?? null;

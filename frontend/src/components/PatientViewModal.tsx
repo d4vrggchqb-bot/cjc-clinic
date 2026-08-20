@@ -7,7 +7,7 @@ import { useConfirm } from '../context/ConfirmContext';
 interface PatientViewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  patientId: number | null;
+  patientId: number | string | null;
 }
 
 const PatientViewModal: React.FC<PatientViewModalProps> = ({ isOpen, onClose, patientId }) => {

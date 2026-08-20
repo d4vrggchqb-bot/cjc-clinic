@@ -8,16 +8,17 @@ import PatientModal from '../components/PatientModal';
 
 
 interface Patient {
-  id: number;
+  id: number | string;
   name: string;
   patient_id_number: string;
   profile_type: string;
   college_dept: string;
+  sync_status?: string;
 }
 
 interface LogbookEntry {
-  id: number;
-  profile_id: number;
+  id: number | string;
+  profile_id: number | string;
   clinic_branch?: string;
   patient_id_number: string;
   patient_name: string;
@@ -32,6 +33,7 @@ interface LogbookEntry {
   treatment?: string;
   attended_by: string;
   status: string;
+  sync_status?: string;
 }
 
 
@@ -325,7 +327,19 @@ const Consultation: React.FC = () => {
     const interval = setInterval(() => {
       fetchEntries();
     }, 30000);
-    return () => clearInterval(interval);
+
+    const handleSyncOrMutationDone = () => {
+      fetchEntries();
+      fetchInventory();
+    };
+    window.addEventListener('cjc-sync-completed', handleSyncOrMutationDone);
+    window.addEventListener('cjc-offline-mutation', handleSyncOrMutationDone);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('cjc-sync-completed', handleSyncOrMutationDone);
+      window.removeEventListener('cjc-offline-mutation', handleSyncOrMutationDone);
+    };
   }, [fetchEntries]);
 
   // Search logic for left panel
@@ -426,6 +440,8 @@ const Consultation: React.FC = () => {
         method: 'POST',
         body: JSON.stringify({
           profile_id: selectedPatient.id,
+          patient_name: selectedPatient.name,
+          patient_id_number: selectedPatient.patient_id_number,
           purpose: purpose
         })
       });
@@ -445,7 +461,7 @@ const Consultation: React.FC = () => {
     }
   };
 
-  const handleViewProfile = async (profileId: number) => {
+  const handleViewProfile = async (profileId: number | string) => {
     try {
       const profileRes = await apiFetch(`/api/index.php?route=patients&action=get&id=${profileId}`);
       if (profileRes.profile) {
@@ -465,7 +481,7 @@ const Consultation: React.FC = () => {
   useEffect(() => {
     if (location.state?.openNotesFor && entries.length > 0) {
       const entryId = location.state.openNotesFor;
-      const entry = entries.find(e => e.id === entryId);
+      const entry = entries.find(e => String(e.id) === String(entryId));
       if (entry) {
         if (userRole === 'Staff') {
           openStaffVitalsModal(entry);
@@ -1053,12 +1069,19 @@ const Consultation: React.FC = () => {
                     <tr key={entry.id} className="hover:bg-slate-50 text-center">
                       <td className="px-4 py-3">{entry.patient_id_number || 'N/A'}</td>
                       <td className="px-4 py-3 font-semibold text-slate-800">
-                        <button 
-                          onClick={() => handleViewProfile(entry.profile_id)}
-                          className="hover:text-[#8c1526] hover:underline transition-colors text-left"
-                        >
-                          {entry.patient_name}
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <button 
+                            onClick={() => handleViewProfile(entry.profile_id)}
+                            className="hover:text-[#8c1526] hover:underline transition-colors text-left"
+                          >
+                            {entry.patient_name}
+                          </button>
+                          {(String(entry.id).startsWith('temp-') || entry.sync_status === 'pending_sync') && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-extrabold uppercase rounded bg-amber-100 text-amber-800 border border-amber-300 animate-pulse" title="Saved locally. Will sync when online.">
+                              ⚡ Pending Sync
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">

@@ -21,13 +21,14 @@ const DEFAULT_CUES = [
 ];
 
 interface Patient {
-  id: number;
-  profile_type: 'student' | 'employee';
+  id: number | string;
+  profile_type: 'student' | 'employee' | 'guest';
   name: string;
   contact: string | null;
   program_department: string | null;
   blood_type: string | null;
   patient_id_number?: string;
+  sync_status?: string;
 }
 
 interface Pagination {
@@ -180,19 +181,19 @@ const PatientList: React.FC = () => {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | string | null>(null);
 
   const handleOpenAdd = () => {
     setSelectedPatientId(null);
     setIsEditModalOpen(true);
   };
 
-  const handleOpenEdit = (id: number) => {
+  const handleOpenEdit = (id: number | string) => {
     setSelectedPatientId(id);
     setIsEditModalOpen(true);
   };
 
-  const handleOpenView = (id: number) => {
+  const handleOpenView = (id: number | string) => {
     setSelectedPatientId(id);
     setIsViewModalOpen(true);
   };
@@ -218,6 +219,7 @@ const PatientList: React.FC = () => {
         body: JSON.stringify({
           profile_id: admittingPatient.id,
           patient_id_number: admittingPatient.patient_id_number || '',
+          patient_name: admittingPatient.name,
           purpose: finalCue,
           complaint: complaintNote
         })
@@ -238,7 +240,7 @@ const PatientList: React.FC = () => {
     }
   };
 
-  const handleDeletePatient = async (id: number, name: string) => {
+  const handleDeletePatient = async (id: number | string, name: string) => {
     const isConfirmed = await confirm({
       title: 'Delete Patient Profile',
       type: 'danger',
@@ -281,11 +283,15 @@ const PatientList: React.FC = () => {
   }, [pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel]);
 
   useEffect(() => {
-    const handleSyncDone = () => {
+    const handleSyncOrMutationDone = () => {
       fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel);
     };
-    window.addEventListener('cjc-sync-completed', handleSyncDone);
-    return () => window.removeEventListener('cjc-sync-completed', handleSyncDone);
+    window.addEventListener('cjc-sync-completed', handleSyncOrMutationDone);
+    window.addEventListener('cjc-offline-mutation', handleSyncOrMutationDone);
+    return () => {
+      window.removeEventListener('cjc-sync-completed', handleSyncOrMutationDone);
+      window.removeEventListener('cjc-offline-mutation', handleSyncOrMutationDone);
+    };
   }, [pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel]);
 
   const fetchPatients = async (page: number, searchQuery: string, filterType: string, dept: string = '', sortOption: string = 'newest', course: string = '', year: string = '') => {
@@ -475,7 +481,14 @@ const PatientList: React.FC = () => {
                 patients.map((patient) => (
                   <tr key={patient.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-slate-800">{patient.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-800">{patient.name}</span>
+                        {(String(patient.id).startsWith('temp-') || patient.sync_status === 'pending_sync') && (
+                          <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded bg-amber-100 text-amber-800 border border-amber-300 animate-pulse" title="Saved locally. Will sync when online.">
+                            ⚡ Pending Sync
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2.5 py-1 inline-flex text-[0.65rem] leading-4 font-bold rounded-full uppercase tracking-wider ${

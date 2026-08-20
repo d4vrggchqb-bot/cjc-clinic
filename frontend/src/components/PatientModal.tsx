@@ -6,7 +6,7 @@ interface PatientModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
-  patientId?: number | null;
+  patientId?: number | string | null;
   user?: any;
 }
 

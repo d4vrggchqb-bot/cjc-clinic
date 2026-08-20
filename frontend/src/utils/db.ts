@@ -8,7 +8,7 @@ const DB_VERSION = 1;
 export interface SyncQueueItem {
   id?: number;
   uuid: string;
-  action: 'create_patient' | 'update_patient' | 'create_consultation' | 'create_borrowing' | 'return_borrowing';
+  action: 'create_patient' | 'update_patient' | 'create_consultation' | 'save_notes' | 'update_consultation' | 'create_borrowing' | 'return_borrowing';
   payload: any;
   timestamp: string;
   status: 'pending' | 'syncing' | 'failed';

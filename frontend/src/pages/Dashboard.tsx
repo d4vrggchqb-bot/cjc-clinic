@@ -68,7 +68,7 @@ const Dashboard: React.FC = () => {
 
   // Patient Modal State
   const [showPatientModal, setShowPatientModal] = useState(false);
-  const [viewPatientId, setViewPatientId] = useState<number | null>(null);
+  const [viewPatientId, setViewPatientId] = useState<number | string | null>(null);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#C01D38', '#455A64'];
 
@@ -217,6 +217,8 @@ const Dashboard: React.FC = () => {
         method: 'POST',
         body: JSON.stringify({
           profile_id: selectedPatient.id,
+          patient_name: selectedPatient.name,
+          patient_id_number: selectedPatient.patient_id_number,
           purpose: finalPurpose
         })
       });
