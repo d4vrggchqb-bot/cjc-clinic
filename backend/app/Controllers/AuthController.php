@@ -142,7 +142,7 @@ class AuthController extends BaseController {
         $role = trim($input['role'] ?? 'Staff');
         $clinic_branch = trim($input['clinic_branch'] ?? 'College Clinic');
         
-        $allowedRoles = ['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff', 'Clerk'];
+        $allowedRoles = ['Superadmin', 'Admin', 'Staff', 'Clerk'];
         if (!in_array($role, $allowedRoles, true)) {
             $this->jsonResponse(['success' => false, 'message' => 'Invalid role specified.'], 400);
         }
