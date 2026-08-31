@@ -4,6 +4,7 @@ import { apiFetch } from '../utils/api';
 import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX, FiActivity, FiClock, FiEdit2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
+import { useBranch } from '../context/BranchContext';
 import PatientModal from '../components/PatientModal';
 
 
@@ -44,7 +45,7 @@ const Consultation: React.FC = () => {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [kanbanStatus, setKanbanStatus] = useState('all'); // all, waiting, in-progress, completed
-  const [selectedBranch, setSelectedBranch] = useState('All Branches');
+  const { selectedBranch, setSelectedBranch } = useBranch();
   const [userRole, setUserRole] = useState('');
   const [entries, setEntries] = useState<LogbookEntry[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -425,16 +426,19 @@ const Consultation: React.FC = () => {
     e.preventDefault();
     if (!selectedPatient) {
       setCheckinError('Please select a patient.');
+      toast.error('Please select a patient.');
       return;
     }
     if (!purpose.trim()) {
       setCheckinError('Please enter a purpose.');
+      toast.error('Please enter a purpose.');
       return;
     }
 
     setIsCheckingIn(true);
     setCheckinError('');
 
+    const toastId = toast.loading('Checking in patient...');
     try {
       const res = await apiFetch(`/api/index.php?route=consultations&action=create`, {
         method: 'POST',
@@ -447,15 +451,19 @@ const Consultation: React.FC = () => {
       });
 
       if (res.success) {
+        toast.success('Patient checked in to queue successfully!', { id: toastId });
         setSelectedPatient(null);
         setSearch('');
         setPurpose('');
         if (period === 'today') fetchEntries();
       } else {
-        setCheckinError(res.message || 'Failed to check in.');
+        const errorMsg = res.message || 'Failed to check in.';
+        setCheckinError(errorMsg);
+        toast.error(errorMsg, { id: toastId, duration: 5000 });
       }
     } catch (err) {
-      setCheckinError('An error occurred.');
+      setCheckinError('An error occurred during check-in.');
+      toast.error('An error occurred during check-in.', { id: toastId });
     } finally {
       setIsCheckingIn(false);
     }
@@ -648,6 +656,32 @@ const Consultation: React.FC = () => {
     } catch (err) {
       console.error(err);
       alert('Failed to set time-out.');
+    }
+  };
+
+  const handleCancelConsultation = async (id: number | string, patientName: string) => {
+    const confirmed = await confirm({
+      title: 'Cancel Consultation Check-in',
+      message: `Are you sure you want to cancel the check-in record for "${patientName}"? This entry will be removed from the queue.`,
+      type: 'danger',
+      confirmText: 'Yes, Cancel Check-in',
+      cancelText: 'Keep'
+    });
+    if (!confirmed) return;
+    try {
+      const res = await apiFetch(`/api/index.php?route=consultations&action=update`, {
+        method: 'POST',
+        body: JSON.stringify({ id, action: 'cancel' })
+      });
+      if (res.success) {
+        toast.success('Check-in queue record removed successfully.');
+        fetchEntries();
+      } else {
+        toast.error(res.message || 'Failed to remove record.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to remove check-in record.');
     }
   };
 
@@ -1133,6 +1167,13 @@ const Consultation: React.FC = () => {
                                     className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                   >
                                     <FiActivity className="w-3.5 h-3.5" /> Record Vitals
+                                  </button>
+                                  <button 
+                                    onClick={() => handleCancelConsultation(entry.id, entry.patient_name)}
+                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                    title="Cancel and remove check-in record"
+                                  >
+                                    Cancel
                                   </button>
                                 </>
                               )}

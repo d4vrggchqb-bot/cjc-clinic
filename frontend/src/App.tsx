@@ -15,6 +15,7 @@ import Reports from './pages/Reports';
 import Borrowings from './pages/Borrowings';
 import { ConfirmProvider } from './context/ConfirmContext';
 import { SyncProvider } from './context/SyncContext';
+import { BranchProvider } from './context/BranchContext';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -63,7 +64,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: strin
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <Layout user={user}>{children}</Layout>;
+  return (
+    <BranchProvider user={user}>
+      <Layout user={user}>{children}</Layout>
+    </BranchProvider>
+  );
 };
 
 const PlaceholderPage = ({ title }: { title: string }) => (

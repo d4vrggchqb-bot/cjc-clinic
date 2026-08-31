@@ -171,12 +171,12 @@ class ConsultationController extends BaseController {
         try {
             $profile = null;
             if ($profile_id > 0) {
-                $stmt = $pdo->prepare('SELECT id FROM profiles WHERE id = :id LIMIT 1');
+                $stmt = $pdo->prepare('SELECT id, first_name, last_name, patient_id_number FROM profiles WHERE id = :id LIMIT 1');
                 $stmt->execute(['id' => $profile_id]);
                 $profile = $stmt->fetch();
             }
             if (!$profile && !empty($patient_id_number)) {
-                $stmt = $pdo->prepare('SELECT id FROM profiles WHERE patient_id_number = :idNum LIMIT 1');
+                $stmt = $pdo->prepare('SELECT id, first_name, last_name, patient_id_number FROM profiles WHERE patient_id_number = :idNum LIMIT 1');
                 $stmt->execute(['idNum' => $patient_id_number]);
                 $profile = $stmt->fetch();
                 if ($profile) {
@@ -186,6 +186,52 @@ class ConsultationController extends BaseController {
             if (!$profile) {
                 $this->jsonResponse(['success' => false, 'message' => 'Patient profile not found in database. The profile may have been deleted or not synced yet.'], 404);
             }
+
+            $patientName = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
+
+            // 1. Prevent duplicate active admissions (cannot admit again while currently waiting or in-progress)
+            $activeStmt = $pdo->prepare("
+                SELECT id, created_at, status, purpose 
+                FROM consultations 
+                WHERE profile_id = :pid 
+                  AND status IN ('waiting', 'in-progress', 'active')
+                  AND DATE(created_at) = CURDATE()
+                ORDER BY created_at DESC 
+                LIMIT 1
+            ");
+            $activeStmt->execute(['pid' => $profile_id]);
+            $activeConsultation = $activeStmt->fetch();
+
+            if ($activeConsultation) {
+                $statusLabel = ($activeConsultation['status'] === 'waiting') ? 'Waiting in Queue' : 'In Consultation';
+                $timeInFormatted = date('h:i A', strtotime($activeConsultation['created_at']));
+                $this->jsonResponse([
+                    'success' => false, 
+                    'message' => "Admission Blocked: " . ($patientName ?: "This patient") . " is already checked in today at {$timeInFormatted} (Status: {$statusLabel}). Please complete, record vitals, or time-out their active visit first."
+                ], 400);
+            }
+
+            // 2. Prevent rapid duplicate check-ins within a short timeframe (15-minute cooldown)
+            $cooldownMinutes = 15;
+            $recentStmt = $pdo->prepare("
+                SELECT id, created_at, status 
+                FROM consultations 
+                WHERE profile_id = :pid 
+                  AND created_at >= (NOW() - INTERVAL 15 MINUTE)
+                ORDER BY created_at DESC 
+                LIMIT 1
+            ");
+            $recentStmt->execute(['pid' => $profile_id]);
+            $recentConsultation = $recentStmt->fetch();
+
+            if ($recentConsultation) {
+                $recentTime = date('h:i A', strtotime($recentConsultation['created_at']));
+                $this->jsonResponse([
+                    'success' => false, 
+                    'message' => "Admission Cooldown: " . ($patientName ?: "This patient") . " was already admitted recently at {$recentTime}. Multiple check-ins within {$cooldownMinutes} minutes are not allowed."
+                ], 400);
+            }
+
         } catch (PDOException $e) {
             $this->jsonResponse(['success' => false, 'message' => 'Database error.'], 500);
         }
@@ -263,6 +309,10 @@ class ConsultationController extends BaseController {
             } elseif ($action === 'start') {
                 $stmt = $pdo->prepare("UPDATE consultations SET status = 'in-progress' WHERE id = :id");
                 $stmt->execute(['id' => $id]);
+            } elseif ($action === 'cancel' || $action === 'delete') {
+                $stmt = $pdo->prepare("DELETE FROM consultations WHERE id = :id");
+                $stmt->execute(['id' => $id]);
+                cjcLogAudit("Cancelled/Deleted consultation queue record ID #$id");
             } elseif ($action === 'update_time_in') {
                 $newTimeIn = trim($input['time_in'] ?? '');
                 if (!empty($newTimeIn)) {

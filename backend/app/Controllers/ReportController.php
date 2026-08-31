@@ -199,6 +199,38 @@ class ReportController extends BaseController {
             $borrowingExportData = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) { error_log('Reports Borrowing Export Error: ' . $e->getMessage()); }
 
+        // 7. Attendance by College & Program Breakdown
+        $attendanceByCollegeProgram = [];
+        $collegeAttendanceExport = [];
+        try {
+            $sql = "
+                SELECT 
+                    COALESCE(NULLIF(p.college_dept, ''), 'Unspecified College/Dept') AS college,
+                    COALESCE(NULLIF(p.course, ''), 'N/A') AS program,
+                    COUNT(c.id) AS attendance
+                FROM consultations c
+                LEFT JOIN profiles p ON c.profile_id = p.id
+                WHERE c.created_at BETWEEN :start_date AND :end_date $branchConditionAnd $profileConditions
+                GROUP BY p.college_dept, p.course
+                ORDER BY attendance DESC, college ASC, program ASC
+            ";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($branchParams);
+            $attendanceByCollegeProgram = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $rank = 1;
+            foreach ($attendanceByCollegeProgram as $row) {
+                $collegeAttendanceExport[] = [
+                    '#' => $rank++,
+                    'College' => $row['college'],
+                    'Programs' => $row['program'],
+                    'Visitation' => (int)$row['attendance']
+                ];
+            }
+        } catch (PDOException $e) { 
+            error_log('Reports Attendance By College Error: ' . $e->getMessage()); 
+        }
+
         $this->jsonResponse([
             'user_role' => $userRole,
             'user_name' => $_SESSION['cjc_user']['name'] ?? $_SESSION['cjc_user']['username'] ?? 'Clinic Staff',
@@ -208,12 +240,16 @@ class ReportController extends BaseController {
             'department' => $department,
             'program' => $program,
             'year_level' => $yearLevel,
+            'semester' => $semester,
+            'purpose' => $purpose,
             'visits_by_type' => $visitsByType,
             'top_diagnoses' => $topDiagnoses,
             'medicines_dispensed' => $medicinesDispensed,
             'equipment_borrowings' => $equipmentBorrowings,
             'export_data' => $exportData,
-            'borrowing_export_data' => $borrowingExportData
+            'borrowing_export_data' => $borrowingExportData,
+            'attendance_by_college_program' => $attendanceByCollegeProgram,
+            'college_attendance_export_data' => $collegeAttendanceExport
         ]);
     }
 }

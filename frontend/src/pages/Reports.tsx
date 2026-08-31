@@ -12,6 +12,7 @@ import {
   ArcElement
 } from 'chart.js';
 import { Bar, Pie } from 'react-chartjs-2';
+import { useBranch } from '../context/BranchContext';
 
 ChartJS.register(
   CategoryScale,
@@ -26,7 +27,7 @@ ChartJS.register(
 const Reports: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [selectedBranch, setSelectedBranch] = useState('All Branches');
+  const { selectedBranch, setSelectedBranch } = useBranch();
   
   // New Filters
   const [department, setDepartment] = useState('All Departments');
@@ -48,9 +49,9 @@ const Reports: React.FC = () => {
   });
   
   // PDF & Excel Modal State
-  const [pdfPreviewType, setPdfPreviewType] = useState<'consultations' | 'borrowings' | null>(null);
+  const [pdfPreviewType, setPdfPreviewType] = useState<'consultations' | 'borrowings' | 'college_attendance' | null>(null);
 
-  const handleOpenPdfPreview = (type: 'consultations' | 'borrowings') => {
+  const handleOpenPdfPreview = (type: 'consultations' | 'borrowings' | 'college_attendance') => {
     if (type === 'consultations' && (!data || !data.export_data || data.export_data.length === 0)) {
       alert("No consultation logbook data available for this date range and filters.");
       return;
@@ -59,13 +60,22 @@ const Reports: React.FC = () => {
       alert("No borrowing logbook data available for this date range and filters.");
       return;
     }
+    if (type === 'college_attendance' && (!data || !data.attendance_by_college_program || data.attendance_by_college_program.length === 0)) {
+      alert("No college visitation data available for this date range and filters.");
+      return;
+    }
     setPdfPreviewType(type);
   };
 
-  const handleExportExcel = (type: 'consultations' | 'borrowings') => {
-    const exportData = type === 'consultations' ? data?.export_data : data?.borrowing_export_data;
+  const handleExportExcel = (type: 'consultations' | 'borrowings' | 'college_attendance') => {
+    const exportData = type === 'consultations' 
+      ? data?.export_data 
+      : type === 'borrowings'
+      ? data?.borrowing_export_data
+      : data?.college_attendance_export_data;
+
     if (!exportData || exportData.length === 0) {
-      alert(`No ${type} data available to export.`);
+      alert(`No ${type.replace('_', ' ')} data available to export.`);
       return;
     }
 
@@ -86,7 +96,8 @@ const Reports: React.FC = () => {
     
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `CJC_Clinic_${type === 'consultations' ? 'Consultations' : 'Borrowings'}_Report_${startDate}_to_${endDate}.csv`);
+    const titlePrefix = type === 'consultations' ? 'Consultations' : (type === 'borrowings' ? 'Borrowings' : 'College_Visitations');
+    link.setAttribute("download", `CJC_Clinic_${titlePrefix}_Report_${startDate}_to_${endDate}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -411,6 +422,27 @@ const Reports: React.FC = () => {
                 <FiEye className="w-3.5 h-3.5 text-amber-300" /> PDF Preview
               </button>
             </div>
+
+            {/* College Visitations Export Options */}
+            <div className="flex items-center gap-1 bg-purple-50 p-1.5 rounded-xl border border-purple-200 shadow-2xs">
+              <span className="text-[11px] font-bold text-purple-900 px-1.5 uppercase tracking-wider">Visitations per College:</span>
+              <button 
+                type="button"
+                onClick={() => handleExportExcel('college_attendance')}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Export College Visitations to Excel (.csv)"
+              >
+                <FiDownload className="w-3.5 h-3.5" /> Excel
+              </button>
+              <button 
+                type="button"
+                onClick={() => handleOpenPdfPreview('college_attendance')}
+                className="bg-purple-800 hover:bg-purple-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Preview & Export Visitations per College PDF"
+              >
+                <FiEye className="w-3.5 h-3.5 text-amber-300" /> PDF Preview
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -571,6 +603,79 @@ const Reports: React.FC = () => {
             </div>
           </div>
 
+          {/* Visitations per College & Program Summary Table */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
+              <div>
+                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <div className="w-2 h-6 bg-purple-600 rounded-full"></div>
+                  Clinic Visitations per College & Program
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Comprehensive breakdown of clinic visitors grouped by College and academic degree programs</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleExportExcel('college_attendance')}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <FiDownload className="w-3.5 h-3.5" /> Export Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenPdfPreview('college_attendance')}
+                  className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <FiEye className="w-3.5 h-3.5 text-amber-300" /> View Printable PDF
+                </button>
+              </div>
+            </div>
+
+            {(!data.attendance_by_college_program || data.attendance_by_college_program.length === 0) ? (
+              <div className="text-slate-400 text-sm py-10 text-center flex flex-col items-center">
+                <FiUsers className="w-12 h-12 text-slate-200 mb-3" />
+                No college visitation records found for this period and filter selection.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider border-b border-slate-200">
+                      <th className="p-3 w-16 text-center">#</th>
+                      <th className="p-3">College</th>
+                      <th className="p-3">Programs</th>
+                      <th className="p-3 text-right">Visitation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.attendance_by_college_program.map((row: any, idx: number) => (
+                      <tr key={idx} className="border-b border-slate-100 hover:bg-purple-50/30 transition-colors">
+                        <td className="p-3 text-sm text-slate-400 font-mono text-center font-bold">{idx + 1}</td>
+                        <td className="p-3 font-extrabold text-slate-800 text-sm">
+                          <span className="px-2.5 py-1 bg-slate-100 text-slate-800 rounded-md border border-slate-200">
+                            {row.college}
+                          </span>
+                        </td>
+                        <td className="p-3 text-sm font-semibold text-slate-700">
+                          {row.program}
+                        </td>
+                        <td className="p-3 text-sm font-black text-purple-700 text-right font-mono">
+                          {row.attendance}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-slate-50 font-black text-slate-900 border-t-2 border-slate-300">
+                      <td colSpan={3} className="p-3 text-right uppercase tracking-wider text-xs text-slate-600">Total Visitations:</td>
+                      <td className="p-3 text-right text-base text-[#A5192D] font-mono">
+                        {data.attendance_by_college_program.reduce((acc: number, curr: any) => acc + Number(curr.attendance || 0), 0)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           {/* Logbook Preview */}
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
             <div className="flex justify-between items-center mb-6">
@@ -709,7 +814,7 @@ const Reports: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-sm font-bold tracking-wide">
-                  PDF Report Preview — {pdfPreviewType === 'consultations' ? 'Consultation Logbook' : 'Equipment Borrowings'}
+                  PDF Report Preview — {pdfPreviewType === 'consultations' ? 'Consultation Logbook' : (pdfPreviewType === 'borrowings' ? 'Equipment Borrowings' : 'Clinic Visitations per College & Program')}
                 </h3>
                 <p className="text-[11px] text-slate-400">Official Cor Jesu College Clinic Document Format</p>
               </div>
@@ -729,7 +834,7 @@ const Reports: React.FC = () => {
                 onClick={() => handleExportExcel(pdfPreviewType)}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                <FiDownload className="w-4 h-4" /> Excel (.xlsx)
+                <FiDownload className="w-4 h-4" /> Excel (.xlsx/.csv)
               </button>
 
               <button 
@@ -764,7 +869,11 @@ const Reports: React.FC = () => {
             {/* Document Title Banner */}
             <div className="bg-slate-50 border-l-4 border-[#A5192D] p-4 rounded-r-xl">
               <h2 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-                {pdfPreviewType === 'consultations' ? 'Clinical Consultations & Health Logbook' : 'Equipment & Supplies Borrowing Logbook'}
+                {pdfPreviewType === 'consultations' 
+                  ? 'Clinical Consultations & Health Logbook' 
+                  : (pdfPreviewType === 'borrowings' 
+                    ? 'Equipment & Supplies Borrowing Logbook' 
+                    : 'Summary Report on Clinic Visitations by College & Program')}
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-xs text-slate-600">
                 <div><span className="font-bold text-slate-500">Period:</span> {startDate} to {endDate}</div>
@@ -777,9 +886,15 @@ const Reports: React.FC = () => {
             {/* PDF Summary Stats */}
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Records</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  {pdfPreviewType === 'college_attendance' ? 'Total Visitations' : 'Total Records'}
+                </p>
                 <p className="text-xl font-black text-[#A5192D]">
-                  {pdfPreviewType === 'consultations' ? data?.export_data?.length || 0 : data?.borrowing_export_data?.length || 0}
+                  {pdfPreviewType === 'consultations' 
+                    ? data?.export_data?.length || 0 
+                    : (pdfPreviewType === 'borrowings' 
+                      ? data?.borrowing_export_data?.length || 0 
+                      : data?.attendance_by_college_program?.reduce((acc: number, c: any) => acc + Number(c.attendance || 0), 0) || 0)}
                 </p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
@@ -794,77 +909,116 @@ const Reports: React.FC = () => {
 
             {/* Official Report Table */}
             <div>
-              <table className="w-full text-left border-collapse border border-slate-300 text-xs">
-                <thead>
-                  <tr className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[11px]">
-                    <th className="p-2.5 border border-slate-700">Date</th>
-                    <th className="p-2.5 border border-slate-700">Patient / Borrower Name</th>
-                    <th className="p-2.5 border border-slate-700">Type / ID</th>
-                    <th className="p-2.5 border border-slate-700">
-                      {pdfPreviewType === 'consultations' ? 'Purpose' : 'Purpose / Use'}
-                    </th>
-                    <th className="p-2.5 border border-slate-700">
-                      {pdfPreviewType === 'consultations' ? 'Diagnosis / Findings' : 'Items & Quantity'}
-                    </th>
-                    <th className="p-2.5 border border-slate-700 text-right">
-                      {pdfPreviewType === 'consultations' ? 'Attended By' : 'Status / Attended'}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pdfPreviewType === 'consultations' ? (
-                    data?.export_data?.map((row: any, i: number) => (
+              {pdfPreviewType === 'college_attendance' ? (
+                <table className="w-full text-left border-collapse border border-slate-300 text-xs">
+                  <thead>
+                    <tr className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[11px]">
+                      <th className="p-2.5 border border-slate-700 w-14 text-center">#</th>
+                      <th className="p-2.5 border border-slate-700">College</th>
+                      <th className="p-2.5 border border-slate-700">Programs</th>
+                      <th className="p-2.5 border border-slate-700 text-right">Visitation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data?.attendance_by_college_program?.map((row: any, i: number) => (
                       <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
-                        <td className="p-2.5 border border-slate-200 font-mono text-slate-600 whitespace-nowrap">
-                          {new Date(row.Date).toLocaleDateString()}
+                        <td className="p-2.5 border border-slate-200 font-mono text-center font-bold text-slate-500">
+                          {i + 1}
                         </td>
                         <td className="p-2.5 border border-slate-200 font-bold text-slate-800">
-                          {row.Patient_Name}
+                          {row.college}
                         </td>
-                        <td className="p-2.5 border border-slate-200 text-slate-600">
-                          <div>{row.ID_Number || 'N/A'}</div>
-                          <div className="text-[10px] text-slate-400 uppercase font-semibold">{row.Type}</div>
+                        <td className="p-2.5 border border-slate-200 font-medium text-slate-700">
+                          {row.program}
                         </td>
-                        <td className="p-2.5 border border-slate-200 font-semibold text-[#A5192D]">
-                          {row.Purpose}
-                        </td>
-                        <td className="p-2.5 border border-slate-200 text-slate-700">
-                          <div>{row.Diagnosis || 'N/A'}</div>
-                          {row.Dispensed_Medicines && (
-                            <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">Meds: {row.Dispensed_Medicines}</div>
-                          )}
-                        </td>
-                        <td className="p-2.5 border border-slate-200 text-right font-medium text-slate-600">
-                          {row.Attended_By}
+                        <td className="p-2.5 border border-slate-200 text-right font-bold text-slate-900 font-mono">
+                          {row.attendance}
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    data?.borrowing_export_data?.map((row: any, i: number) => (
-                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
-                        <td className="p-2.5 border border-slate-200 font-mono text-slate-600 whitespace-nowrap">
-                          {new Date(row.Date || row.created_at || Date.now()).toLocaleDateString()}
-                        </td>
-                        <td className="p-2.5 border border-slate-200 font-bold text-slate-800">
-                          {row.Borrower_Name || row.Patient_Name || 'Borrower'}
-                        </td>
-                        <td className="p-2.5 border border-slate-200 text-slate-600">
-                          {row.ID_Number || 'N/A'}
-                        </td>
-                        <td className="p-2.5 border border-slate-200 font-semibold text-[#A5192D]">
-                          {row.Purpose}
-                        </td>
-                        <td className="p-2.5 border border-slate-200 text-slate-700">
-                          {row.Items_Borrowed || row.Equipment || 'Equipment'}
-                        </td>
-                        <td className="p-2.5 border border-slate-200 text-right font-semibold text-emerald-700">
-                          {row.Status || 'Active'}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ))}
+                    <tr className="bg-slate-100 font-black text-slate-900 border-t-2 border-slate-400">
+                      <td colSpan={3} className="p-3 text-right uppercase tracking-wider text-xs">
+                        Total Visitations:
+                      </td>
+                      <td className="p-3 text-right text-sm text-[#A5192D] font-mono">
+                        {data?.attendance_by_college_program?.reduce((acc: number, c: any) => acc + Number(c.attendance || 0), 0) || 0}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-left border-collapse border border-slate-300 text-xs">
+                  <thead>
+                    <tr className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[11px]">
+                      <th className="p-2.5 border border-slate-700">Date</th>
+                      <th className="p-2.5 border border-slate-700">Patient / Borrower Name</th>
+                      <th className="p-2.5 border border-slate-700">Type / ID</th>
+                      <th className="p-2.5 border border-slate-700">
+                        {pdfPreviewType === 'consultations' ? 'Purpose' : 'Purpose / Use'}
+                      </th>
+                      <th className="p-2.5 border border-slate-700">
+                        {pdfPreviewType === 'consultations' ? 'Diagnosis / Findings' : 'Items & Quantity'}
+                      </th>
+                      <th className="p-2.5 border border-slate-700 text-right">
+                        {pdfPreviewType === 'consultations' ? 'Attended By' : 'Status / Attended'}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pdfPreviewType === 'consultations' ? (
+                      data?.export_data?.map((row: any, i: number) => (
+                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
+                          <td className="p-2.5 border border-slate-200 font-mono text-slate-600 whitespace-nowrap">
+                            {new Date(row.Date).toLocaleDateString()}
+                          </td>
+                          <td className="p-2.5 border border-slate-200 font-bold text-slate-800">
+                            {row.Patient_Name}
+                          </td>
+                          <td className="p-2.5 border border-slate-200 text-slate-600">
+                            <div>{row.ID_Number || 'N/A'}</div>
+                            <div className="text-[10px] text-slate-400 uppercase font-semibold">{row.Type}</div>
+                          </td>
+                          <td className="p-2.5 border border-slate-200 font-semibold text-[#A5192D]">
+                            {row.Purpose}
+                          </td>
+                          <td className="p-2.5 border border-slate-200 text-slate-700">
+                            <div>{row.Diagnosis || 'N/A'}</div>
+                            {row.Dispensed_Medicines && (
+                              <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">Meds: {row.Dispensed_Medicines}</div>
+                            )}
+                          </td>
+                          <td className="p-2.5 border border-slate-200 text-right font-medium text-slate-600">
+                            {row.Attended_By}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      data?.borrowing_export_data?.map((row: any, i: number) => (
+                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
+                          <td className="p-2.5 border border-slate-200 font-mono text-slate-600 whitespace-nowrap">
+                            {new Date(row.Date || row.created_at || Date.now()).toLocaleDateString()}
+                          </td>
+                          <td className="p-2.5 border border-slate-200 font-bold text-slate-800">
+                            {row.Borrower_Name || row.Patient_Name || 'Borrower'}
+                          </td>
+                          <td className="p-2.5 border border-slate-200 text-slate-600">
+                            {row.ID_Number || 'N/A'}
+                          </td>
+                          <td className="p-2.5 border border-slate-200 font-semibold text-[#A5192D]">
+                            {row.Purpose}
+                          </td>
+                          <td className="p-2.5 border border-slate-200 text-slate-700">
+                            {row.Items_Borrowed || row.Equipment || 'Equipment'}
+                          </td>
+                          <td className="p-2.5 border border-slate-200 text-right font-semibold text-emerald-700">
+                            {row.Status || 'Active'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
 
             {/* Dynamic Signatures & Verification Footer */}

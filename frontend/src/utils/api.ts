@@ -574,6 +574,20 @@ async function handleOfflineMutation(endpoint: string, options: RequestInit): Pr
       } catch {}
     }
 
+    // Check if patient already has an active check-in in offline store
+    const allConsultations = await offlineDb.getAll<any>('consultations');
+    const existingActive = allConsultations.find(c =>
+      String(c.profile_id) === String(bodyData.profile_id) &&
+      ['waiting', 'in-progress', 'active'].includes(c.status)
+    );
+    if (existingActive) {
+      return {
+        success: false,
+        offline: true,
+        message: `Patient ${patientName || 'this patient'} is already checked in and active in the queue (Offline Mode).`,
+      };
+    }
+
     const consData = {
       id: tempId,
       profile_id: bodyData.profile_id,

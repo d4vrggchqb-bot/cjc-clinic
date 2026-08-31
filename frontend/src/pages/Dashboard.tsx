@@ -8,11 +8,12 @@ import {
   PieChart, Pie, Legend, LineChart, Line
 } from 'recharts';
 import PatientViewModal from '../components/PatientViewModal';
+import { useBranch } from '../context/BranchContext';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [userRole, setUserRole] = useState<string>('');
-  const [selectedBranch, setSelectedBranch] = useState<string>('All Branches');
+  const { selectedBranch, setSelectedBranch } = useBranch();
   const [predictiveAlerts, setPredictiveAlerts] = useState<any[]>([]);
   const [stats, setStats] = useState({
     visitsToday: 0,

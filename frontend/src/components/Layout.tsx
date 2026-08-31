@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch, clearCsrfToken } from '../utils/api';
 import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFileText, FiChevronLeft, FiChevronRight, FiCalendar, FiMenu, FiX, FiRepeat, FiUserCheck, FiLock, FiShield, FiUser, FiTrash2, FiPlus, FiCheck } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
+import { useBranch } from '../context/BranchContext';
 import { SyncStatusBadge } from './SyncStatusBadge';
 
 interface SavedAccount {
@@ -55,6 +56,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
   const location = useLocation();
   const navigate = useNavigate();
   const { confirm } = useConfirm();
+  const { displayBranch } = useBranch();
   
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
@@ -263,7 +265,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
               <div className={`flex flex-col min-w-0 opacity-100 transition-opacity duration-300 ${isCollapsed ? 'md:hidden' : ''}`}>
                 <span className="text-white text-[0.75rem] font-bold truncate tracking-wide">{user.name || user.username}</span>
                 <span className="text-white/80 text-[0.65rem] truncate capitalize mt-0.5">
-                  {user.role} {user.clinic_branch ? ` • ${user.clinic_branch}` : ''}
+                  {user.role} {user.role === 'Superadmin' ? ` • ${displayBranch}` : (user.clinic_branch ? ` • ${user.clinic_branch}` : '')}
                 </span>
               </div>
             )}
@@ -322,9 +324,9 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                 <h2 className="text-lg sm:text-xl font-extrabold text-slate-800 capitalize tracking-tight flex items-center gap-2">
                   {pageInfo.title}
                 </h2>
-                {user && user.clinic_branch && (
+                {displayBranch && (
                   <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-red-100 text-[#C01D38] border border-red-200 tracking-wide">
-                    {user.clinic_branch.toUpperCase()}
+                    {displayBranch.toUpperCase()}
                   </span>
                 )}
               </div>
