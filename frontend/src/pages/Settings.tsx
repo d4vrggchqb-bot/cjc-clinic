@@ -486,8 +486,6 @@ export default function Settings() {
                   <input type="password" placeholder="Password (Optional)" className="border px-2 py-1 text-sm rounded flex-1" value={newUser.password} onChange={e=>setNewUser({...newUser, password: e.target.value})}/>
                   <select className="border px-2 py-1 text-sm rounded" value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})}>
                     <option>Staff</option>
-                    <option>Nurse</option>
-                    <option>Doctor</option>
                     <option>Admin</option>
                     <option>Superadmin</option>
                   </select>
