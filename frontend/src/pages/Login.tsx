@@ -157,6 +157,28 @@ const RESPONSIVE_CSS = `
     background: #f1f5f9;
     padding-left: 16px;
   }
+
+  /* ── Google Sign-in button wrapper & hover polish ─────────────── */
+  .cjc-google-btn-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .cjc-google-btn-wrapper > div {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+  }
+  .cjc-google-btn-wrapper iframe {
+    border-radius: 12px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+    transition: transform 0.18s ease, box-shadow 0.18s ease !important;
+  }
+  .cjc-google-btn-wrapper iframe:hover {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.10) !important;
+    transform: translateY(-1px);
+  }
 `;
 
 /* ─── Heartbeat / ECG line ──────────────────────────────────────── */
@@ -428,16 +450,36 @@ const Login: React.FC = () => {
                   </div>
                 </button>
 
-                {/* OR */}
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                  <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
-                  <span style={{ position: 'absolute', background: 'rgba(255,255,255,0.97)', padding: '0 10px', fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', color: '#94a3b8', textTransform: 'uppercase' }}>OR</span>
+                {/* OR Divider */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '14px 0 12px', width: '100%' }}>
+                  <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, #e2e8f0 50%, #cbd5e1)' }} />
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    letterSpacing: '0.22em',
+                    color: '#94a3b8',
+                    textTransform: 'uppercase',
+                    userSelect: 'none',
+                    lineHeight: 1,
+                  }}>
+                    OR
+                  </span>
+                  <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, #cbd5e1, #e2e8f0 50%, transparent)' }} />
                 </div>
 
                 {/* Google */}
-                <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                <div className="cjc-google-btn-wrapper">
                   <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                    <GoogleLogin onSuccess={handleGoogleSuccess} onError={handleGoogleError} useOneTap theme="outline" size="large" text="continue_with" shape="rectangular" width="320" />
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={handleGoogleError}
+                      useOneTap
+                      theme="outline"
+                      size="large"
+                      text="continue_with"
+                      shape="rectangular"
+                      width="356"
+                    />
                   </GoogleOAuthProvider>
                 </div>
               </form>
