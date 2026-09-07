@@ -45,7 +45,7 @@ const Consultation: React.FC = () => {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [kanbanStatus, setKanbanStatus] = useState('all'); // all, waiting, in-progress, completed
-  const { selectedBranch, setSelectedBranch } = useBranch();
+  const { selectedBranch, setSelectedBranch, displayBranch } = useBranch();
   const [userRole, setUserRole] = useState('');
   const [entries, setEntries] = useState<LogbookEntry[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -160,6 +160,12 @@ const Consultation: React.FC = () => {
     clinic_branch: 'College Clinic'
   });
   const [showPrintView, setShowPrintView] = useState(false);
+
+  const getCertificateBranch = (entry: LogbookEntry | null = activeNoteEntry): string => {
+    if (selectedBranch && selectedBranch !== 'All Branches') return selectedBranch;
+    if (displayBranch && displayBranch !== 'All Branches') return displayBranch;
+    return entry?.clinic_branch || 'College Clinic';
+  };
 
   // Clinic Slip State
   const [isClinicSlipModalOpen, setIsClinicSlipModalOpen] = useState(false);
@@ -1598,7 +1604,7 @@ const Consultation: React.FC = () => {
                       is_essentially_normal: false,
                       reason: '',
                       valid_until: '',
-                      clinic_branch: activeNoteEntry.clinic_branch || 'College Clinic'
+                      clinic_branch: getCertificateBranch(activeNoteEntry)
                     });
                     setIsMedcertModalOpen(true);
                   }} 
@@ -1895,6 +1901,7 @@ const Consultation: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Clinic Branch</label>
                 <select required value={medcertData.clinic_branch} onChange={e => setMedcertData({...medcertData, clinic_branch: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]">
                   <option value="College Clinic">College Clinic</option>
+                  <option value="Power Campus Clinic">Power Campus Clinic</option>
                   <option value="Basic Education Clinic">Basic Education Clinic</option>
                 </select>
               </div>
@@ -1987,8 +1994,7 @@ const Consultation: React.FC = () => {
 
                 <p className="indent-12">
                   This is to certify that <span className="inline-block border-b border-black min-w-[320px] text-center font-bold px-2 uppercase">{medcertData.issued_to}</span>, <span className="inline-block border-b border-black min-w-[60px] text-center px-2">&nbsp;</span> years old
-                  <br />and a resident of <span className="inline-block border-b border-black min-w-[440px] text-center px-2 font-semibold uppercase">{medcertData.address || <>&nbsp;</>}</span> has been examined at the
-                  <br />School Clinic-Cor Jesu College.
+                  <br />and a resident of <span className="inline-block border-b border-black min-w-[440px] text-center px-2 font-semibold uppercase">{medcertData.address || <>&nbsp;</>}</span> has been examined at the {medcertData.clinic_branch}-Cor Jesu College.
                 </p>
 
                 <div className="pl-12 space-y-3 my-6 leading-relaxed">

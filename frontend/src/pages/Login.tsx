@@ -4,7 +4,7 @@ import { apiFetch } from '../utils/api';
 import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import {
   FiUser, FiLock, FiEye, FiEyeOff, FiShield,
-  FiFolder, FiBox, FiBarChart2, FiArrowRight, FiChevronRight,
+  FiArrowRight,
 } from 'react-icons/fi';
 
 const GOOGLE_CLIENT_ID = '814203352511-rp2uq7eajh56v8k9gnspbmureb2hpk3a.apps.googleusercontent.com';
@@ -42,7 +42,7 @@ const RESPONSIVE_CSS = `
     flex-shrink: 0;
   }
 
-  /* ── Right column (branding + cards) ─────────────────────────── */
+  /* ── Right column (branding) ─────────────────────────────────── */
   .cjc-right {
     flex: 1;
     min-width: 0;
@@ -56,44 +56,6 @@ const RESPONSIVE_CSS = `
     padding-left: 8px;
     padding-right: 16px;
     overflow: hidden;
-  }
-
-  /* ── Cards container ──────────────────────────────────────────── */
-  .cjc-cards {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: stretch;
-    gap: clamp(8px, 1.4vw, 18px);
-    width: 100%;
-    max-width: 820px;
-    padding: 0 8px;
-  }
-
-  /* ── Individual feature card ──────────────────────────────────── */
-  .cjc-card {
-    position: relative;
-    background: #fff;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    text-align: left;
-    cursor: default;
-    overflow: hidden;
-    border-radius: 18px;
-    padding: 18px 16px 14px;
-    box-shadow: 0 8px 28px rgba(0,0,0,0.09), 0 2px 6px rgba(0,0,0,0.05);
-    transition: transform 0.24s ease, box-shadow 0.24s ease;
-    /* fluid width: fills row evenly, but collapses to 2-per-row if space is tight */
-    flex: 1 1 clamp(110px, 18vw, 160px);
-    max-width: 180px;
-    min-width: 110px;
-  }
-
-  .cjc-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 18px 44px rgba(0,0,0,0.13), 0 4px 10px rgba(192,29,56,0.09);
   }
 
   /* ── CJC branding block ───────────────────────────────────────── */
@@ -136,15 +98,11 @@ const RESPONSIVE_CSS = `
      RESPONSIVE BREAKPOINTS
   ══════════════════════════════════════════ */
 
-  /* Medium screens — cards go 2×2 */
+  /* Medium screens */
   @media (max-width: 900px) {
     .cjc-left {
       width: 42%;
       min-width: 280px;
-    }
-    .cjc-card {
-      flex: 1 1 calc(50% - 12px);
-      max-width: calc(50% - 12px);
     }
     .cjc-wordmark {
       font-size: clamp(30px, 5vw, 50px);
@@ -168,18 +126,6 @@ const RESPONSIVE_CSS = `
       width: 100%;
       height: auto;
       padding: 24px 16px 32px;
-    }
-    .cjc-card {
-      flex: 1 1 calc(50% - 10px);
-      max-width: calc(50% - 10px);
-    }
-  }
-
-  /* Very small screens — 1-column cards */
-  @media (max-width: 420px) {
-    .cjc-card {
-      flex: 1 1 100%;
-      max-width: 100%;
     }
   }
 
@@ -234,52 +180,6 @@ const MedCross = ({ size = 26 }: { size?: number }) => (
     <rect x="2" y="10" width="24" height="8" rx="3" fill="#C01D38" />
     <rect x="11" y="3" width="6" height="22" rx="2" fill="#DF3A50" opacity="0.45" />
   </svg>
-);
-
-/* ─── Feature Card ──────────────────────────────────────────────── */
-const FeatureCard = ({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) => (
-  <div className="cjc-card">
-    {/* Top accent stripe */}
-    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #C01D38, #DF3A50)', borderRadius: '18px 18px 0 0' }} />
-
-    {/* Icon bubble */}
-    <div style={{
-      background: 'linear-gradient(135deg, #fff0f2 0%, #fde8eb 100%)',
-      border: '1px solid #fbc8d0',
-      borderRadius: 13,
-      padding: 9,
-      marginBottom: 10,
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      {React.cloneElement(icon as React.ReactElement<{ style?: React.CSSProperties }>, {
-        style: { width: 18, height: 18, color: '#C01D38', strokeWidth: 2.5 },
-      })}
-    </div>
-
-    <h4 style={{ fontWeight: 800, fontSize: 11, color: '#1e293b', marginBottom: 3, lineHeight: 1.3, letterSpacing: '-0.01em' }}>
-      {title}
-    </h4>
-    <p style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500, lineHeight: 1.4, flex: 1 }}>
-      {desc}
-    </p>
-
-    {/* Chevron */}
-    <div style={{
-      marginTop: 10,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: 22,
-      height: 22,
-      borderRadius: '50%',
-      background: 'linear-gradient(135deg, #C01D38, #9B1530)',
-      alignSelf: 'flex-end',
-    }}>
-      <FiChevronRight style={{ width: 11, height: 11, color: '#fff', strokeWidth: 3 }} />
-    </div>
-  </div>
 );
 
 /* ─── Main Login Component ──────────────────────────────────────── */
@@ -396,7 +296,7 @@ const Login: React.FC = () => {
         ══════════════════════════════════════════════════════ */}
         <div style={{
           position: 'absolute', inset: 0,
-          backgroundImage: "url('/Norbert.jpg')",
+          backgroundImage: `url('${import.meta.env.DEV ? '/Norbert.jpg' : '/dist/Norbert.jpg'}')`,
           backgroundSize: 'cover', backgroundPosition: 'center top', backgroundRepeat: 'no-repeat',
           zIndex: 0,
         }} />
@@ -594,7 +494,7 @@ const Login: React.FC = () => {
           </div>
         </div>
 
-        {/* ─── RIGHT COLUMN — Branding + Cards + Footer ────────── */}
+        {/* ─── RIGHT COLUMN — Branding + Footer ────────────────── */}
         <div className="cjc-right">
 
           {/* CJC-Clinic branding */}
@@ -609,14 +509,6 @@ const Login: React.FC = () => {
             </div>
 
             <h3 className="cjc-subtitle">Clinic Patient Records System and Inventory</h3>
-          </div>
-
-          {/* ── Feature Cards ────────────────────────────────── */}
-          <div className="cjc-cards">
-            <FeatureCard icon={<FiFolder />}    title="Patient Records" desc="Secure patient information" />
-            <FeatureCard icon={<FiBox />}        title="Inventory"       desc="Track and manage clinic supplies" />
-            <FeatureCard icon={<FiBarChart2 />}  title="Reports"         desc="Generate accurate statistics" />
-            <FeatureCard icon={<FiShield />}     title="Secure Access"   desc="Role-based system access" />
           </div>
 
           {/* ── Powered-by pill ──────────────────────────────── */}
@@ -643,7 +535,7 @@ const Login: React.FC = () => {
                 </div>
               </div>
 
-              <p style={{ fontSize: 8, color: '#94a3b8', fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', marginTop: 10 }}>Powered by</p>
+              <p style={{ fontSize: 8, color: '#94a3b8', fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', marginTop: 10 }}>Developed by</p>
               <p style={{ fontSize: 'clamp(11px, 1.2vw, 13px)', fontWeight: 900, color: '#C01D38', marginTop: 2, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
                 Rhea Grace Balatero &amp; John Mark Limsan
               </p>
