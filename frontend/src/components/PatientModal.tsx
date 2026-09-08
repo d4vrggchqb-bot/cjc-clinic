@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft, FiCheck, FiRefreshCw, FiAlertCircle, FiZap, FiDatabase, FiCloudDownload, FiCheckCircle, FiPlus } from 'react-icons/fi';
+import { FiX, FiUser, FiPhone, FiActivity, FiChevronRight, FiChevronLeft, FiCheck, FiRefreshCw, FiAlertCircle, FiZap, FiDatabase, FiCheckCircle, FiPlus } from 'react-icons/fi';
 
 interface PatientModalProps {
   isOpen: boolean;
@@ -47,7 +47,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     return '';
   };
 
-  const [formData, setFormData] = useState({
+  const DEFAULT_PATIENT_FORM_DATA = {
     profile_type: 'student',
     patient_id_number: '',
     first_name: '',
@@ -74,8 +74,16 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
     medical_history: '',
     emergency_contact_name: '',
     emergency_contact_number: '',
-    emergency_relation: 'Parent / Guardian'
-  });
+    emergency_relation: 'Parent / Guardian',
+    health_history: '',
+    vital_stats: '',
+    height: '',
+    weight: '',
+    mother_name: '',
+    father_name: ''
+  };
+
+  const [formData, setFormData] = useState<typeof DEFAULT_PATIENT_FORM_DATA>(DEFAULT_PATIENT_FORM_DATA);
   
   // Health History specific state (Pill / Bean UI)
   const DEFAULT_HEALTH_PRESETS = [
@@ -153,6 +161,8 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
         } else {
           setSscStatus(`Auto-filled student info from SSC Database for ${res.ssc_data.fullName}`);
         }
+      } else if (res.error) {
+        setSscStatus(res.error);
       } else {
         setSscStatus(`Student ID not found in SSC database — please enter details manually.`);
       }
@@ -252,31 +262,10 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
         const defaultDept = getAutoSelectedDept(defaultSub);
 
         setFormData({
-          profile_type: 'student',
-          patient_id_number: '',
+          ...DEFAULT_PATIENT_FORM_DATA,
           school_year: globalSettings.school_year || '2026-2027',
-          first_name: '',
-          last_name: '',
-          middle_initial: '',
-          birthdate: '',
-          gender: '',
-          blood_type: '',
           sub_type: defaultSub,
           college_dept: defaultDept,
-          year_level: '',
-          course: '',
-          contact: '',
-          email: '',
-          address: '',
-          emergency_contact_name: '',
-          emergency_contact_number: '',
-          emergency_relation: '',
-          health_history: '',
-          vital_stats: '',
-          height: '',
-          weight: '',
-          mother_name: '',
-          father_name: ''
         });
         setSelectedHealthConditions([]);
         setCustomHealthText('');

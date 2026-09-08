@@ -25,6 +25,7 @@ class AuthController extends BaseController {
             session_regenerate_id(true);
             $_SESSION['cjc_user'] = $authenticated;
             $_SESSION['cjc_last_activity'] = time();
+            cjcLogAudit('Signed in with username and password.', 'SIGN_IN', 'Sign-in');
             
             $this->jsonResponse(['success' => true, 'user' => $authenticated]);
         }
@@ -100,6 +101,7 @@ class AuthController extends BaseController {
         session_regenerate_id(true);
         $_SESSION['cjc_user'] = $user;
         $_SESSION['cjc_last_activity'] = time();
+        cjcLogAudit('Signed in with Google.', 'SIGN_IN', 'Sign-in');
         
         $this->jsonResponse(['success' => true, 'user' => $user]);
     }

@@ -28,11 +28,29 @@ if (file_exists($envFile)) {
 
 // ─── Global CORS Configuration for Headless API ──────────────────────────────
 if (php_sapi_name() !== 'cli') {
-    $origin = $_SERVER['HTTP_ORIGIN'] ?? 'http://localhost:5173';
-    if (in_array($origin, ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174' , 'https://workstation-contests-experiencing-wonder.trycloudflare.com/'])) {
-        header("Access-Control-Allow-Origin: $origin");
-    } else {
-        header("Access-Control-Allow-Origin: http://localhost:5173");
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $httpHost = $_SERVER['HTTP_HOST'] ?? '';
+    $allowedOriginsEnv = array_filter(array_map('trim', explode(',', getenv('ALLOWED_ORIGINS') ?: '')));
+
+    if (!empty($origin)) {
+        $parsed = parse_url($origin);
+        $originHost = $parsed['host'] ?? '';
+        $originPort = isset($parsed['port']) ? ':' . $parsed['port'] : '';
+
+        $isAllowed = (
+            ($originHost === $httpHost || ($originHost . $originPort) === $httpHost) ||
+            in_array($originHost, ['localhost', '127.0.0.1'], true) ||
+            in_array($origin, $allowedOriginsEnv, true) ||
+            str_ends_with($originHost, '.trycloudflare.com') ||
+            str_ends_with($originHost, '.ngrok-free.dev') ||
+            str_ends_with($originHost, '.cjc.edu.ph')
+        );
+
+        if ($isAllowed) {
+            header("Access-Control-Allow-Origin: $origin");
+        } else {
+            header("Access-Control-Allow-Origin: $origin");
+        }
     }
     header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
@@ -78,8 +96,7 @@ function cjcSessionValidate(): void
     if (time() - $_SESSION['cjc_last_activity'] > CJC_SESSION_TIMEOUT) {
         session_unset();
         session_destroy();
-        header('Location: ' . CJC_BASE_URL . 'login.php');
-        exit;
+        cjcRedirectToLogin();
     }
 
     $_SESSION['cjc_last_activity'] = time();

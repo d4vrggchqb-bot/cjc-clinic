@@ -187,6 +187,8 @@ switch ($route) {
         $controller = new ReportController();
         if ($action === 'generate') {
             $controller->generateReport();
+        } elseif ($action === 'activity_log') {
+            $controller->getActivityLog();
         }
         break;
 

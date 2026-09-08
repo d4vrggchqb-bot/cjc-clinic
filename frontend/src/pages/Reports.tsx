@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FiDownload, FiCalendar, FiFilter, FiFileText, FiActivity, FiUsers, FiTrendingUp, FiX, FiPrinter, FiEye, FiCheck } from 'react-icons/fi';
+import { FiDownload, FiCalendar, FiFilter, FiFileText, FiActivity, FiUsers, FiTrendingUp, FiX, FiPrinter, FiEye, FiCheck, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -39,6 +39,13 @@ const Reports: React.FC = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [userRole, setUserRole] = useState('');
+  const [activityRecords, setActivityRecords] = useState<any[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityExpanded, setActivityExpanded] = useState(false);
+  const [activityOffset, setActivityOffset] = useState(0);
+  const [activityModule, setActivityModule] = useState('All');
+  const [activitySearch, setActivitySearch] = useState('');
+  const [openActivityRow, setOpenActivityRow] = useState<string | null>(null);
   
   const [globalSettings, setGlobalSettings] = useState<any>({ 
     departments_hierarchy: [],
@@ -170,6 +177,48 @@ const Reports: React.FC = () => {
       fetchReport();
     }
   }, [startDate, endDate, selectedBranch, department, program, yearLevel, semester, purpose]);
+
+  const loadActivity = async (reset = false, expanded = activityExpanded) => {
+    if (userRole !== 'Superadmin' || !startDate || !endDate) return;
+    setActivityLoading(true);
+    let offset = reset ? 0 : activityOffset;
+    try {
+      let records = reset ? [] : activityRecords;
+      let hasMore = false;
+      do {
+        const res = await apiFetch(`/api/index.php?route=reports&action=activity_log&start_date=${startDate}&end_date=${endDate}&branch=${encodeURIComponent(selectedBranch)}&module=${encodeURIComponent(activityModule)}&offset=${offset}&limit=${expanded ? 100 : 5}`);
+        records = [...records, ...(res.records || [])];
+        hasMore = Boolean(res.has_more);
+        offset = res.next_offset || offset;
+      } while (expanded && hasMore);
+      setActivityRecords(records);
+      setActivityOffset(offset);
+    } catch (err) {
+      console.error('Failed to load activity log', err);
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userRole === 'Superadmin') {
+      setActivityExpanded(false);
+      setOpenActivityRow(null);
+      loadActivity(true, false);
+    }
+  }, [userRole, startDate, endDate, selectedBranch, activityModule]);
+
+  const toggleActivity = () => {
+    const next = !activityExpanded;
+    setActivityExpanded(next);
+    loadActivity(true, next);
+  };
+
+  const visibleActivityRecords = activityRecords.filter((row: any) => {
+    const query = activitySearch.trim().toLowerCase();
+    return !query || [row.actor, row.subject, row.action, row.summary, row.branch, row.module]
+      .some(value => String(value || '').toLowerCase().includes(query));
+  });
 
   const handleExportClick = () => {
     if (!data || !data.export_data || data.export_data.length === 0) {
@@ -676,7 +725,47 @@ const Reports: React.FC = () => {
             )}
           </div>
 
-          {/* Logbook Preview */}
+          {/* SuperAdmin activity feed; other roles retain the consultation preview. */}
+          {userRole === 'Superadmin' ? (
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+              <div>
+                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2"><div className="w-2 h-6 bg-blue-500 rounded-full"></div>All Activity Log</h3>
+                <p className="text-xs text-slate-500 mt-1">Sign-ins, patient profiles, consultations, appointments, borrowings, and inventory activity.</p>
+              </div>
+              <button onClick={toggleActivity} className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold text-[#A5192D] border border-red-200 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">
+                {activityExpanded ? <FiChevronUp /> : <FiChevronDown />}{activityExpanded ? 'Collapse activity' : 'Show all transactions'}
+              </button>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              <select value={activityModule} onChange={(e) => setActivityModule(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white">
+                <option value="All">All modules</option>
+                <option value="Patient">Patients</option>
+                <option value="Consultation">Consultations</option>
+                <option value="Appointment">Appointments</option>
+                <option value="Borrowing">Borrowings</option>
+                <option value="Inventory">Inventory</option>
+                <option value="Audit">Audit activity</option>
+              </select>
+              <input value={activitySearch} onChange={(e) => setActivitySearch(e.target.value)} placeholder="Filter by user, patient, action, or reference…" className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700" />
+            </div>
+            {activityLoading && activityRecords.length === 0 ? <div className="text-slate-400 text-sm py-10 text-center">Loading activity…</div> : activityRecords.length === 0 ? (
+              <div className="text-slate-400 text-sm py-10 text-center flex flex-col items-center"><FiActivity className="w-12 h-12 text-slate-200 mb-3" />No activity found for this period.</div>
+            ) : (
+              <div className={activityExpanded ? 'max-h-[650px] overflow-y-auto border border-slate-100 rounded-xl' : ''}><div className="overflow-x-auto"><table className="w-full text-left border-collapse">
+                <thead className={activityExpanded ? 'sticky top-0 z-10' : ''}><tr className="bg-slate-50 text-slate-500 font-semibold text-xs uppercase tracking-wider"><th className="p-3">Timestamp</th><th className="p-3">Module</th><th className="p-3">Action</th><th className="p-3">Performed by</th><th className="p-3">Patient / Reference</th><th className="p-3">Branch</th><th className="p-3">Summary</th></tr></thead>
+                <tbody>{visibleActivityRecords.map((row: any, i: number) => {
+                  const recordKey = `${row.module}-${row.occurred_at}-${i}`;
+                  const isOpen = openActivityRow === recordKey;
+                  return <React.Fragment key={recordKey}>
+                    <tr onClick={() => setOpenActivityRow(isOpen ? null : recordKey)} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer"><td className="p-3 text-xs text-slate-500 whitespace-nowrap">{new Date(row.occurred_at).toLocaleString()}</td><td className="p-3"><span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-full uppercase">{row.module}</span></td><td className="p-3 text-sm font-medium text-slate-700">{row.action}</td><td className="p-3 text-sm text-slate-600">{row.actor}</td><td className="p-3 text-sm text-slate-700">{row.subject || '—'}</td><td className="p-3 text-sm text-slate-500">{row.branch || 'All branches'}</td><td className="p-3 text-sm text-slate-600 max-w-xs">{row.summary}</td></tr>
+                    {isOpen && <tr className="bg-slate-50/70"><td colSpan={7} className="px-5 py-4 text-sm text-slate-600"><span className="font-semibold text-slate-700">Transaction details:</span> {row.summary}<span className="text-slate-400"> · Click the row to collapse.</span></td></tr>}
+                  </React.Fragment>;
+                })}</tbody>
+              </table></div></div>
+            )}
+          </div>
+          ) : (
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
@@ -736,8 +825,9 @@ const Reports: React.FC = () => {
                 </div>
               )}
             </div>
+          )}
           </div>
-          
+
       )}
 
       {/* Export Confirmation Modal */}

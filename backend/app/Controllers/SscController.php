@@ -21,10 +21,10 @@ class SscController extends BaseController {
     /**
      * Execute authenticated HTTP request to external SSC Server
      */
-    private function makeSscRequest(string $endpoint, array $queryParams = []): ?array {
+    private function makeSscRequest(string $endpoint, array $queryParams = []): array {
         $cfg = $this->getIntegrationConfig();
         if (empty($cfg['baseUrl']) || empty($cfg['clientKey'])) {
-            return null;
+            return ['ok' => false, 'status' => 0, 'error' => 'SSC integration is not configured.'];
         }
 
         // Always include sensitive data since clinic-system has sensitive access enabled
@@ -47,15 +47,35 @@ class SscController extends BaseController {
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
 
         if ($httpCode === 200 && $response) {
             $data = json_decode($response, true);
             if (is_array($data)) {
-                return $data;
+                return ['ok' => true, 'status' => $httpCode, 'data' => $data];
             }
+            return ['ok' => false, 'status' => $httpCode, 'error' => 'SSC returned invalid JSON.'];
         }
-        return null;
+
+        $error = $curlError ?: ($httpCode > 0 ? "SSC returned HTTP {$httpCode}." : 'Could not connect to SSC.');
+        error_log("[CJC-CLINIC][SSC] GET {$endpoint} failed: {$error}");
+        return ['ok' => false, 'status' => $httpCode, 'error' => $error];
+    }
+
+    private function sscUnavailableResponse(array $errors): void {
+        $lastError = end($errors) ?: ['status' => 0, 'error' => 'Could not contact SSC.'];
+        $status = (int)($lastError['status'] ?? 0);
+        $message = $status === 401 || $status === 403
+            ? 'SSC rejected the integration credentials. Please verify the API key and client name.'
+            : 'SSC database is currently unavailable. Please try again later.';
+
+        $this->jsonResponse([
+            'success' => false,
+            'found' => false,
+            'error' => $message,
+            'ssc_status' => $status,
+        ], 502);
     }
 
     /**
@@ -265,15 +285,22 @@ class SscController extends BaseController {
         }
 
         $matched = null;
+        $remoteErrors = [];
+        $remoteSucceeded = false;
 
         // 1. If exact studentId is provided, query Single Student Endpoint:
         //    GET /api/v1/integration/masterlist/{studentId}?includeSensitive=true
         if (!empty($studentId)) {
             $endpoint = '/api/v1/integration/masterlist/' . rawurlencode($studentId);
             $res = $this->makeSscRequest($endpoint);
-            if ($res && isset($res['studentId'])) {
-                $res['source'] = 'live_ssc_api';
-                $matched = $res;
+            if ($res['ok']) {
+                $remoteSucceeded = true;
+                if (isset($res['data']['studentId'])) {
+                    $res['data']['source'] = 'live_ssc_api';
+                    $matched = $res['data'];
+                }
+            } else {
+                $remoteErrors[] = $res;
             }
         }
 
@@ -287,9 +314,16 @@ class SscController extends BaseController {
                 'size' => 10
             ]);
 
-            if ($res && isset($res['content']) && is_array($res['content']) && count($res['content']) > 0) {
+            if ($res['ok']) {
+                $remoteSucceeded = true;
+                $data = $res['data'];
+            } else {
+                $remoteErrors[] = $res;
+                $data = [];
+            }
+            if (isset($data['content']) && is_array($data['content']) && count($data['content']) > 0) {
                 // Find best matching student in content array
-                foreach ($res['content'] as $item) {
+                foreach ($data['content'] as $item) {
                     if (!empty($studentId) && strtolower($item['studentId'] ?? '') === strtolower($studentId)) {
                         $item['source'] = 'live_ssc_api';
                         $matched = $item;
@@ -309,36 +343,16 @@ class SscController extends BaseController {
                         }
                     }
                 }
-                if (!$matched && !empty($res['content'][0])) {
-                    $matched = $res['content'][0];
+                if (!$matched && !empty($data['content'][0])) {
+                    $matched = $data['content'][0];
                     $matched['source'] = 'live_ssc_api';
                 }
             }
         }
 
-        // 3. Fallback to local sample student pool if remote SSC server is offline or unreachable
-        if (!$matched) {
-            $samplePool = $this->getSampleSscDatabase();
-            foreach ($samplePool as $item) {
-                if (!empty($studentId) && strtolower($item['studentId'] ?? '') === strtolower($studentId)) {
-                    $item['source'] = 'offline_sample';
-                    $matched = $item;
-                    break;
-                }
-                if (!empty($query)) {
-                    $q = strtolower($query);
-                    if (
-                        strtolower($item['studentId'] ?? '') === $q ||
-                        str_contains(strtolower($item['firstName'] ?? ''), $q) ||
-                        str_contains(strtolower($item['lastName'] ?? ''), $q) ||
-                        str_contains(strtolower($item['fullName'] ?? ''), $q)
-                    ) {
-                        $item['source'] = 'offline_sample';
-                        $matched = $item;
-                        break;
-                    }
-                }
-            }
+        // A failed remote request must not be presented as a missing student or demo data.
+        if (!$remoteSucceeded && !empty($remoteErrors)) {
+            $this->sscUnavailableResponse($remoteErrors);
         }
 
         if (!$matched) {
@@ -375,8 +389,13 @@ class SscController extends BaseController {
         }
 
         $res = $this->makeSscRequest('/api/v1/integration/masterlist', $params);
-        if ($res && isset($res['content']) && is_array($res['content'])) {
-            foreach ($res['content'] as $raw) {
+        if (!$res['ok']) {
+            $this->sscUnavailableResponse([$res]);
+        }
+
+        $data = $res['data'];
+        if (isset($data['content']) && is_array($data['content'])) {
+            foreach ($data['content'] as $raw) {
                 $norm = $this->normalizeSscRecord($raw);
                 $students[] = [
                     'studentId' => $norm['ssc_data']['studentId'],
@@ -389,34 +408,8 @@ class SscController extends BaseController {
                     'email' => $norm['ssc_data']['email']
                 ];
             }
-            $totalElements = (int)($res['totalElements'] ?? count($students));
-            $totalPages = (int)($res['totalPages'] ?? 1);
-        } else {
-            // Fallback to sample pool
-            $sample = $this->getSampleSscDatabase();
-            if (!empty($search)) {
-                $q = strtolower($search);
-                $sample = array_values(array_filter($sample, function($s) use ($q) {
-                    return str_contains(strtolower($s['studentId']), $q) ||
-                           str_contains(strtolower($s['fullName']), $q) ||
-                           str_contains(strtolower($s['program']), $q);
-                }));
-            }
-            foreach ($sample as $raw) {
-                $norm = $this->normalizeSscRecord($raw);
-                $students[] = [
-                    'studentId' => $norm['ssc_data']['studentId'],
-                    'fullName' => $norm['ssc_data']['fullName'],
-                    'firstName' => $norm['clinic_profile']['first_name'],
-                    'lastName' => $norm['clinic_profile']['last_name'],
-                    'department' => $norm['ssc_data']['department'],
-                    'program' => $norm['ssc_data']['program'],
-                    'yearLevel' => $norm['ssc_data']['yearLevel'],
-                    'email' => $norm['ssc_data']['email']
-                ];
-            }
-            $totalElements = count($students);
-            $totalPages = 1;
+            $totalElements = (int)($data['totalElements'] ?? count($students));
+            $totalPages = (int)($data['totalPages'] ?? 1);
         }
 
         $this->jsonResponse([

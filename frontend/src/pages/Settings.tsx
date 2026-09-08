@@ -1068,7 +1068,7 @@ const PersonnelEditor = ({ items, onSave }: any) => {
   };
 
   const handleDelete = async (idx: number, name: string) => {
-    if (await confirm('Delete Personnel', `Remove ${name} from the medical personnel list?`)) {
+    if (await confirm({ title: 'Delete Personnel', message: `Remove ${name} from the medical personnel list?`, type: 'danger' })) {
       const newList = personnel.filter((_, i) => i !== idx);
       setPersonnel(newList);
       onSave(newList);

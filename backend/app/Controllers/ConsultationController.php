@@ -372,9 +372,19 @@ class ConsultationController extends BaseController {
             }
         }
 
-        $prescriptionsJson = !empty($dispensedItems) ? json_encode($dispensedItems) : null;
-
         try {
+            // Retrieve existing prescriptions if any to prevent overwriting with null
+            $existStmt = $pdo->prepare("SELECT prescriptions FROM consultations WHERE id = ?");
+            $existStmt->execute([$id]);
+            $currentPrescriptions = $existStmt->fetchColumn();
+
+            if (!empty($dispensedItems)) {
+                $existingArr = json_decode($currentPrescriptions ?: '[]', true) ?: [];
+                $merged = array_merge($existingArr, $dispensedItems);
+                $prescriptionsJson = json_encode($merged);
+            } else {
+                $prescriptionsJson = $currentPrescriptions;
+            }
             $stmt = $pdo->prepare("UPDATE consultations 
                                    SET blood_pressure = :bp, 
                                        temperature = :temp, 

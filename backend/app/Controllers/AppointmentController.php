@@ -3,6 +3,13 @@ require_once __DIR__ . '/BaseController.php';
 
 class AppointmentController extends BaseController {
 
+    private function ensureCreatorColumn($pdo) {
+        $column = $pdo->query("SHOW COLUMNS FROM appointments LIKE 'created_by'")->fetch();
+        if (!$column) {
+            $pdo->exec("ALTER TABLE appointments ADD COLUMN created_by INT NULL AFTER clinic_branch");
+        }
+    }
+
     public function list() {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
         
@@ -126,6 +133,7 @@ class AppointmentController extends BaseController {
         
         cjcRequireAuth(); cjcCsrfValidate();
         $pdo = cjcDatabaseConnection();
+        $this->ensureCreatorColumn($pdo);
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
 
         $profile_id = (int)($input['profile_id'] ?? 0);
@@ -143,8 +151,8 @@ class AppointmentController extends BaseController {
 
         try {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("INSERT INTO appointments (profile_id, appointment_date, appointment_time, purpose, clinic_branch) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$profile_id, $date, $time, $purpose, $branch]);
+            $stmt = $pdo->prepare("INSERT INTO appointments (profile_id, appointment_date, appointment_time, purpose, clinic_branch, created_by) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$profile_id, $date, $time, $purpose, $branch, $_SESSION['cjc_user']['id']]);
             $id = $pdo->lastInsertId();
 
             $year = date('Y', strtotime($date)) ?: date('Y');
@@ -171,6 +179,7 @@ class AppointmentController extends BaseController {
 
         cjcRequireAuth(); cjcCsrfValidate();
         $pdo = cjcDatabaseConnection();
+        $this->ensureCreatorColumn($pdo);
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
 
         $profile_ids = $input['profile_ids'] ?? [];
@@ -190,7 +199,7 @@ class AppointmentController extends BaseController {
 
         try {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("INSERT INTO appointments (profile_id, appointment_date, appointment_time, purpose, clinic_branch, group_name) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO appointments (profile_id, appointment_date, appointment_time, purpose, clinic_branch, group_name, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $upd = $pdo->prepare("UPDATE appointments SET appointment_code = ? WHERE id = ?");
             
             $year = date('Y', strtotime($date)) ?: date('Y');
@@ -200,7 +209,7 @@ class AppointmentController extends BaseController {
 
             foreach ($profile_ids as $pid) {
                 if ($pid > 0) {
-                    $stmt->execute([$pid, $date, $time, $purpose, $branch, $group_name ?: null]);
+                    $stmt->execute([$pid, $date, $time, $purpose, $branch, $group_name ?: null, $currentUser['id']]);
                     $id = $pdo->lastInsertId();
                     $code = sprintf('%s-%s-%05d', $prefix, $year, $id);
                     try {

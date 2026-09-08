@@ -21,6 +21,18 @@ INSERT INTO `users` (`username`, `password_hash`, `name`, `role`)
 VALUES ('admin', '$2y$10$SFGU8A.a0wKjKrFGF.lfk.mx6vfdGoEz7Gq.famdczyNrATGZwuQ.', 'System Administrator', 'Admin') 
 ON DUPLICATE KEY UPDATE `id`=`id`;
 
+-- Administrative audit trail (sign-ins and other audited actions)
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT DEFAULT NULL,
+  `user_name` VARCHAR(100) DEFAULT NULL,
+  `action_type` VARCHAR(50) DEFAULT 'UPDATE',
+  `module` VARCHAR(50) DEFAULT 'General',
+  `details` TEXT NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
+);
+
 
 -- 2. Profiles Table (Patients/Students/Employees)
 CREATE TABLE IF NOT EXISTS `profiles` (
@@ -178,10 +190,12 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `appointment_time` TIME NOT NULL,
   `purpose` VARCHAR(255) NOT NULL,
   `clinic_branch` ENUM('College Clinic', 'BED Clinic', 'Power Campus Clinic') NOT NULL DEFAULT 'College Clinic',
+  `created_by` INT DEFAULT NULL,
   `group_name` VARCHAR(150) DEFAULT NULL,
   `status` ENUM('Scheduled', 'Completed', 'Cancelled', 'No-Show') DEFAULT 'Scheduled',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
+  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
 );
 
 -- 9. Settings Table
@@ -229,6 +243,7 @@ CREATE INDEX IF NOT EXISTS `idx_consultations_branch_date` ON `consultations` (`
 CREATE INDEX IF NOT EXISTS `idx_consultations_status` ON `consultations` (`status`);
 CREATE INDEX IF NOT EXISTS `idx_batches_lookup` ON `inventory_batches` (`item_id`, `clinic_branch`, `status`);
 CREATE INDEX IF NOT EXISTS `idx_logs_created` ON `inventory_logs` (`created_at`, `action_type`);
+CREATE INDEX IF NOT EXISTS `idx_audit_created_module` ON `audit_logs` (`created_at`, `module`);
 CREATE INDEX IF NOT EXISTS `idx_appointments_date_branch` ON `appointments` (`appointment_date`, `clinic_branch`, `status`);
 CREATE INDEX IF NOT EXISTS `idx_borrowings_status` ON `borrowings` (`status`, `created_at`);
 

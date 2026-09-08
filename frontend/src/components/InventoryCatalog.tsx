@@ -186,7 +186,20 @@ const InventoryCatalog: React.FC = () => {
   const [disposeForm, setDisposeForm] = useState({ quantity: 1, reason: 'Expired / Unconsumed Disposal', disposed_to: 'CJC Hazardous Medical Waste Bin' });
 
   // Form States
-  const [newItem, setNewItem] = useState({ category: 'medicine', customCategory: '', brand_name: '', generic_name: '', dosage: '', formulation: '', alert_threshold: 20 });
+  const [newItem, setNewItem] = useState<{
+    category: string;
+    customCategory: string;
+    brand_name: string;
+    generic_name: string;
+    dosage: string;
+    formulation: string;
+    alert_threshold: number;
+    date_purchased?: string;
+    date_acquired?: string;
+    last_calibrated?: string;
+    calibration_due?: string;
+    calibration_notes?: string;
+  }>({ category: 'medicine', customCategory: '', brand_name: '', generic_name: '', dosage: '', formulation: '', alert_threshold: 20 });
   const [editItemForm, setEditItemForm] = useState<InventoryItem | null>(null);
   const [newBatch, setNewBatch] = useState({ item_id: 0, clinic_branch: 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
   const [editBatchData, setEditBatchData] = useState({ batch_id: 0, batch_number: '', date_arrived: '', expired_on: '', stock_remaining: 0, last_calibrated: '', calibration_due: '', calibration_notes: '' });

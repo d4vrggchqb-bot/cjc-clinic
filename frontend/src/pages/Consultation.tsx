@@ -633,7 +633,7 @@ const Consultation: React.FC = () => {
     setIsGeneratingMedcert(false);
   };
 
-  const handleStartConsultation = async (id: number) => {
+  const handleStartConsultation = async (id: number | string) => {
     try {
       await apiFetch(`/api/index.php?route=consultations&action=update`, {
         method: 'POST',
@@ -646,7 +646,7 @@ const Consultation: React.FC = () => {
     }
   };
 
-  const handleCheckout = async (id: number) => {
+  const handleCheckout = async (id: number | string) => {
     const confirmed = await confirm({
       title: 'Checkout Patient',
       message: 'Are you sure you want to time-out this patient?',
