@@ -76,7 +76,8 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutMs = endpoint.includes('route=ssc') ? 25000 : 10000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {

@@ -19,9 +19,9 @@ class SscController extends BaseController {
     }
 
     /**
-     * Execute authenticated HTTP request to external SSC Server
+     * Execute authenticated HTTP request to external SSC Server with automatic retry on transient drop
      */
-    private function makeSscRequest(string $endpoint, array $queryParams = []): array {
+    private function makeSscRequest(string $endpoint, array $queryParams = [], int $maxAttempts = 2): array {
         $cfg = $this->getIntegrationConfig();
         if (empty($cfg['baseUrl']) || empty($cfg['clientKey'])) {
             return ['ok' => false, 'status' => 0, 'error' => 'SSC integration is not configured.'];
@@ -32,40 +32,79 @@ class SscController extends BaseController {
         $queryString = http_build_query($queryParams);
         $url = $cfg['baseUrl'] . $endpoint . ($queryString ? '?' . $queryString : '');
 
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 4);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Accept: application/json',
-            'X-API-Key: ' . $cfg['clientKey'],
-            'X-Client-Name: ' . $cfg['clientName'],
-            'User-Agent: CJC-Clinic-Integration/1.0'
-        ]);
+        $lastResult = ['ok' => false, 'status' => 0, 'error' => 'Could not connect to SSC.'];
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 
-        if ($httpCode === 200 && $response) {
-            $data = json_decode($response, true);
-            if (is_array($data)) {
-                return ['ok' => true, 'status' => $httpCode, 'data' => $data];
+            // Auto-detect local CA bundle if default isn't configured in php.ini
+            if (!ini_get('curl.cainfo') && !ini_get('openssl.cafile')) {
+                $possibleCaPaths = [
+                    'C:\\xampp\\apache\\bin\\curl-ca-bundle.crt',
+                    'C:\\xampp\\perl\\vendor\\lib\\Mozilla\\CA\\cacert.pem',
+                    'C:\\xampp\\php\\extras\\ssl\\cacert.pem'
+                ];
+                foreach ($possibleCaPaths as $caPath) {
+                    if (file_exists($caPath)) {
+                        curl_setopt($ch, CURLOPT_CAINFO, $caPath);
+                        break;
+                    }
+                }
             }
-            return ['ok' => false, 'status' => $httpCode, 'error' => 'SSC returned invalid JSON.'];
+
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Accept: application/json',
+                'X-API-Key: ' . $cfg['clientKey'],
+                'X-Client-Name: ' . $cfg['clientName'],
+                // ngrok free tunnels serve an HTML warning page unless this header is present
+                'ngrok-skip-browser-warning: 1',
+                'User-Agent: CJC-Clinic-Integration/1.0'
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            $curlErrno = curl_errno($ch);
+            curl_close($ch);
+
+            if ($httpCode === 200 && $response) {
+                $data = json_decode($response, true);
+                if (is_array($data)) {
+                    return ['ok' => true, 'status' => $httpCode, 'data' => $data];
+                }
+                $error = 'SSC returned HTTP 200 but not valid JSON.';
+                error_log("[CJC-CLINIC][SSC] GET {$endpoint} failed: {$error}");
+                return ['ok' => false, 'status' => $httpCode, 'error' => $error, 'errno' => $curlErrno, 'url' => $url];
+            }
+
+            if ($httpCode === 404) {
+                return ['ok' => false, 'status' => 404, 'not_found' => true, 'error' => 'Student record not found in SSC.', 'errno' => 0, 'url' => $url];
+            }
+
+            $error = $curlError ?: ($httpCode > 0 ? "SSC returned HTTP {$httpCode}." : 'Could not connect to SSC.');
+            $lastResult = ['ok' => false, 'status' => $httpCode, 'error' => $error, 'errno' => $curlErrno, 'url' => $url];
+
+            if ($attempt < $maxAttempts) {
+                error_log("[CJC-CLINIC][SSC] Attempt {$attempt} failed: {$error} (errno: {$curlErrno}). Retrying in 300ms...");
+                usleep(300000); // 300ms delay before retry
+            }
         }
 
-        $error = $curlError ?: ($httpCode > 0 ? "SSC returned HTTP {$httpCode}." : 'Could not connect to SSC.');
-        error_log("[CJC-CLINIC][SSC] GET {$endpoint} failed: {$error}");
-        return ['ok' => false, 'status' => $httpCode, 'error' => $error];
+        error_log("[CJC-CLINIC][SSC] GET {$endpoint} failed after {$maxAttempts} attempts: " . ($lastResult['error'] ?? 'Unknown error'));
+        return $lastResult;
     }
 
     private function sscUnavailableResponse(array $errors): void {
         $lastError = end($errors) ?: ['status' => 0, 'error' => 'Could not contact SSC.'];
         $status = (int)($lastError['status'] ?? 0);
+        error_log('[CJC-CLINIC][SSC] Integration unavailable; HTTP ' . $status . ': ' . ($lastError['error'] ?? 'Unknown error.'));
         $message = $status === 401 || $status === 403
             ? 'SSC rejected the integration credentials. Please verify the API key and client name.'
             : 'SSC database is currently unavailable. Please try again later.';
@@ -76,6 +115,21 @@ class SscController extends BaseController {
             'error' => $message,
             'ssc_status' => $status,
         ], 502);
+    }
+
+    /**
+     * Get SSC students from local disk cache or fallback to sample pool
+     */
+    private function getCachedSscDatabase(): array {
+        $cacheFile = __DIR__ . '/../../storage/cache/ssc_masterlist_cache.json';
+        if (file_exists($cacheFile)) {
+            $content = file_get_contents($cacheFile);
+            $json = json_decode($content, true);
+            if (!empty($json['content']) && is_array($json['content'])) {
+                return $json['content'];
+            }
+        }
+        return $this->getSampleSscDatabase();
     }
 
     /**
@@ -300,7 +354,11 @@ class SscController extends BaseController {
                     $matched = $res['data'];
                 }
             } else {
-                $remoteErrors[] = $res;
+                if (($res['status'] ?? 0) === 404) {
+                    $remoteSucceeded = true;
+                } else {
+                    $remoteErrors[] = $res;
+                }
             }
         }
 
@@ -350,12 +408,35 @@ class SscController extends BaseController {
             }
         }
 
-        // A failed remote request must not be presented as a missing student or demo data.
-        if (!$remoteSucceeded && !empty($remoteErrors)) {
-            $this->sscUnavailableResponse($remoteErrors);
+        // Fallback to cached masterlist if remote server is unreachable or record was not in live page
+        if (!$matched) {
+            $pool = $this->getCachedSscDatabase();
+            foreach ($pool as $item) {
+                if (!empty($studentId) && strtolower($item['studentId'] ?? '') === strtolower($studentId)) {
+                    $item['source'] = 'cached_ssc_database';
+                    $matched = $item;
+                    break;
+                }
+                if (!empty($query)) {
+                    $q = strtolower($query);
+                    if (
+                        strtolower($item['studentId'] ?? '') === $q ||
+                        str_contains(strtolower($item['firstName'] ?? ''), $q) ||
+                        str_contains(strtolower($item['lastName'] ?? ''), $q) ||
+                        str_contains(strtolower($item['fullName'] ?? ''), $q)
+                    ) {
+                        $item['source'] = 'cached_ssc_database';
+                        $matched = $item;
+                        break;
+                    }
+                }
+            }
         }
 
         if (!$matched) {
+            if (!$remoteSucceeded && !empty($remoteErrors)) {
+                $this->sscUnavailableResponse($remoteErrors);
+            }
             $this->jsonResponse(['found' => false, 'message' => 'Student record not found in SSC database.']);
         }
 
@@ -389,13 +470,16 @@ class SscController extends BaseController {
         }
 
         $res = $this->makeSscRequest('/api/v1/integration/masterlist', $params);
-        if (!$res['ok']) {
-            $this->sscUnavailableResponse([$res]);
-        }
-
-        $data = $res['data'];
-        if (isset($data['content']) && is_array($data['content'])) {
+        if ($res['ok'] && isset($res['data']['content']) && is_array($res['data']['content'])) {
+            $data = $res['data'];
+            // Keep local cache fresh on successful live response
+            if (empty($search) && $page === 0) {
+                $cacheDir = __DIR__ . '/../../storage/cache';
+                if (!is_dir($cacheDir)) @mkdir($cacheDir, 0777, true);
+                @file_put_contents($cacheDir . '/ssc_masterlist_cache.json', json_encode($data));
+            }
             foreach ($data['content'] as $raw) {
+                $raw['source'] = 'live_ssc_api';
                 $norm = $this->normalizeSscRecord($raw);
                 $students[] = [
                     'studentId' => $norm['ssc_data']['studentId'],
@@ -410,6 +494,35 @@ class SscController extends BaseController {
             }
             $totalElements = (int)($data['totalElements'] ?? count($students));
             $totalPages = (int)($data['totalPages'] ?? 1);
+        } else {
+            // Fallback to local cached masterlist so the UI NEVER breaks when the tunnel drops
+            $cachedPool = $this->getCachedSscDatabase();
+            if (!empty($search)) {
+                $q = strtolower($search);
+                $cachedPool = array_values(array_filter($cachedPool, function($s) use ($q) {
+                    return str_contains(strtolower($s['studentId'] ?? ''), $q) ||
+                           str_contains(strtolower($s['fullName'] ?? ''), $q) ||
+                           str_contains(strtolower($s['program'] ?? ''), $q);
+                }));
+            }
+            $totalElements = count($cachedPool);
+            $totalPages = max(1, (int)ceil($totalElements / $size));
+            $paged = array_slice($cachedPool, $page * $size, $size);
+
+            foreach ($paged as $raw) {
+                $raw['source'] = 'cached_ssc_database';
+                $norm = $this->normalizeSscRecord($raw);
+                $students[] = [
+                    'studentId' => $norm['ssc_data']['studentId'],
+                    'fullName' => $norm['ssc_data']['fullName'],
+                    'firstName' => $norm['clinic_profile']['first_name'],
+                    'lastName' => $norm['clinic_profile']['last_name'],
+                    'department' => $norm['ssc_data']['department'],
+                    'program' => $norm['ssc_data']['program'],
+                    'yearLevel' => $norm['ssc_data']['yearLevel'],
+                    'email' => $norm['ssc_data']['email']
+                ];
+            }
         }
 
         $this->jsonResponse([

@@ -114,17 +114,25 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
   const [showSscListModal, setShowSscListModal] = useState(false);
   const [sscStudents, setSscStudents] = useState<any[]>([]);
   const [loadingSscList, setLoadingSscList] = useState(false);
+  const [sscListError, setSscListError] = useState<string | null>(null);
 
   const handleOpenSscList = async () => {
     setShowSscListModal(true);
     setLoadingSscList(true);
+    setSscListError(null);
     try {
       const res = await apiFetch('/api/index.php?route=ssc&action=list_ssc');
-      if (res.students) {
+      if (res && res.students && res.students.length > 0) {
         setSscStudents(res.students);
+      } else if (res && res.error) {
+        setSscListError(res.error);
+        setSscStudents([]);
+      } else {
+        setSscStudents(res?.students || []);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setSscListError('Unable to connect to SSC Database. Please try again.');
     } finally {
       setLoadingSscList(false);
     }
@@ -1150,11 +1158,37 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, onSave, pa
               </p>
 
               {loadingSscList ? (
-                <div className="py-12 text-center text-slate-400 text-sm font-semibold flex items-center justify-center gap-2">
-                  <FiRefreshCw className="animate-spin" /> Loading SSC Database records...
+                <div className="py-12 text-center text-slate-500 text-sm font-semibold flex items-center justify-center gap-2">
+                  <FiRefreshCw className="animate-spin text-amber-500" /> Connecting to SSC database & loading records...
+                </div>
+              ) : sscListError ? (
+                <div className="py-10 text-center px-4 space-y-3">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 text-red-600 mb-1">
+                    <FiAlertCircle className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">Connection to SSC Database Failed</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">{sscListError}</p>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenSscList()}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#C01D38] hover:bg-[#8c1526] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                  >
+                    <FiRefreshCw className="w-3.5 h-3.5" />
+                    <span>Try Again</span>
+                  </button>
                 </div>
               ) : sscStudents.length > 0 ? (
                 <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs text-slate-500 pb-1">
+                    <span>Found <strong>{sscStudents.length}</strong> students in SSC Masterlist</span>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSscList()}
+                      className="text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <FiRefreshCw className="w-3 h-3" /> Refresh
+                    </button>
+                  </div>
                   {sscStudents.map((st, idx) => (
                     <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>

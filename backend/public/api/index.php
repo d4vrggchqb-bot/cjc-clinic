@@ -215,7 +215,7 @@ switch ($route) {
         $controller = new SscController();
         if ($action === 'lookup') {
             $controller->lookup();
-        } elseif ($action === 'list_ssc') {
+        } elseif ($action === 'list_ssc' || $action === 'listSsc') {
             $controller->listSsc();
         }
         break;
