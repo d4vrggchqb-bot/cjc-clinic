@@ -113,6 +113,12 @@ switch ($route) {
             $controller->recordCalibration();
         } elseif ($action === 'delete_calibration') {
             $controller->deleteCalibration();
+        } elseif ($action === 'export_equipment') {
+            $controller->exportEquipment();
+        } elseif ($action === 'export_medicine') {
+            $controller->exportMedicine();
+        } elseif ($action === 'export_calibration_register') {
+            $controller->exportCalibrationRegister();
         }
         break;
 

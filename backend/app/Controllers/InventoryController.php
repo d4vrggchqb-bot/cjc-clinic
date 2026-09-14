@@ -50,13 +50,17 @@ class InventoryController extends BaseController {
         }
 
         $pdo = cjcDatabaseConnection();
-        $stmt = $pdo->prepare("INSERT INTO inventory_items (category, brand_name, generic_name, dosage, formulation, alert_threshold, date_acquired, date_purchased, last_calibrated, calibration_due, calibration_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO inventory_items (category, brand_name, generic_name, dosage, formulation, serial_no, model_no, supplier, unit, alert_threshold, date_acquired, date_purchased, last_calibrated, calibration_due, calibration_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $input['category'] ?? 'medicine',
             $input['brand_name'] ?? null,
             $input['generic_name'] ?? '',
             $input['dosage'] ?? null,
             $input['formulation'] ?? null,
+            $input['serial_no'] ?? null,
+            $input['model_no'] ?? null,
+            $input['supplier'] ?? null,
+            $input['unit'] ?? null,
             $input['alert_threshold'] ?? 20,
             !empty($input['date_acquired']) ? $input['date_acquired'] : null,
             !empty($input['date_purchased']) ? $input['date_purchased'] : null,
@@ -78,8 +82,10 @@ class InventoryController extends BaseController {
         $pdo = cjcDatabaseConnection();
         $stmt = $pdo->prepare("
             UPDATE inventory_items 
-            SET category = ?, brand_name = ?, generic_name = ?, dosage = ?, formulation = ?, alert_threshold = ?, 
-                date_acquired = ?, date_purchased = ?, last_calibrated = ?, calibration_due = ?, calibration_notes = ? 
+            SET category = ?, brand_name = ?, generic_name = ?, dosage = ?, formulation = ?,
+                serial_no = ?, model_no = ?, supplier = ?, unit = ?,
+                alert_threshold = ?, date_acquired = ?, date_purchased = ?,
+                last_calibrated = ?, calibration_due = ?, calibration_notes = ? 
             WHERE id = ?
         ");
         $stmt->execute([
@@ -88,6 +94,10 @@ class InventoryController extends BaseController {
             $input['generic_name'] ?? '',
             $input['dosage'] ?? null,
             $input['formulation'] ?? null,
+            $input['serial_no'] ?? null,
+            $input['model_no'] ?? null,
+            $input['supplier'] ?? null,
+            $input['unit'] ?? null,
             $input['alert_threshold'] ?? 20,
             !empty($input['date_acquired']) ? $input['date_acquired'] : null,
             !empty($input['date_purchased']) ? $input['date_purchased'] : null,
@@ -783,6 +793,7 @@ class InventoryController extends BaseController {
         $calibrationDate = trim($_POST['calibration_date'] ?? date('Y-m-d'));
         $dueDate = !empty($_POST['due_date']) ? trim($_POST['due_date']) : null;
         $notes = trim($_POST['notes'] ?? '');
+        $serialNo = trim($_POST['serial_no'] ?? '');
 
         if ($itemId <= 0) {
             $this->jsonResponse(['success' => false, 'message' => 'Invalid equipment item ID.'], 400);
@@ -821,14 +832,15 @@ class InventoryController extends BaseController {
 
             $stmt = $pdo->prepare("
                 INSERT INTO equipment_calibrations 
-                (item_id, batch_id, cert_type, calibrated_by, cert_number, calibration_date, due_date, file_url, filename, uploaded_by, notes)
-                VALUES (?, ?, 'external_upload', ?, ?, ?, ?, ?, ?, ?, ?)
+                (item_id, batch_id, cert_type, calibrated_by, cert_number, serial_no, calibration_date, due_date, file_url, filename, uploaded_by, notes)
+                VALUES (?, ?, 'external_upload', ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $itemId,
                 $batchId,
                 $calibratedBy ?: 'External Calibrator',
                 $certNumber ?: null,
+                $serialNo ?: null,
                 $calibrationDate,
                 $dueDate,
                 $fileUrl,
@@ -968,6 +980,88 @@ class InventoryController extends BaseController {
         $del->execute([$id]);
 
         $this->jsonResponse(['success' => true, 'message' => 'Calibration record deleted successfully.']);
+    }
+
+    public function exportEquipment() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        $pdo = cjcDatabaseConnection();
+        $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+
+        $stmt = $pdo->prepare("
+            SELECT i.id, i.generic_name, i.brand_name, i.formulation, i.serial_no, i.model_no,
+                   i.supplier, i.unit, i.date_acquired, i.date_purchased, i.calibration_notes,
+                   COALESCE(SUM(CASE WHEN b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as qty,
+                   (SELECT ec.serial_no FROM equipment_calibrations ec WHERE ec.item_id = i.id AND ec.serial_no IS NOT NULL ORDER BY ec.id DESC LIMIT 1) as latest_calib_serial,
+                   i.last_calibrated, i.calibration_due
+            FROM inventory_items i
+            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.clinic_branch = ?
+            WHERE i.category = 'equipment'
+            GROUP BY i.id
+            ORDER BY i.generic_name ASC
+        ");
+        $stmt->execute([$branch]);
+        $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $this->jsonResponse(['success' => true, 'items' => $items]);
+    }
+
+    public function exportMedicine() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        $pdo = cjcDatabaseConnection();
+        $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+
+        $stmt = $pdo->prepare("
+            SELECT i.id, i.generic_name, i.brand_name, i.dosage, i.formulation,
+                   COALESCE(SUM(CASE WHEN b.status = 'active' THEN b.stock_remaining ELSE 0 END), 0) as quantity,
+                   MIN(CASE WHEN b.status = 'active' AND b.stock_remaining > 0 THEN b.expired_on ELSE NULL END) as earliest_expiry
+            FROM inventory_items i
+            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.clinic_branch = ?
+            WHERE i.category IN ('medicine', 'supply')
+            GROUP BY i.id
+            ORDER BY i.generic_name ASC
+        ");
+        $stmt->execute([$branch]);
+        $rawItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $today = new DateTime();
+        $threeMonths = (new DateTime())->modify('+3 months');
+
+        $items = array_map(function($item) use ($today, $threeMonths) {
+            $remarks = 'Dispense ready';
+            if (!empty($item['earliest_expiry'])) {
+                $expDate = new DateTime($item['earliest_expiry']);
+                if ($expDate <= $threeMonths) {
+                    $remarks = 'Dispense ready; Will expire ' . $expDate->format('F d, Y');
+                }
+            }
+            $item['remarks'] = $remarks;
+            return $item;
+        }, $rawItems);
+
+        $this->jsonResponse(['success' => true, 'items' => $items]);
+    }
+
+    public function exportCalibrationRegister() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth();
+        $pdo = cjcDatabaseConnection();
+
+        $stmt = $pdo->prepare("
+            SELECT ec.id, ec.calibration_date, ec.created_at,
+                   i.generic_name as equipment_name,
+                   COALESCE(ec.serial_no, i.serial_no) as serial_no,
+                   ec.cert_number, ec.notes, ec.calibrated_by,
+                   b.clinic_branch
+            FROM equipment_calibrations ec
+            JOIN inventory_items i ON ec.item_id = i.id
+            LEFT JOIN inventory_batches b ON ec.batch_id = b.id
+            WHERE ec.cert_type = 'external_upload'
+            ORDER BY ec.calibration_date DESC, ec.created_at DESC
+        ");
+        $stmt->execute();
+        $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $this->jsonResponse(['success' => true, 'records' => $records]);
     }
 }
 

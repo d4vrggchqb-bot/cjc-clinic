@@ -105,6 +105,11 @@ CREATE TABLE IF NOT EXISTS `inventory_items` (
   `generic_name` VARCHAR(100) NOT NULL,
   `dosage` VARCHAR(50) DEFAULT NULL,
   `formulation` VARCHAR(100) DEFAULT NULL,
+  `serial_no` VARCHAR(100) DEFAULT NULL,
+  `model_no` VARCHAR(100) DEFAULT NULL,
+  `supplier` VARCHAR(150) DEFAULT NULL,
+  `unit` VARCHAR(50) DEFAULT NULL,
+  `date_purchased` DATE DEFAULT NULL,
   `alert_threshold` INT DEFAULT 20,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -223,6 +228,7 @@ CREATE TABLE IF NOT EXISTS `equipment_calibrations` (
   `cert_type` ENUM('external_upload', 'internal_generated') NOT NULL DEFAULT 'external_upload',
   `calibrated_by` VARCHAR(150) DEFAULT NULL,
   `cert_number` VARCHAR(100) DEFAULT NULL,
+  `serial_no` VARCHAR(100) DEFAULT NULL,
   `calibration_date` DATE DEFAULT NULL,
   `due_date` DATE DEFAULT NULL,
   `file_url` VARCHAR(500) DEFAULT NULL,

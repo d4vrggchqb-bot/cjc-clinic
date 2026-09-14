@@ -35,6 +35,10 @@ interface InventoryItem {
   generic_name: string;
   dosage: string | null;
   formulation: string | null;
+  serial_no?: string | null;
+  model_no?: string | null;
+  supplier?: string | null;
+  unit?: string | null;
   alert_threshold: number;
   overall_stock?: number;
   remaining_stock?: number;
@@ -59,6 +63,7 @@ interface EquipmentCalibration {
   cert_type: 'external_upload' | 'internal_generated';
   calibrated_by: string | null;
   cert_number: string | null;
+  serial_no?: string | null;
   calibration_date: string | null;
   due_date: string | null;
   file_url: string | null;
@@ -143,13 +148,14 @@ const InventoryCatalog: React.FC = () => {
     batch_id: null as number | null,
     calibrated_by: '',
     cert_number: '',
+    serial_no: '',
     calibration_date: new Date().toISOString().split('T')[0],
     due_date: '',
     notes: '',
     file: null as File | null
   });
 
-  // Calibration Certificate Generator Form State
+  // Calibration Certificate Generator Form State (kept for backward compat)
   const [showCalibFormItem, setShowCalibFormItem] = useState<InventoryItem | null>(null);
   const [certFormDetails, setCertFormDetails] = useState({
     batch_id: null as number | null,
@@ -165,8 +171,17 @@ const InventoryCatalog: React.FC = () => {
     notes: ''
   });
 
-
-
+  // Export States
+  const [showExportEquipModal, setShowExportEquipModal] = useState(false);
+  const [showExportMedModal, setShowExportMedModal] = useState(false);
+  const [showExportCalibRegModal, setShowExportCalibRegModal] = useState(false);
+  const [exportMedOptions, setExportMedOptions] = useState({
+    semester: '1st',
+    school_year: '2025-2026',
+    as_of: new Date().toISOString().split('T')[0]
+  });
+  const [exportData, setExportData] = useState<any>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   
   // Modals state
@@ -398,6 +413,7 @@ const InventoryCatalog: React.FC = () => {
       batch_id: selectedBatch ? selectedBatch.id : null,
       calibrated_by: item.latest_calibrated_by || '',
       cert_number: '',
+      serial_no: item.serial_no || '',
       calibration_date: selectedBatch?.last_calibrated || item.last_calibrated || new Date().toISOString().split('T')[0],
       due_date: selectedBatch?.calibration_due || item.calibration_due || nextYear.toISOString().split('T')[0],
       notes: selectedBatch?.calibration_notes || '',
@@ -427,10 +443,12 @@ const InventoryCatalog: React.FC = () => {
       }
       formData.append('calibrated_by', uploadCalibForm.calibrated_by);
       formData.append('cert_number', uploadCalibForm.cert_number);
+      formData.append('serial_no', uploadCalibForm.serial_no);
       formData.append('calibration_date', uploadCalibForm.calibration_date);
       formData.append('due_date', uploadCalibForm.due_date);
       formData.append('notes', uploadCalibForm.notes);
       formData.append('cert_file', uploadCalibForm.file);
+
 
       const res = await apiFetch('/api/index.php?route=inventory&action=upload_calibration', {
         method: 'POST',
@@ -490,7 +508,6 @@ const InventoryCatalog: React.FC = () => {
   };
 
 
-
   const handleDeleteCalibRecord = async (id: number, itemId: number) => {
     const isConfirmed = await confirm({
       title: 'Delete Calibration Record',
@@ -515,6 +532,53 @@ const InventoryCatalog: React.FC = () => {
     }
   };
 
+  const handleExportEquipment = async () => {
+    setIsExporting(true);
+    try {
+      const res = await apiFetch('/api/index.php?route=inventory&action=export_equipment');
+      if (res.success) {
+        setExportData({ type: 'equipment', items: res.items });
+        setShowExportEquipModal(true);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportMedicine = async () => {
+    setIsExporting(true);
+    try {
+      const res = await apiFetch('/api/index.php?route=inventory&action=export_medicine');
+      if (res.success) {
+        setExportData({ type: 'medicine', items: res.items });
+        setShowExportMedModal(false);
+        // Trigger print
+        setTimeout(() => window.print(), 300);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCalibRegister = async () => {
+    setIsExporting(true);
+    try {
+      const res = await apiFetch('/api/index.php?route=inventory&action=export_calibration_register');
+      if (res.success) {
+        setExportData({ type: 'calib_register', records: res.records });
+        setShowExportCalibRegModal(false);
+        setTimeout(() => window.print(), 300);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -717,6 +781,32 @@ const InventoryCatalog: React.FC = () => {
           <button onClick={() => setShowAddItem(true)} className="bg-red-700 text-white px-4 py-2 rounded-md hover:bg-red-800 flex items-center text-sm font-medium shadow-sm transition-colors shrink-0">
             <FiPlus className="mr-1" /> New Catalog Item
           </button>
+
+          {/* Export Buttons */}
+          <button
+            onClick={() => { setShowExportEquipModal(false); handleExportEquipment(); }}
+            disabled={isExporting}
+            className="bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-md flex items-center text-xs font-medium shadow-sm transition-colors shrink-0 gap-1"
+            title="Export Equipment Inventory"
+          >
+            <FiPrinter size={13} /> Equipment Inventory
+          </button>
+          <button
+            onClick={() => setShowExportMedModal(true)}
+            disabled={isExporting}
+            className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-md flex items-center text-xs font-medium shadow-sm transition-colors shrink-0 gap-1"
+            title="Export Medicine/Supplies Inventory (SCR-9.5)"
+          >
+            <FiPrinter size={13} /> Medicine Register
+          </button>
+          <button
+            onClick={() => handleExportCalibRegister()}
+            disabled={isExporting}
+            className="bg-blue-700 hover:bg-blue-800 text-white px-3 py-2 rounded-md flex items-center text-xs font-medium shadow-sm transition-colors shrink-0 gap-1"
+            title="Export Calibration Register"
+          >
+            <FiPrinter size={13} /> Calibration Register
+          </button>
         </div>
       </div>
 
@@ -890,19 +980,8 @@ const InventoryCatalog: React.FC = () => {
                               className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
                               title="Upload Calibration Certificate from External Calibrator"
                             >
-                              <FiUploadCloud size={12} /> Upload
+                              <FiUploadCloud size={12} /> Upload Cert
                             </button>
-
-                            {/* Generate Internal CJC Cert Button */}
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); handleOpenCalibCertForm(item); }}
-                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
-                              title="Fill details and generate official CJC Calibration Certificate"
-                            >
-                              <FiPrinter size={12} /> CJC Cert
-                            </button>
-
 
                             {/* Calibration History / View Certs Button */}
                             <button
@@ -1386,18 +1465,34 @@ const InventoryCatalog: React.FC = () => {
                     <label className="block text-sm font-medium mb-1">Equipment / Apparatus Name <span className="text-red-500">*</span></label>
                     <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} placeholder="e.g. Digital BP Apparatus, Otoscope" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Brand / Model (Optional)</label>
-                    <input type="text" className="w-full border p-2 rounded" value={newItem.brand_name || ''} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} placeholder="e.g. Omron HEM-7120" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Brand Name (Optional)</label>
+                      <input type="text" className="w-full border p-2 rounded text-xs" value={newItem.brand_name || ''} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} placeholder="e.g. Omron" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Model No. (Optional)</label>
+                      <input type="text" className="w-full border p-2 rounded text-xs" value={(newItem as any).model_no || ''} onChange={e => setNewItem({...newItem, ...{model_no: e.target.value}} as any)} placeholder="e.g. HEM-7120" />
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-semibold mb-1">Date Purchased</label>
-                      <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.date_purchased || ''} onChange={e => setNewItem({...newItem, date_purchased: e.target.value})} />
+                      <label className="block text-xs font-semibold mb-1">Serial No. (Optional)</label>
+                      <input type="text" className="w-full border p-2 rounded text-xs" value={(newItem as any).serial_no || ''} onChange={e => setNewItem({...newItem, ...{serial_no: e.target.value}} as any)} placeholder="e.g. SN-2024-00123" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold mb-1">Date Acquired</label>
-                      <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.date_acquired || ''} onChange={e => setNewItem({...newItem, date_acquired: e.target.value})} />
+                      <label className="block text-xs font-semibold mb-1">Supplier (Optional)</label>
+                      <input type="text" className="w-full border p-2 rounded text-xs" value={(newItem as any).supplier || ''} onChange={e => setNewItem({...newItem, ...{supplier: e.target.value}} as any)} placeholder="e.g. MedEquip PH" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Unit (e.g. Pc, Set)</label>
+                      <input type="text" className="w-full border p-2 rounded text-xs" value={(newItem as any).unit || ''} onChange={e => setNewItem({...newItem, ...{unit: e.target.value}} as any)} placeholder="e.g. Pc" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Date Purchased</label>
+                      <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.date_purchased || ''} onChange={e => setNewItem({...newItem, date_purchased: e.target.value})} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -1466,6 +1561,37 @@ const InventoryCatalog: React.FC = () => {
                   <input type="text" className="w-full border p-2 rounded text-xs" value={editItemForm.formulation || ''} onChange={e => setEditItemForm({...editItemForm, formulation: e.target.value})} />
                 </div>
               </div>
+
+              {/* Equipment-specific fields */}
+              {editItemForm.category === 'equipment' && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Serial No. (Optional)</label>
+                      <input type="text" className="w-full border p-2 rounded text-xs" value={editItemForm.serial_no || ''} onChange={e => setEditItemForm({...editItemForm, serial_no: e.target.value})} placeholder="e.g. SN-2024-00123" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Model No. (Optional)</label>
+                      <input type="text" className="w-full border p-2 rounded text-xs" value={editItemForm.model_no || ''} onChange={e => setEditItemForm({...editItemForm, model_no: e.target.value})} placeholder="e.g. HEM-7120" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Supplier (Optional)</label>
+                      <input type="text" className="w-full border p-2 rounded text-xs" value={editItemForm.supplier || ''} onChange={e => setEditItemForm({...editItemForm, supplier: e.target.value})} placeholder="e.g. MedEquip PH" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Unit (e.g. Pc, Set)</label>
+                      <input type="text" className="w-full border p-2 rounded text-xs" value={editItemForm.unit || ''} onChange={e => setEditItemForm({...editItemForm, unit: e.target.value})} placeholder="e.g. Pc" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Date Purchased</label>
+                    <input type="date" className="w-full border p-2 rounded text-xs" value={editItemForm.date_purchased || ''} onChange={e => setEditItemForm({...editItemForm, date_purchased: e.target.value})} />
+                  </div>
+                </>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold mb-1">Low Stock Alert Threshold</label>
                 <input type="number" min="0" className="w-full border p-2 rounded text-xs" value={editItemForm.alert_threshold} onChange={e => setEditItemForm({...editItemForm, alert_threshold: parseInt(e.target.value) || 0})} />
@@ -1990,6 +2116,17 @@ const InventoryCatalog: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Serial No. <span className="font-normal text-slate-400">(Optional — as shown on certificate)</span></label>
+                <input
+                  type="text"
+                  placeholder="e.g. 202306040114VI"
+                  value={uploadCalibForm.serial_no}
+                  onChange={e => setUploadCalibForm({ ...uploadCalibForm, serial_no: e.target.value })}
+                  className="w-full border border-slate-300 p-2 rounded-lg text-xs"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">Calibration Date*</label>
@@ -2134,6 +2271,167 @@ const InventoryCatalog: React.FC = () => {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Medicine Export Options Modal */}
+      {showExportMedModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-bold text-base text-slate-800">Medicine/Supplies Inventory Export</h3>
+            <p className="text-xs text-slate-500">Set the header info for the SCR-9.5 Inventory Register.</p>
+            <div>
+              <label className="block text-xs font-semibold mb-1">Semester</label>
+              <select className="w-full border p-2 rounded text-sm" value={exportMedOptions.semester} onChange={e => setExportMedOptions({...exportMedOptions, semester: e.target.value})}>
+                <option value="1st">1st Semester</option>
+                <option value="2nd">2nd Semester</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">School Year</label>
+              <input type="text" className="w-full border p-2 rounded text-sm" value={exportMedOptions.school_year} onChange={e => setExportMedOptions({...exportMedOptions, school_year: e.target.value})} placeholder="e.g. 2025-2026" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">As of Date</label>
+              <input type="date" className="w-full border p-2 rounded text-sm" value={exportMedOptions.as_of} onChange={e => setExportMedOptions({...exportMedOptions, as_of: e.target.value})} />
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button type="button" onClick={() => setShowExportMedModal(false)} className="px-4 py-2 border rounded text-sm">Cancel</button>
+              <button type="button" onClick={handleExportMedicine} disabled={isExporting} className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded text-sm font-semibold flex items-center gap-1">
+                <FiPrinter size={14} /> {isExporting ? 'Loading...' : 'Generate & Print'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Equipment Inventory Print View */}
+      {exportData?.type === 'equipment' && showExportEquipModal && (
+        <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col overflow-hidden max-h-[95vh]">
+            <div className="p-4 bg-slate-900 text-white flex justify-between items-center no-print">
+              <span className="font-bold text-sm flex items-center gap-2"><FiPrinter className="text-emerald-400" /> Inventory of Equipment/Apparatus Tools and Materials</span>
+              <div className="flex gap-2">
+                <button onClick={() => window.print()} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1"><FiPrinter /> Print</button>
+                <button onClick={() => { setShowExportEquipModal(false); setExportData(null); }} className="text-slate-400 hover:text-white font-bold text-xl px-2">✕</button>
+              </div>
+            </div>
+            <div className="p-8 overflow-y-auto font-sans text-sm print:p-4">
+              {/* Document Header */}
+              <div className="text-center mb-4 border-b-2 border-slate-800 pb-3">
+                <div className="font-black text-lg text-red-800 uppercase">Cor Jesu College, Inc.</div>
+                <div className="text-xs text-slate-600">Sacred Heart Avenue, Digos City, Province of Davao del Sur, 8002 Philippines</div>
+                <div className="font-bold text-base mt-2 uppercase tracking-wide">Inventory of Equipment/Apparatus Tools and Materials</div>
+                <div className="text-xs mt-1">Area: <strong>College Clinic</strong> &nbsp;|&nbsp; S.Y.: <strong>{new Date().getFullYear()}-{new Date().getFullYear() + 1}</strong></div>
+              </div>
+              <table className="w-full border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100">
+                    <th className="border border-slate-400 p-1.5 text-center">Item No.</th>
+                    <th className="border border-slate-400 p-1.5">Description</th>
+                    <th className="border border-slate-400 p-1.5 text-center">Qty.</th>
+                    <th className="border border-slate-400 p-1.5 text-center">Unit</th>
+                    <th className="border border-slate-400 p-1.5">Brand</th>
+                    <th className="border border-slate-400 p-1.5">Model No.</th>
+                    <th className="border border-slate-400 p-1.5">Serial No.</th>
+                    <th className="border border-slate-400 p-1.5">Supplier</th>
+                    <th className="border border-slate-400 p-1.5">Date Purchased/Fabricated</th>
+                    <th className="border border-slate-400 p-1.5">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exportData.items.map((item: any, idx: number) => (
+                    <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                      <td className="border border-slate-300 p-1.5 text-center">{idx + 1}</td>
+                      <td className="border border-slate-300 p-1.5 font-medium">{item.generic_name}</td>
+                      <td className="border border-slate-300 p-1.5 text-center">{item.qty || '---'}</td>
+                      <td className="border border-slate-300 p-1.5 text-center">{item.unit || 'Pc'}</td>
+                      <td className="border border-slate-300 p-1.5">{item.brand_name || '---'}</td>
+                      <td className="border border-slate-300 p-1.5">{item.model_no || '---'}</td>
+                      <td className="border border-slate-300 p-1.5">{item.latest_calib_serial || item.serial_no || '---'}</td>
+                      <td className="border border-slate-300 p-1.5">{item.supplier || '---'}</td>
+                      <td className="border border-slate-300 p-1.5">{item.date_purchased || item.date_acquired || '---'}</td>
+                      <td className="border border-slate-300 p-1.5">{item.calibration_notes || 'Excellent Condition'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Medicine/Supplies Inventory Print View (rendered off-screen for print) */}
+      {exportData?.type === 'medicine' && (
+        <div className="hidden print:block font-sans text-sm p-8">
+          <div className="text-center mb-4 border-b-2 border-slate-800 pb-3">
+            <div className="font-black text-lg text-red-800 uppercase">Cor Jesu College, Inc.</div>
+            <div className="text-xs text-slate-600">Sacred Heart Avenue, Digos City, Province of Davao del Sur, 8002 Philippines</div>
+            <div className="font-bold text-base mt-2 uppercase">SCR-9.5 College Clinic Medicine/Supplies Inventory Register</div>
+            <div className="text-xs mt-1">
+              [{exportMedOptions.semester === '1st' ? 'X' : ' '}] 1st Semester &nbsp; [{exportMedOptions.semester === '2nd' ? 'X' : ' '}] 2nd Semester &nbsp; S.Y. [{exportMedOptions.school_year}]
+            </div>
+            <div className="text-xs mt-1 font-semibold">As of {new Date(exportMedOptions.as_of).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+          </div>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-100">
+                <th className="border border-slate-400 p-1.5 text-center">Item No.</th>
+                <th className="border border-slate-400 p-1.5">Medicine Name</th>
+                <th className="border border-slate-400 p-1.5">Dosage/Strength</th>
+                <th className="border border-slate-400 p-1.5 text-center">Quantity</th>
+                <th className="border border-slate-400 p-1.5 text-center">Expiry Date</th>
+                <th className="border border-slate-400 p-1.5">Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exportData.items.map((item: any, idx: number) => (
+                <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                  <td className="border border-slate-300 p-1.5 text-center">{idx + 1}</td>
+                  <td className="border border-slate-300 p-1.5 font-medium">{item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''}</td>
+                  <td className="border border-slate-300 p-1.5">{item.dosage || item.formulation || '---'}</td>
+                  <td className="border border-slate-300 p-1.5 text-center">{item.quantity} {item.formulation || ''}</td>
+                  <td className="border border-slate-300 p-1.5 text-center">{item.earliest_expiry ? new Date(item.earliest_expiry).toLocaleDateString('en-PH', {month:'2-digit', year:'numeric'}) : 'N/A'}</td>
+                  <td className="border border-slate-300 p-1.5">{item.remarks}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Calibration Register Print View (rendered off-screen for print) */}
+      {exportData?.type === 'calib_register' && (
+        <div className="hidden print:block font-sans text-sm p-8">
+          <div className="text-center mb-4 border-b-2 border-slate-800 pb-3">
+            <div className="font-black text-lg text-red-800 uppercase">Cor Jesu College, Inc.</div>
+            <div className="text-xs text-slate-600">Sacred Heart Avenue, Digos City, Province of Davao del Sur, 8002 Philippines</div>
+            <div className="font-bold text-base mt-2 uppercase">College Clinic Calibration Register</div>
+          </div>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-100">
+                <th className="border border-slate-400 p-1.5">Date & Time</th>
+                <th className="border border-slate-400 p-1.5">Clinic Equipment</th>
+                <th className="border border-slate-400 p-1.5">Equipment ID/Serial No.</th>
+                <th className="border border-slate-400 p-1.5">Description</th>
+                <th className="border border-slate-400 p-1.5">Calibrated By</th>
+                <th className="border border-slate-400 p-1.5">Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exportData.records.map((rec: any, idx: number) => (
+                <tr key={rec.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                  <td className="border border-slate-300 p-1.5">{rec.calibration_date || new Date(rec.created_at).toLocaleDateString()}</td>
+                  <td className="border border-slate-300 p-1.5 font-medium">{rec.equipment_name}</td>
+                  <td className="border border-slate-300 p-1.5">{rec.serial_no || rec.cert_number || '---'}</td>
+                  <td className="border border-slate-300 p-1.5">{rec.cert_number ? `Cert #${rec.cert_number}` : '---'}</td>
+                  <td className="border border-slate-300 p-1.5">{rec.calibrated_by || '---'}</td>
+                  <td className="border border-slate-300 p-1.5">{rec.notes || '---'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
