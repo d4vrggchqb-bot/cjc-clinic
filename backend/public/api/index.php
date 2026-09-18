@@ -186,6 +186,10 @@ switch ($route) {
             $controller->update();
         } elseif ($action === 'updateDetails') {
             $controller->updateDetails();
+        } elseif ($action === 'checkIn') {
+            $controller->checkIn();
+        } elseif ($action === 'todayList') {
+            $controller->todayList();
         }
         break;
 

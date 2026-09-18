@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import { FiCalendar, FiPlus, FiClock, FiCheck, FiX, FiSearch, FiUserPlus, FiEdit, FiFilter, FiUsers, FiRefreshCw, FiAlertCircle, FiArrowDown, FiArrowUp, FiUserX } from 'react-icons/fi';
+import { FiCalendar, FiPlus, FiClock, FiCheck, FiX, FiSearch, FiUserPlus, FiEdit, FiFilter, FiUsers, FiRefreshCw, FiAlertCircle, FiArrowDown, FiArrowUp, FiUserX, FiUserCheck, FiActivity } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
 import PatientModal from '../components/PatientModal';
@@ -23,6 +24,10 @@ interface Appointment {
   status: string;
   clinic_branch: string;
   group_name?: string | null;
+  consultation_id?: number | null;
+  consultation_status?: string | null;
+  time_in?: string | null;
+  time_out?: string | null;
 }
 
 interface Patient {
@@ -224,6 +229,7 @@ const SkeletonRow = () => (
 );
 
 const Appointments: React.FC = () => {
+  const navigate = useNavigate();
   const { confirm } = useConfirm();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -621,6 +627,92 @@ const Appointments: React.FC = () => {
     }
   };
 
+  const handleCheckInAppointment = async (apt: Appointment) => {
+    const isLate = apt.status === 'No-Show';
+    const confirmed = await confirm({
+      title: isLate ? 'Admit Patient (Arrived Late)' : 'Admit Patient to Consultation Queue',
+      message: `Do you want to admit ${apt.first_name} ${apt.last_name} into today's Consultation Queue for "${apt.purpose}"?`,
+      type: 'save',
+      confirmText: 'Check In & Queue',
+      cancelText: 'Cancel'
+    });
+    if (!confirmed) return;
+
+    const toastId = toast.loading('Admitting patient to Consultation Queue...');
+    try {
+      const res = await apiFetch('/api/index.php?route=appointments&action=checkIn', {
+        method: 'POST',
+        body: JSON.stringify({ id: apt.id })
+      });
+      if (res.success) {
+        toast.success(
+          <span>
+            <b>{apt.first_name} {apt.last_name}</b> admitted to Consultation Queue!{' '}
+            <button 
+              onClick={() => navigate('/consultation')} 
+              className="underline font-bold text-slate-900 bg-amber-300 px-2 py-0.5 rounded ml-1 cursor-pointer"
+            >
+              View Queue &rarr;
+            </button>
+          </span>,
+          { id: toastId, duration: 6000 }
+        );
+        fetchAppointments();
+      } else {
+        toast.error(res.message || 'Failed to admit patient to queue', { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Error admitting patient to queue', { id: toastId });
+    }
+  };
+
+  const handleCheckInGroup = async (members: Appointment[], groupTitle: string) => {
+    const pendingMembers = members.filter(m => m.status === 'Scheduled' || m.status === 'No-Show');
+    if (pendingMembers.length === 0) {
+      toast('All patients in this group are already in consultation or completed.', { icon: 'ℹ️' });
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: `Admit Group (${pendingMembers.length} Patients)`,
+      message: `Are you sure you want to admit all ${pendingMembers.length} pending patients of "${groupTitle}" into today's Consultation Queue?`,
+      type: 'save',
+      confirmText: `Check In All (${pendingMembers.length})`,
+      cancelText: 'Cancel'
+    });
+    if (!confirmed) return;
+
+    const toastId = toast.loading(`Admitting ${pendingMembers.length} patients to Consultation Queue...`);
+    let successCount = 0;
+    for (const mem of pendingMembers) {
+      try {
+        const res = await apiFetch('/api/index.php?route=appointments&action=checkIn', {
+          method: 'POST',
+          body: JSON.stringify({ id: mem.id })
+        });
+        if (res.success) successCount++;
+      } catch (e) {}
+    }
+
+    if (successCount > 0) {
+      toast.success(
+        <span>
+          Successfully admitted <b>{successCount}</b> patient(s) to Consultation Queue!{' '}
+          <button 
+            onClick={() => navigate('/consultation')} 
+            className="underline font-bold text-slate-900 bg-amber-300 px-2 py-0.5 rounded ml-1 cursor-pointer"
+          >
+            View Queue &rarr;
+          </button>
+        </span>,
+        { id: toastId, duration: 6000 }
+      );
+      fetchAppointments();
+    } else {
+      toast.error('Failed to admit patients to queue.', { id: toastId });
+    }
+  };
+
   const resetForm = () => {
     setSearch('');
     setSearchResults([]);
@@ -697,7 +789,7 @@ const Appointments: React.FC = () => {
     return sortOrder === 'desc' ? b.id - a.id : a.id - b.id;
   });
 
-  const tabs = ['Scheduled', 'All', 'Completed', 'Cancelled', 'No-Show'];
+  const tabs = ['Scheduled', 'In Consultation', 'All', 'Completed', 'Cancelled', 'No-Show'];
 
   return (
     <div className="px-5 py-5 w-full">
@@ -976,6 +1068,7 @@ const Appointments: React.FC = () => {
                                 return (
                                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
                                     ${displayStatus === 'Scheduled' ? 'bg-blue-50 text-blue-700' : ''}
+                                    ${displayStatus === 'In Consultation' ? 'bg-amber-50 text-amber-700 border border-amber-200' : ''}
                                     ${displayStatus === 'Completed' ? 'bg-emerald-50 text-emerald-700' : ''}
                                     ${displayStatus === 'Cancelled' ? 'bg-red-50 text-red-700' : ''}
                                     ${displayStatus === 'No-Show' ? 'bg-slate-100 text-slate-700' : ''}
@@ -987,12 +1080,25 @@ const Appointments: React.FC = () => {
                               })()}
                             </td>
                             <td className="p-4 align-top text-right">
-                              <button 
-                                className="text-xs font-medium text-blue-600 hover:underline"
-                                onClick={(e) => { e.stopPropagation(); setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] })); }}
-                              >
-                                {expandedGroups[groupKey] ? 'Collapse' : 'Expand'}
-                              </button>
+                              <div className="flex items-center justify-end gap-2">
+                                {groupMembers.some(m => m.status === 'Scheduled' || m.status === 'No-Show') && (
+                                  <button 
+                                    type="button"
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                                    onClick={(e) => { e.stopPropagation(); handleCheckInGroup(groupMembers, apt.group_name || 'Group'); }}
+                                    title="Admit all pending patients in this group to Consultation Queue"
+                                  >
+                                    <FiUserCheck size={13} />
+                                    <span>Admit Group</span>
+                                  </button>
+                                )}
+                                <button 
+                                  className="text-xs font-medium text-blue-600 hover:underline px-1 py-0.5 cursor-pointer"
+                                  onClick={(e) => { e.stopPropagation(); setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] })); }}
+                                >
+                                  {expandedGroups[groupKey] ? 'Collapse' : 'Expand'}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1019,6 +1125,7 @@ const Appointments: React.FC = () => {
                                 <td className="p-4 align-top">
                                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
                                     ${member.status === 'Scheduled' ? 'bg-blue-50 text-blue-700' : ''}
+                                    ${member.status === 'In Consultation' ? 'bg-amber-50 text-amber-700 border border-amber-200' : ''}
                                     ${member.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : ''}
                                     ${member.status === 'Cancelled' ? 'bg-red-50 text-red-700' : ''}
                                     ${member.status === 'No-Show' ? 'bg-slate-100 text-slate-700' : ''}
@@ -1027,19 +1134,35 @@ const Appointments: React.FC = () => {
                                   </span>
                                 </td>
                                 <td className="p-4 align-top text-right">
-                                  <div className="flex justify-end gap-2">
+                                  <div className="flex justify-end items-center gap-1.5">
+                                    {(member.status === 'Scheduled' || member.status === 'No-Show') && (
+                                      <button
+                                        onClick={() => handleCheckInAppointment(member)}
+                                        className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                                        title="Admit patient to Consultation Queue"
+                                      >
+                                        <FiUserCheck size={14} />
+                                        <span>{member.status === 'No-Show' ? 'Admit (Late)' : 'Check-In'}</span>
+                                      </button>
+                                    )}
+                                    {member.status === 'In Consultation' && (
+                                      <button
+                                        onClick={() => navigate('/consultation')}
+                                        className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                                        title="Patient is in Consultation Queue. View queue"
+                                      >
+                                        <FiActivity size={14} />
+                                        <span>In Queue</span>
+                                      </button>
+                                    )}
                                     {member.status === 'Scheduled' && (
                                       <>
-                                        <button onClick={() => handleUpdate(member.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed"><FiCheck size={16} /></button>
-                                        <button onClick={() => handleUpdate(member.id, 'No-Show')} className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors tooltip" title="Mark No-Show"><FiUserX size={16} /></button>
-                                        <button onClick={() => handleUpdate(member.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip" title="Cancel Appointment"><FiX size={16} /></button>
+                                        <button onClick={() => handleUpdate(member.id, 'No-Show')} className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors tooltip cursor-pointer" title="Mark No-Show"><FiUserX size={15} /></button>
+                                        <button onClick={() => handleUpdate(member.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip cursor-pointer" title="Cancel Appointment"><FiX size={15} /></button>
                                       </>
                                     )}
                                     {member.status === 'No-Show' && (
-                                      <>
-                                        <button onClick={() => handleUpdate(member.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed (Arrived Late)"><FiCheck size={16} /></button>
-                                        <button onClick={() => handleUpdate(member.id, 'Scheduled')} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors tooltip" title="Re-schedule"><FiCalendar size={16} /></button>
-                                      </>
+                                      <button onClick={() => handleUpdate(member.id, 'Scheduled')} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors tooltip cursor-pointer" title="Re-schedule"><FiCalendar size={15} /></button>
                                     )}
                                   </div>
                                 </td>
@@ -1078,6 +1201,7 @@ const Appointments: React.FC = () => {
                           <td className="p-4 align-top">
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
                               ${apt.status === 'Scheduled' ? 'bg-blue-50 text-blue-700' : ''}
+                              ${apt.status === 'In Consultation' ? 'bg-amber-50 text-amber-700 border border-amber-200' : ''}
                               ${apt.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : ''}
                               ${apt.status === 'Cancelled' ? 'bg-red-50 text-red-700' : ''}
                               ${apt.status === 'No-Show' ? 'bg-slate-100 text-slate-700' : ''}
@@ -1086,48 +1210,69 @@ const Appointments: React.FC = () => {
                             </span>
                           </td>
                           <td className="p-4 align-top text-right">
-                            {apt.status === 'Scheduled' && (
-                              <div className="flex justify-end gap-2">
+                            <div className="flex justify-end items-center gap-1.5">
+                              {(apt.status === 'Scheduled' || apt.status === 'No-Show') && (
                                 <button
-                                  onClick={() => {
-                                    const pat = {
-                                      id: apt.profile_id,
-                                      first_name: apt.first_name,
-                                      last_name: apt.last_name,
-                                      patient_id_number: apt.patient_id_number,
-                                      profile_type: apt.profile_type,
-                                      college_dept: apt.college_dept
-                                    };
-                                    setSelectedPatient(pat);
-                                    setDate(apt.appointment_date);
-                                    setTime(apt.appointment_time.substring(0, 5));
-                                    if ((cues.length > 0 ? cues : DEFAULT_CUES).includes(apt.purpose)) {
-                                      setPurposeType(apt.purpose);
-                                      setCustomPurpose('');
-                                    } else {
-                                      setPurposeType('Other');
-                                      setCustomPurpose(apt.purpose);
-                                    }
-                                    setEditingAppointmentId(apt.id);
-                                    setIsGroupMode(false);
-                                    setIsModalOpen(true);
-                                  }}
-                                  className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors tooltip"
-                                  title="Edit Appointment"
+                                  onClick={() => handleCheckInAppointment(apt)}
+                                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                  title="Admit patient to Consultation Queue"
                                 >
-                                  <FiEdit size={16} />
+                                  <FiUserCheck size={14} />
+                                  <span>{apt.status === 'No-Show' ? 'Admit (Late)' : 'Check-In'}</span>
                                 </button>
-                                <button onClick={() => handleUpdate(apt.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed"><FiCheck size={16} /></button>
-                                <button onClick={() => handleUpdate(apt.id, 'No-Show')} className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors tooltip" title="Mark No-Show"><FiUserX size={16} /></button>
-                                <button onClick={() => handleUpdate(apt.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip" title="Cancel Appointment"><FiX size={16} /></button>
-                              </div>
-                            )}
-                            {apt.status === 'No-Show' && (
-                              <div className="flex justify-end gap-2">
-                                <button onClick={() => handleUpdate(apt.id, 'Completed')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 transition-colors tooltip" title="Mark Completed (Arrived Late)"><FiCheck size={16} /></button>
-                                <button onClick={() => handleUpdate(apt.id, 'Scheduled')} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors tooltip" title="Re-schedule"><FiCalendar size={16} /></button>
-                              </div>
-                            )}
+                              )}
+
+                              {apt.status === 'In Consultation' && (
+                                <button
+                                  onClick={() => navigate('/consultation')}
+                                  className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                  title="Patient is currently in the Consultation Queue. Click to view"
+                                >
+                                  <FiActivity size={14} />
+                                  <span>In Queue</span>
+                                </button>
+                              )}
+
+                              {apt.status === 'Scheduled' && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      const pat = {
+                                        id: apt.profile_id,
+                                        first_name: apt.first_name,
+                                        last_name: apt.last_name,
+                                        patient_id_number: apt.patient_id_number,
+                                        profile_type: apt.profile_type,
+                                        college_dept: apt.college_dept
+                                      };
+                                      setSelectedPatient(pat);
+                                      setDate(apt.appointment_date);
+                                      setTime(apt.appointment_time.substring(0, 5));
+                                      if ((cues.length > 0 ? cues : DEFAULT_CUES).includes(apt.purpose)) {
+                                        setPurposeType(apt.purpose);
+                                        setCustomPurpose('');
+                                      } else {
+                                        setPurposeType('Other');
+                                        setCustomPurpose(apt.purpose);
+                                      }
+                                      setEditingAppointmentId(apt.id);
+                                      setIsGroupMode(false);
+                                      setIsModalOpen(true);
+                                    }}
+                                    className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors tooltip cursor-pointer"
+                                    title="Edit Appointment"
+                                  >
+                                    <FiEdit size={16} />
+                                  </button>
+                                  <button onClick={() => handleUpdate(apt.id, 'No-Show')} className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors tooltip cursor-pointer" title="Mark No-Show"><FiUserX size={16} /></button>
+                                  <button onClick={() => handleUpdate(apt.id, 'Cancelled')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors tooltip cursor-pointer" title="Cancel Appointment"><FiX size={16} /></button>
+                                </>
+                              )}
+
+                              {apt.status === 'No-Show' && (
+                                <button onClick={() => handleUpdate(apt.id, 'Scheduled')} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors tooltip cursor-pointer" title="Re-schedule"><FiCalendar size={16} /></button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

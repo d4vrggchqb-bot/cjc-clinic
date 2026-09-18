@@ -43,6 +43,9 @@ try {
     try { $pdo->exec("ALTER TABLE `profiles` ADD COLUMN `mother_name` VARCHAR(100) DEFAULT NULL;"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE `profiles` ADD COLUMN `father_name` VARCHAR(100) DEFAULT NULL;"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE `appointments` ADD COLUMN `appointment_code` VARCHAR(50) DEFAULT NULL AFTER `id`;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `consultations` ADD COLUMN `appointment_id` INT NULL AFTER `profile_id`;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `consultations` ADD CONSTRAINT `fk_consultations_appointment` FOREIGN KEY (`appointment_id`) REFERENCES `appointments`(`id`) ON DELETE SET NULL;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `appointments` MODIFY COLUMN `status` ENUM('Scheduled', 'In Consultation', 'Completed', 'Cancelled', 'No-Show') DEFAULT 'Scheduled';"); } catch (Exception $e) {}
 
     // Patient profile attachments (used by the Patient View modal)
     $pdo->exec("

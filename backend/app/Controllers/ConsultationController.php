@@ -81,6 +81,8 @@ class ConsultationController extends BaseController {
 
             $sql = "SELECT c.id,
                            c.profile_id,
+                           c.appointment_id,
+                           COALESCE(a.appointment_code, CONCAT('APT-', YEAR(COALESCE(a.appointment_date, c.created_at)), '-', LPAD(c.appointment_id, 5, '0'))) AS appointment_code,
                            c.clinic_branch,
                            p.patient_id_number,
                            COALESCE(CONCAT(p.first_name, ' ', p.last_name), 'Unknown') AS patient_name,
@@ -97,6 +99,7 @@ class ConsultationController extends BaseController {
                            c.status
                     FROM consultations c
                     LEFT JOIN profiles p ON p.id = c.profile_id
+                    LEFT JOIN appointments a ON a.id = c.appointment_id
                     WHERE $whereClause
                     ORDER BY c.created_at DESC
                     LIMIT $perPage OFFSET $offset";
@@ -211,13 +214,12 @@ class ConsultationController extends BaseController {
                 ], 400);
             }
 
-            // 2. Prevent rapid duplicate check-ins within a short timeframe (15-minute cooldown)
-            $cooldownMinutes = 15;
+            // 2. Prevent rapid accidental duplicate check-in clicks (30-second debounce)
             $recentStmt = $pdo->prepare("
                 SELECT id, created_at, status 
                 FROM consultations 
                 WHERE profile_id = :pid 
-                  AND created_at >= (NOW() - INTERVAL 15 MINUTE)
+                  AND created_at >= (NOW() - INTERVAL 30 SECOND)
                 ORDER BY created_at DESC 
                 LIMIT 1
             ");
@@ -225,10 +227,10 @@ class ConsultationController extends BaseController {
             $recentConsultation = $recentStmt->fetch();
 
             if ($recentConsultation) {
-                $recentTime = date('h:i A', strtotime($recentConsultation['created_at']));
+                $recentTime = date('h:i:s A', strtotime($recentConsultation['created_at']));
                 $this->jsonResponse([
                     'success' => false, 
-                    'message' => "Admission Cooldown: " . ($patientName ?: "This patient") . " was already admitted recently at {$recentTime}. Multiple check-ins within {$cooldownMinutes} minutes are not allowed."
+                    'message' => "Admission Debounce: " . ($patientName ?: "This patient") . " was just admitted a moment ago at {$recentTime}. Please wait a few seconds before submitting again."
                 ], 400);
             }
 
@@ -240,20 +242,45 @@ class ConsultationController extends BaseController {
         $attended_by = $currentUser['name'] ?? 'Clinic Staff';
         $branch = $this->getUserBranch();
 
+        // Check if explicit appointment_id passed or auto-detect open scheduled appointment today
+        $appointmentId = (int)($input['appointment_id'] ?? 0);
+        if ($appointmentId <= 0) {
+            try {
+                $aptStmt = $pdo->prepare("
+                    SELECT id FROM appointments 
+                    WHERE profile_id = ? AND appointment_date = CURDATE() 
+                      AND status IN ('Scheduled', 'No-Show') 
+                    ORDER BY appointment_time ASC LIMIT 1
+                ");
+                $aptStmt->execute([$profile_id]);
+                $foundAptId = $aptStmt->fetchColumn();
+                if ($foundAptId) {
+                    $appointmentId = (int)$foundAptId;
+                }
+            } catch (Exception $e) {}
+        }
+
         try {
             $stmt = $pdo->prepare(
-                'INSERT INTO consultations (profile_id, purpose, status, attended_by, clinic_branch)
-                 VALUES (:profile_id, :purpose, :status, :attended_by, :clinic_branch)'
+                'INSERT INTO consultations (profile_id, appointment_id, purpose, status, attended_by, clinic_branch)
+                 VALUES (:profile_id, :appointment_id, :purpose, :status, :attended_by, :clinic_branch)'
             );
             $stmt->execute([
-                'profile_id'    => $profile_id,
-                'purpose'       => $purpose,
-                'status'        => 'waiting',
-                'attended_by'   => $attended_by,
-                'clinic_branch' => $branch
+                'profile_id'     => $profile_id,
+                'appointment_id' => $appointmentId > 0 ? $appointmentId : null,
+                'purpose'        => $purpose,
+                'status'         => 'waiting',
+                'attended_by'    => $attended_by,
+                'clinic_branch'  => $branch
             ]);
 
             $newId = $pdo->lastInsertId();
+
+            if ($appointmentId > 0) {
+                try {
+                    $pdo->prepare("UPDATE appointments SET status = 'In Consultation' WHERE id = ?")->execute([$appointmentId]);
+                } catch (Exception $e) {}
+            }
 
             // Auto-add new custom cue to settings presets if not already present
             try {
@@ -306,10 +333,32 @@ class ConsultationController extends BaseController {
             if ($action === 'checkout') {
                 $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE id = :id");
                 $stmt->execute(['id' => $id]);
+
+                // Auto-complete linked appointment if present
+                try {
+                    $aptStmt = $pdo->prepare("SELECT appointment_id FROM consultations WHERE id = :id");
+                    $aptStmt->execute(['id' => $id]);
+                    $aptId = (int)$aptStmt->fetchColumn();
+                    if ($aptId > 0) {
+                        $updApt = $pdo->prepare("UPDATE appointments SET status = 'Completed' WHERE id = :aptId");
+                        $updApt->execute(['aptId' => $aptId]);
+                    }
+                } catch (Exception $e) {}
+
             } elseif ($action === 'start') {
                 $stmt = $pdo->prepare("UPDATE consultations SET status = 'in-progress' WHERE id = :id");
                 $stmt->execute(['id' => $id]);
             } elseif ($action === 'cancel' || $action === 'delete') {
+                try {
+                    $aptStmt = $pdo->prepare("SELECT appointment_id FROM consultations WHERE id = :id");
+                    $aptStmt->execute(['id' => $id]);
+                    $aptId = (int)$aptStmt->fetchColumn();
+                    if ($aptId > 0) {
+                        $updApt = $pdo->prepare("UPDATE appointments SET status = 'Scheduled' WHERE id = :aptId AND status = 'In Consultation'");
+                        $updApt->execute(['aptId' => $aptId]);
+                    }
+                } catch (Exception $e) {}
+
                 $stmt = $pdo->prepare("DELETE FROM consultations WHERE id = :id");
                 $stmt->execute(['id' => $id]);
                 cjcLogAudit("Cancelled/Deleted consultation queue record ID #$id");
@@ -474,6 +523,16 @@ class ConsultationController extends BaseController {
                 $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE status IN ('active', 'waiting', 'in-progress') AND DATE(created_at) = CURDATE() AND clinic_branch = :branch");
                 $stmt->execute(['branch' => $branch]);
             }
+
+            // Auto-complete any linked appointments
+            try {
+                $pdo->exec("
+                    UPDATE appointments a
+                    JOIN consultations c ON c.appointment_id = a.id
+                    SET a.status = 'Completed'
+                    WHERE c.status = 'completed' AND a.status = 'In Consultation'
+                ");
+            } catch (Exception $e) {}
 
             $this->jsonResponse(['success' => true, 'message' => "All active visitors for $branch today have been timed out."]);
         } catch (PDOException $e) {

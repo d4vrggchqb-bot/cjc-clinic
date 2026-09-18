@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS `profile_attachments` (
 CREATE TABLE IF NOT EXISTS `consultations` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `profile_id` INT NOT NULL,
+  `appointment_id` INT DEFAULT NULL,
   `purpose` VARCHAR(255) NOT NULL,
   `complaint` TEXT DEFAULT NULL,
   `time_out` TIMESTAMP NULL DEFAULT NULL,
@@ -93,7 +94,8 @@ CREATE TABLE IF NOT EXISTS `consultations` (
   `assigned_to` VARCHAR(100) DEFAULT NULL,
   `attended_by` VARCHAR(100) DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
+  FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`appointment_id`) REFERENCES `appointments`(`id`) ON DELETE SET NULL
 );
 
 
@@ -197,7 +199,7 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `clinic_branch` ENUM('College Clinic', 'BED Clinic', 'Power Campus Clinic') NOT NULL DEFAULT 'College Clinic',
   `created_by` INT DEFAULT NULL,
   `group_name` VARCHAR(150) DEFAULT NULL,
-  `status` ENUM('Scheduled', 'Completed', 'Cancelled', 'No-Show') DEFAULT 'Scheduled',
+  `status` ENUM('Scheduled', 'In Consultation', 'Completed', 'Cancelled', 'No-Show') DEFAULT 'Scheduled',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL

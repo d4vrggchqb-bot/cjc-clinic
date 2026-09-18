@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX, FiActivity, FiClock, FiEdit2 } from 'react-icons/fi';
+import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX, FiActivity, FiClock, FiEdit2, FiCalendar } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
 import { useBranch } from '../context/BranchContext';
@@ -20,6 +20,8 @@ interface Patient {
 interface LogbookEntry {
   id: number | string;
   profile_id: number | string;
+  appointment_id?: number | null;
+  appointment_code?: string | null;
   clinic_branch?: string;
   patient_id_number: string;
   patient_name: string;
@@ -66,6 +68,9 @@ const Consultation: React.FC = () => {
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [checkinError, setCheckinError] = useState('');
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+  // Today's Scheduled Appointments State (for Quick Check-in search hints)
+  const [todaysAppointments, setTodaysAppointments] = useState<any[]>([]);
 
   useEffect(() => {
     apiFetch('/api/index.php?route=settings&action=get')
@@ -200,6 +205,26 @@ const Consultation: React.FC = () => {
       .catch(err => console.error("Error fetching entries:", err));
   }, [period, currentPage, kanbanStatus, selectedBranch, fromDate, toDate]);
 
+  const fetchTodayAppointments = React.useCallback(() => {
+    apiFetch('/api/index.php?route=appointments&action=todayList')
+      .then(res => {
+        if (res && res.appointments) {
+          setTodaysAppointments(res.appointments);
+        }
+      })
+      .catch(err => console.error("Failed to load today's appointments", err));
+  }, []);
+
+  const formatTimeSlot = (timeStr: string) => {
+    if (!timeStr) return '';
+    const [h, m] = timeStr.split(':');
+    let hours = parseInt(h);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${hours}:${m} ${ampm}`;
+  };
+
   const openNotesModal = (entry: LogbookEntry) => {
     setActiveNoteEntry(entry);
     setBp(entry.blood_pressure ? String(entry.blood_pressure) : '');
@@ -327,17 +352,21 @@ const Consultation: React.FC = () => {
 
   useEffect(() => {
     fetchEntries();
-  }, [fetchEntries]);
+    fetchTodayAppointments();
+  }, [fetchEntries, fetchTodayAppointments]);
 
   useEffect(() => {
     fetchInventory();
+    fetchTodayAppointments();
     const interval = setInterval(() => {
       fetchEntries();
+      fetchTodayAppointments();
     }, 30000);
 
     const handleSyncOrMutationDone = () => {
       fetchEntries();
       fetchInventory();
+      fetchTodayAppointments();
     };
     window.addEventListener('cjc-sync-completed', handleSyncOrMutationDone);
     window.addEventListener('cjc-offline-mutation', handleSyncOrMutationDone);
@@ -461,7 +490,10 @@ const Consultation: React.FC = () => {
         setSelectedPatient(null);
         setSearch('');
         setPurpose('');
-        if (period === 'today') fetchEntries();
+        setPeriod('today');
+        setKanbanStatus('all');
+        setCurrentPage(1);
+        fetchEntries();
       } else {
         const errorMsg = res.message || 'Failed to check in.';
         setCheckinError(errorMsg);
@@ -920,16 +952,38 @@ const Consultation: React.FC = () => {
                           {isSearching ? (
                             <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
                           ) : searchResults.length > 0 ? (
-                            searchResults.map(p => (
-                              <div 
-                                key={p.id}
-                                onClick={() => { setSelectedPatient(p); setShowSearchDropdown(false); }}
-                                className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
-                              >
-                                <div className="font-bold text-sm text-slate-800">{p.name}</div>
-                                <div className="text-xs text-slate-500">{p.patient_id_number || 'No ID'}</div>
-                              </div>
-                            ))
+                            searchResults.map(p => {
+                              const matchingAppt = todaysAppointments.find(a => 
+                                String(a.profile_id) === String(p.id) || 
+                                (p.patient_id_number && a.patient_id_number === p.patient_id_number)
+                              );
+                              return (
+                                <div 
+                                  key={p.id}
+                                  onClick={() => { 
+                                    setSelectedPatient(p); 
+                                    if (matchingAppt && !purpose.trim()) {
+                                      setPurpose(matchingAppt.purpose);
+                                    }
+                                    setShowSearchDropdown(false); 
+                                  }}
+                                  className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex items-center justify-between gap-2"
+                                >
+                                  <div>
+                                    <div className="font-bold text-sm text-slate-800">{p.name}</div>
+                                    <div className="text-xs text-slate-500">{p.patient_id_number || 'No ID'}</div>
+                                  </div>
+                                  {matchingAppt && (
+                                    <div className="text-right">
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+                                        <FiCalendar size={11} /> Appt ({formatTimeSlot(matchingAppt.appointment_time)})
+                                      </span>
+                                      <div className="text-[10px] text-slate-500 truncate max-w-[150px] mt-0.5">{matchingAppt.purpose}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
                           ) : (
                             <div className="p-4 text-center">
                               <p className="text-sm text-slate-500">No patients found.</p>
@@ -1146,7 +1200,16 @@ const Consultation: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3">{entry.purpose}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {entry.appointment_code && (
+                            <span className="font-mono text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 px-2 py-0.5 rounded shadow-2xs" title="Scheduled Appointment">
+                              📅 {entry.appointment_code}
+                            </span>
+                          )}
+                          <span>{entry.purpose}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-500">
                         {entry.time_out ? formatTimeOnly(entry.time_out) : '-'}
                       </td>
