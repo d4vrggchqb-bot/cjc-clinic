@@ -23,6 +23,7 @@ class MedcertController extends BaseController {
             'reason'        => trim($input['reason']     ?? ''),
             'valid_until'   => trim($input['valid_until']?? ''),
             'clinic_branch' => trim($input['clinic_branch'] ?? 'College Clinic'),
+            'paper_size'    => trim($input['paper_size'] ?? 'half_long'),
         ];
 
         if (!$data['profile_id'] || !$data['issued_to'] || !$data['issued_by']) {
@@ -127,7 +128,8 @@ class MedcertController extends BaseController {
                     'id' => $certStringId,
                     'issued_to' => $data['issued_to'],
                     'hash' => $cryptoHash,
-                    'verify_url' => $verifyUrl
+                    'verify_url' => $verifyUrl,
+                    'paper_size' => $data['paper_size']
                 ]);
                 
                 if ($pdfScript && file_exists($pdfScript)) {

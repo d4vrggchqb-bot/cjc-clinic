@@ -12,16 +12,37 @@ def generate_pdf(payload, output_path):
     hash_val = payload.get('hash', '')
     verify_url = payload.get('verify_url', '')
     
+    paper_size = payload.get('paper_size', 'half_long')
+    # MediaBox dimensions [0 0 width height] in points (72 pt per inch)
+    # Long bond paper = 8.5in x 13in (612 x 936 pt)
+    # 1/2 crosswise long bond paper = 8.5in x 6.5in (612 x 468 pt)
+    # 1/4 long bond paper = 4.25in x 6.5in (306 x 468 pt)
+    if paper_size == 'quarter_long':
+        mediabox = "0 0 306 468"
+        start_y = 430
+    elif paper_size == 'full_long':
+        mediabox = "0 0 612 936"
+        start_y = 880
+    elif paper_size == 'a4':
+        mediabox = "0 0 595 842"
+        start_y = 780
+    elif paper_size == 'a5':
+        mediabox = "0 0 420 595"
+        start_y = 550
+    else: # half_long default
+        mediabox = "0 0 612 468"
+        start_y = 420
+
     # Minimal PDF structure
     pdf_content = f"""%PDF-1.4
 1 0 obj <</Type /Catalog /Pages 2 0 R>> endobj
 2 0 obj <</Type /Pages /Kids [3 0 R] /Count 1>> endobj
-3 0 obj <</Type /Page /Parent 2 0 R /Resources 4 0 R /MediaBox [0 0 612 792] /Contents 5 0 R>> endobj
+3 0 obj <</Type /Page /Parent 2 0 R /Resources 4 0 R /MediaBox [{mediabox}] /Contents 5 0 R>> endobj
 4 0 obj <</Font <</F1 <</Type /Font /Subtype /Type1 /BaseFont /Helvetica>>>>>> endobj
 5 0 obj <</Length 250>> stream
 BT
-/F1 16 Tf
-50 720 Td (CJC CLINIC - MEDICAL CERTIFICATE) Tj
+/F1 14 Tf
+36 {start_y} Td (CJC CLINIC - MEDICAL CERTIFICATE) Tj
 0 -30 Td (Certificate ID: {cert_id}) Tj
 0 -20 Td (Issued To: {issued_to}) Tj
 0 -40 Td (--- ANTI-FORGERY SECURITY DATA ---) Tj

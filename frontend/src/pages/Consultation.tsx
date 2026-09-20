@@ -153,6 +153,7 @@ const Consultation: React.FC = () => {
   // Medcert State
   const [isMedcertModalOpen, setIsMedcertModalOpen] = useState(false);
   const [isGeneratingMedcert, setIsGeneratingMedcert] = useState(false);
+  const [medcertPaperSize, setMedcertPaperSize] = useState<'half_long' | 'full_long' | 'a4'>('half_long');
   const [medcertData, setMedcertData] = useState({
     issued_to: '',
     address: '',
@@ -162,7 +163,8 @@ const Consultation: React.FC = () => {
     is_essentially_normal: false,
     reason: '',
     valid_until: '',
-    clinic_branch: 'College Clinic'
+    clinic_branch: 'College Clinic',
+    paper_size: 'half_long'
   });
   const [showPrintView, setShowPrintView] = useState(false);
 
@@ -174,9 +176,11 @@ const Consultation: React.FC = () => {
 
   // Clinic Slip State
   const [isClinicSlipModalOpen, setIsClinicSlipModalOpen] = useState(false);
+  const [clinicSlipPaperSize, setClinicSlipPaperSize] = useState<'quarter_long' | 'half_long' | 'a5' | 'full_long'>('quarter_long');
   const [clinicSlipData, setClinicSlipData] = useState({
     advised: 'class', // 'home' or 'class'
-    personnel: ''
+    personnel: '',
+    paper_size: 'quarter_long'
   });
   const [showClinicSlipPrintView, setShowClinicSlipPrintView] = useState(false);
 
@@ -1667,7 +1671,8 @@ const Consultation: React.FC = () => {
                       is_essentially_normal: false,
                       reason: '',
                       valid_until: '',
-                      clinic_branch: getCertificateBranch(activeNoteEntry)
+                      clinic_branch: getCertificateBranch(activeNoteEntry),
+                      paper_size: medcertPaperSize
                     });
                     setIsMedcertModalOpen(true);
                   }} 
@@ -1691,6 +1696,7 @@ const Consultation: React.FC = () => {
                         console.error('Failed to fetch patient profile for clinic slip', err);
                       }
                     }
+                    setClinicSlipData(prev => ({ ...prev, paper_size: clinicSlipPaperSize }));
                     setIsClinicSlipModalOpen(true);
                   }} 
                   className="px-5 py-2.5 text-xs sm:text-sm font-extrabold text-slate-900 bg-white border-2 border-slate-300 hover:border-[#8c1526] hover:text-[#8c1526] rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 group"
@@ -1848,6 +1854,31 @@ const Consultation: React.FC = () => {
               </div>
               
               <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Paper Size / Layout</label>
+                <select 
+                  value={clinicSlipPaperSize} 
+                  onChange={e => {
+                    const val = e.target.value as 'quarter_long' | 'half_long' | 'a5' | 'full_long';
+                    setClinicSlipPaperSize(val);
+                    setClinicSlipData({...clinicSlipData, paper_size: val});
+                  }} 
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] bg-white font-medium"
+                >
+                  <option value="quarter_long">1/4 Long Bond (4.25" × 6.5") - Recommended</option>
+                  <option value="half_long">1/2 Crosswise Long Bond (8.5" × 6.5")</option>
+                  <option value="a5">Half Sheet / A5 (148mm × 210mm)</option>
+                  <option value="full_long">Full Long Bond (8.5" × 13")</option>
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {clinicSlipPaperSize === 'quarter_long' 
+                    ? '1/4 sheet fits 4 slips per long bond paper without overflowing.' 
+                    : clinicSlipPaperSize === 'half_long'
+                    ? '1/2 crosswise fits 2 slips per long bond paper.'
+                    : 'Standard portrait sheet layout.'}
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Signatory (Nurse/Clerk)</label>
                 <select 
                   required 
@@ -1961,6 +1992,27 @@ const Consultation: React.FC = () => {
                 <input type="date" value={medcertData.valid_until} onChange={e => setMedcertData({...medcertData, valid_until: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
               </div>
               <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Paper Size / Layout</label>
+                <select 
+                  value={medcertPaperSize} 
+                  onChange={e => {
+                    const val = e.target.value as 'half_long' | 'full_long' | 'a4';
+                    setMedcertPaperSize(val);
+                    setMedcertData({...medcertData, paper_size: val});
+                  }} 
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] bg-white font-medium"
+                >
+                  <option value="half_long">1/2 Crosswise Long Bond (8.5" × 6.5") - Recommended</option>
+                  <option value="full_long">Full Page Long Bond (8.5" × 13")</option>
+                  <option value="a4">Standard A4 (210mm × 297mm)</option>
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {medcertPaperSize === 'half_long' 
+                    ? '1/2 crosswise cuts paper in half (2 certs per long bond paper).' 
+                    : 'Full sheet layout for formal hospital or government submission.'}
+                </p>
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Clinic Branch</label>
                 <select required value={medcertData.clinic_branch} onChange={e => setMedcertData({...medcertData, clinic_branch: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]">
                   <option value="College Clinic">College Clinic</option>
@@ -1991,269 +2043,646 @@ const Consultation: React.FC = () => {
       {/* Fullscreen Official Medical Certificate Print View */}
       {showPrintView && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] overflow-auto flex flex-col items-center py-8 print:py-0 print:bg-white print:block">
-          
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media print {
+              @page {
+                size: ${medcertPaperSize === 'half_long' ? '8.5in 6.5in' : medcertPaperSize === 'full_long' ? '8.5in 13in' : '210mm 297mm'};
+                margin: 0;
+              }
+              html, body {
+                background: #ffffff !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: ${medcertPaperSize === 'half_long' ? '8.5in' : medcertPaperSize === 'full_long' ? '8.5in' : '210mm'} !important;
+                height: ${medcertPaperSize === 'half_long' ? '6.5in' : medcertPaperSize === 'full_long' ? '13in' : '297mm'} !important;
+              }
+              .medcert-sheet {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+            }
+          ` }} />
+
           {/* Action Header Bar (Hidden during printing) */}
-          <div className="w-full max-w-[210mm] flex justify-between items-center bg-slate-800 text-white px-6 py-3 rounded-2xl mb-4 print:hidden shadow-lg">
+          <div className={`w-full ${medcertPaperSize === 'half_long' || medcertPaperSize === 'full_long' ? 'max-w-[8.5in]' : 'max-w-[210mm]'} flex justify-between items-center bg-slate-800 text-white px-5 py-2.5 rounded-2xl mb-4 print:hidden shadow-lg gap-3`}>
             <div className="flex items-center gap-2 font-bold text-sm">
-              <FiPrinter className="text-[#C01D38]" /> Official Document Preview
+              <FiPrinter className="text-[#C01D38]" /> Official Medical Certificate
             </div>
+
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 bg-slate-700/80 px-2.5 py-1 rounded-xl border border-slate-600">
+                <span className="text-[11px] text-slate-300 font-semibold uppercase tracking-wider">Size:</span>
+                <select 
+                  value={medcertPaperSize} 
+                  onChange={e => setMedcertPaperSize(e.target.value as 'half_long' | 'full_long' | 'a4')} 
+                  className="bg-transparent text-white text-xs font-bold focus:outline-none cursor-pointer"
+                >
+                  <option value="half_long" className="bg-slate-800 text-white">1/2 Crosswise Long Bond (8.5" × 6.5")</option>
+                  <option value="full_long" className="bg-slate-800 text-white">Full Long Bond (8.5" × 13")</option>
+                  <option value="a4" className="bg-slate-800 text-white">Full Page A4 (210mm × 297mm)</option>
+                </select>
+              </div>
+
               <button 
                 onClick={() => window.print()} 
-                className="px-5 py-2 bg-[#C01D38] hover:bg-[#A5192D] text-white rounded-xl font-bold text-xs shadow transition-all flex items-center gap-2 cursor-pointer"
+                className="px-4 py-2 bg-[#C01D38] hover:bg-[#A5192D] text-white rounded-xl font-bold text-xs shadow transition-all flex items-center gap-2 cursor-pointer"
               >
                 <FiPrinter /> Print Document Now
               </button>
               <button 
                 onClick={() => setShowPrintView(false)} 
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer"
+                className="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer"
               >
-                Close Preview
+                Close
               </button>
             </div>
           </div>
 
-          {/* A4 Paper Printable Sheet */}
-          <div className="w-[210mm] min-h-[297mm] bg-white shadow-2xl print:shadow-none p-14 relative flex flex-col text-slate-900 font-serif border border-slate-200 print:border-none print:p-8">
-            
-            <div>
-              <div className="mb-6 relative">
-                
-                {/* Header Image Background */}
-                <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto" />
+          {/* Medical Certificate Printable Sheet */}
+          {medcertPaperSize === 'half_long' ? (
+            /* 1/2 Crosswise Long Bond (8.5in x 6.5in) - Perfectly proportioned, zero scatter */
+            <div className="medcert-sheet w-[8.5in] h-[6.5in] max-h-[6.5in] min-h-[6.5in] bg-white shadow-2xl print:shadow-none px-8 py-5 relative flex flex-col justify-between text-slate-900 font-serif border border-slate-200 print:border-none print:p-6 overflow-hidden select-none">
+              <div>
+                {/* Header Image Background with Info Box */}
+                <div className="mb-2 relative">
+                  <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto max-h-[56px] object-contain" />
 
-                {/* Right: Document Info Box overlay - perfectly covers the image's drawn box */}
-                <div className="absolute top-[5%] right-[0%] bottom-[41%] w-[17%] z-10 overflow-visible">
-                  <div className="w-[200%] h-[200%] scale-50 origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-1 shadow-sm font-sans leading-none">
-                    <div className="flex items-end justify-between gap-1">
-                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Index No.:</span>
-                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">9.9</span>
-                    </div>
-                    <div className="flex items-end justify-between gap-1">
-                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Revision No.:</span>
-                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">01</span>
-                    </div>
-                    <div className="flex items-end justify-between gap-1">
-                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Effective Date:</span>
-                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[14px]">08/01/2024</span>
-                    </div>
-                    <div className="flex items-end justify-between gap-1">
-                      <span className="text-slate-800 whitespace-nowrap text-[13px]">Control No.:</span>
-                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[13px]">9.9 -C - 2025</span>
+                  {/* Right: Document Info Box overlay */}
+                  <div className="absolute top-[3%] right-[0%] bottom-[35%] w-[18%] z-10 overflow-visible">
+                    <div className="w-[230%] h-[230%] scale-[0.43] origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-0.5 shadow-sm font-sans leading-none">
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Index No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[13px]">9.9</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Revision No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[13px]">01</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Effective Date:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[13px]">08/01/2024</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[12px]">Control No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[12px]">9.9 -C - 2025</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Certificate Header Title */}
-              <div className="text-center my-8">
-                <h3 className="text-2xl font-extrabold uppercase tracking-widest text-[#8c1526] font-sans underline underline-offset-8">Medical Certificate</h3>
-              </div>
-
-              {/* Main Certification Content */}
-              <div className="text-slate-800 text-justify text-[15px] space-y-6 mt-8 mb-16 font-serif leading-[2.2]">
-                
-                <p className="font-bold text-base font-serif mb-6">TO WHOM IT MAY CONCERN:</p>
-
-                <p className="indent-12">
-                  This is to certify that <span className="inline-block border-b border-black min-w-[320px] text-center font-bold px-2 uppercase">{medcertData.issued_to}</span>, <span className="inline-block border-b border-black min-w-[60px] text-center px-2">&nbsp;</span> years old
-                  <br />and a resident of <span className="inline-block border-b border-black min-w-[440px] text-center px-2 font-semibold uppercase">{medcertData.address || <>&nbsp;</>}</span> has been examined at the {medcertData.clinic_branch}-Cor Jesu College.
-                </p>
-
-                <div className="pl-12 space-y-3 my-6 leading-relaxed">
-                  <div className="flex items-center gap-3">
-                    <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5">
-                      {medcertData.is_essentially_normal && <span>✓</span>}
-                    </div>
-                    <span>ESSENTIALLY NORMAL</span>
-                  </div>
-                  <div className="flex items-end gap-3">
-                    <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5 mb-1.5">
-                      {(!medcertData.is_essentially_normal && medcertData.reason) && <span>✓</span>}
-                    </div>
-                    <span className="whitespace-nowrap">With Findings:</span>
-                    <span className="border-b border-black w-full inline-block min-h-[1.5rem] px-2">{medcertData.reason}</span>
-                  </div>
-                  <div className="flex items-end gap-3">
-                    <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5 mb-1.5">
-                    </div>
-                    <span className="whitespace-nowrap">Recommendations/Remarks:</span>
-                    <span className="border-b border-black w-full inline-block min-h-[1.5rem] px-2">{medcertData.valid_until ? `Recommended rest until ${new Date(medcertData.valid_until).toLocaleDateString('en-US')}` : ''}</span>
-                  </div>
+                {/* Certificate Header Title */}
+                <div className="text-center my-1">
+                  <h3 className="text-base sm:text-lg font-extrabold uppercase tracking-widest text-[#8c1526] font-sans underline underline-offset-4">
+                    Medical Certificate
+                  </h3>
                 </div>
 
-                <p className="indent-12">
-                  This certification is being issued upon verbal request for whatever legal purpose it may serve.
-                  <br />Issued this <span className="inline-block border-b border-black min-w-[200px] text-center px-2 font-bold">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span> at Digos City, Davao del Sur, Philippines.
-                </p>
-              </div>
-            </div>
+                {/* Main Certification Content */}
+                <div className="text-slate-900 text-justify text-[12px] space-y-1.5 font-serif leading-[1.6]">
+                  <p className="font-bold text-[12.5px] font-serif mb-0.5">TO WHOM IT MAY CONCERN:</p>
 
-            {/* Bottom Signatures Section */}
-            <div className="pt-4 font-serif pb-12 mt-24">
-              <div className="flex justify-end">
-                <div className="text-center w-[300px]">
-                  <div className="font-extrabold text-base text-slate-900 uppercase">
+                  <p className="indent-8">
+                    This is to certify that <span className="inline-block border-b border-black min-w-[200px] text-center font-bold px-1 uppercase">{medcertData.issued_to}</span>, <span className="inline-block border-b border-black min-w-[36px] text-center px-1">&nbsp;</span> years old and a resident of <span className="inline-block border-b border-black min-w-[220px] text-center px-1 font-semibold uppercase">{medcertData.address || <>&nbsp;</>}</span> has been examined at the {medcertData.clinic_branch}-Cor Jesu College.
+                  </p>
+
+                  <div className="pl-6 space-y-1 my-1 leading-snug">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-3.5 h-3.5 border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-xs pb-0.5">
+                        {medcertData.is_essentially_normal && <span>✓</span>}
+                      </div>
+                      <span className="font-semibold text-[11.5px]">ESSENTIALLY NORMAL</span>
+                    </div>
+                    <div className="flex items-end gap-2">
+                      <div className="w-3.5 h-3.5 border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-xs pb-0.5 mb-0.5">
+                        {(!medcertData.is_essentially_normal && medcertData.reason) && <span>✓</span>}
+                      </div>
+                      <span className="whitespace-nowrap font-medium text-[11.5px]">With Findings:</span>
+                      <span className="border-b border-black flex-1 inline-block min-h-[1.15rem] px-1 font-semibold text-[11.5px]">{medcertData.reason}</span>
+                    </div>
+                    <div className="flex items-end gap-2">
+                      <div className="w-3.5 h-3.5 border-[1.5px] border-transparent shrink-0"></div>
+                      <span className="whitespace-nowrap font-medium text-[11.5px]">Recommendations/Remarks:</span>
+                      <span className="border-b border-black flex-1 inline-block min-h-[1.15rem] px-1 font-semibold text-[11.5px]">{medcertData.valid_until ? `Recommended rest until ${new Date(medcertData.valid_until).toLocaleDateString('en-US')}` : ''}</span>
+                    </div>
+                  </div>
+
+                  <p className="indent-8 text-[11.5px] leading-[1.5]">
+                    This certification is being issued upon verbal request for whatever legal purpose it may serve.
+                    <br />Issued this <span className="inline-block border-b border-black min-w-[160px] text-center px-1 font-bold">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span> at Digos City, Davao del Sur, Philippines.
+                  </p>
+                </div>
+              </div>
+
+              {/* Bottom Signatures Section */}
+              <div className="pt-2 font-serif flex justify-end">
+                <div className="text-center w-[240px]">
+                  <div className="font-extrabold text-[12.5px] text-slate-900 uppercase border-b border-black pb-0.5">
                     {medcertData.issued_by}
                   </div>
-                  <div className="text-[15px] text-slate-800">{medcertData.issued_by_position}</div>
+                  <div className="text-[11px] text-slate-800">{medcertData.issued_by_position}</div>
                   {medcertData.issued_by_license && (
-                    <div className="text-[15px] text-slate-800">Lic. no. {medcertData.issued_by_license}</div>
+                    <div className="text-[11px] text-slate-800">Lic. no. {medcertData.issued_by_license}</div>
                   )}
                 </div>
               </div>
             </div>
+          ) : (
+            /* Full Page (Long Bond or A4) */
+            <div className={`medcert-sheet ${medcertPaperSize === 'full_long' ? 'w-[8.5in] min-h-[13in]' : 'w-[210mm] min-h-[297mm]'} bg-white shadow-2xl print:shadow-none p-14 relative flex flex-col justify-between text-slate-900 font-serif border border-slate-200 print:border-none print:p-8`}>
+              <div>
+                <div className="mb-6 relative">
+                  <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto" />
+                  <div className="absolute top-[5%] right-[0%] bottom-[41%] w-[17%] z-10 overflow-visible">
+                    <div className="w-[200%] h-[200%] scale-50 origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-1 shadow-sm font-sans leading-none">
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Index No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">9.9</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Revision No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">01</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Effective Date:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[14px]">08/01/2024</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Control No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[13px]">9.9 -C - 2025</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-          </div>
+                <div className="text-center my-8">
+                  <h3 className="text-2xl font-extrabold uppercase tracking-widest text-[#8c1526] font-sans underline underline-offset-8">Medical Certificate</h3>
+                </div>
+
+                <div className="text-slate-800 text-justify text-[15px] space-y-6 mt-8 mb-16 font-serif leading-[2.2]">
+                  <p className="font-bold text-base font-serif mb-6">TO WHOM IT MAY CONCERN:</p>
+                  <p className="indent-12">
+                    This is to certify that <span className="inline-block border-b border-black min-w-[320px] text-center font-bold px-2 uppercase">{medcertData.issued_to}</span>, <span className="inline-block border-b border-black min-w-[60px] text-center px-2">&nbsp;</span> years old
+                    <br />and a resident of <span className="inline-block border-b border-black min-w-[440px] text-center px-2 font-semibold uppercase">{medcertData.address || <>&nbsp;</>}</span> has been examined at the {medcertData.clinic_branch}-Cor Jesu College.
+                  </p>
+                  <div className="pl-12 space-y-3 my-6 leading-relaxed">
+                    <div className="flex items-center gap-3">
+                      <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5">
+                        {medcertData.is_essentially_normal && <span>✓</span>}
+                      </div>
+                      <span>ESSENTIALLY NORMAL</span>
+                    </div>
+                    <div className="flex items-end gap-3">
+                      <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5 mb-1.5">
+                        {(!medcertData.is_essentially_normal && medcertData.reason) && <span>✓</span>}
+                      </div>
+                      <span className="whitespace-nowrap">With Findings:</span>
+                      <span className="border-b border-black w-full inline-block min-h-[1.5rem] px-2">{medcertData.reason}</span>
+                    </div>
+                    <div className="flex items-end gap-3">
+                      <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5 mb-1.5"></div>
+                      <span className="whitespace-nowrap">Recommendations/Remarks:</span>
+                      <span className="border-b border-black w-full inline-block min-h-[1.5rem] px-2">{medcertData.valid_until ? `Recommended rest until ${new Date(medcertData.valid_until).toLocaleDateString('en-US')}` : ''}</span>
+                    </div>
+                  </div>
+                  <p className="indent-12">
+                    This certification is being issued upon verbal request for whatever legal purpose it may serve.
+                    <br />Issued this <span className="inline-block border-b border-black min-w-[200px] text-center px-2 font-bold">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span> at Digos City, Davao del Sur, Philippines.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-4 font-serif pb-12 mt-16">
+                <div className="flex justify-end">
+                  <div className="text-center w-[300px]">
+                    <div className="font-extrabold text-base text-slate-900 uppercase">
+                      {medcertData.issued_by}
+                    </div>
+                    <div className="text-[15px] text-slate-800">{medcertData.issued_by_position}</div>
+                    {medcertData.issued_by_license && (
+                      <div className="text-[15px] text-slate-800">Lic. no. {medcertData.issued_by_license}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Clinic Slip Print View */}
       {showClinicSlipPrintView && activeNoteEntry && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] overflow-auto flex flex-col items-center py-8 print:py-0 print:bg-white print:block">
-          
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media print {
+              @page {
+                size: ${clinicSlipPaperSize === 'quarter_long' ? '4.25in 6.5in' : clinicSlipPaperSize === 'half_long' ? '8.5in 6.5in' : clinicSlipPaperSize === 'a5' ? '148mm 210mm' : '8.5in 13in'};
+                margin: 0;
+              }
+              html, body {
+                background: #ffffff !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: ${clinicSlipPaperSize === 'quarter_long' ? '4.25in' : clinicSlipPaperSize === 'half_long' ? '8.5in' : clinicSlipPaperSize === 'a5' ? '148mm' : '8.5in'} !important;
+                height: ${clinicSlipPaperSize === 'quarter_long' ? '6.5in' : clinicSlipPaperSize === 'half_long' ? '6.5in' : clinicSlipPaperSize === 'a5' ? '210mm' : '13in'} !important;
+              }
+              .clinicslip-sheet {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+            }
+          ` }} />
+
           {/* Action Header Bar (Hidden during printing) */}
-          <div className="w-full max-w-[148mm] flex justify-between items-center bg-slate-800 text-white px-6 py-3 rounded-2xl mb-4 print:hidden shadow-lg">
-            <div className="flex items-center gap-2 font-bold text-sm">
-              <FiPrinter className="text-[#C01D38]" /> Clinic Slip Preview
+          <div className={`w-full ${clinicSlipPaperSize === 'quarter_long' ? 'max-w-[4.25in]' : clinicSlipPaperSize === 'half_long' || clinicSlipPaperSize === 'full_long' ? 'max-w-[8.5in]' : 'max-w-[148mm]'} flex justify-between items-center bg-slate-800 text-white px-4 py-2.5 rounded-2xl mb-4 print:hidden shadow-lg gap-2`}>
+            <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm truncate">
+              <FiPrinter className="text-[#C01D38] shrink-0" /> Clinic Slip
             </div>
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-slate-700/80 px-2 py-1 rounded-xl border border-slate-600">
+                <span className="text-[10px] text-slate-300 font-semibold uppercase tracking-wider">Size:</span>
+                <select 
+                  value={clinicSlipPaperSize} 
+                  onChange={e => setClinicSlipPaperSize(e.target.value as 'quarter_long' | 'half_long' | 'a5' | 'full_long')} 
+                  className="bg-transparent text-white text-xs font-bold focus:outline-none cursor-pointer"
+                >
+                  <option value="quarter_long" className="bg-slate-800 text-white">1/4 Long Bond (4.25" × 6.5")</option>
+                  <option value="half_long" className="bg-slate-800 text-white">1/2 Crosswise Long Bond (8.5" × 6.5")</option>
+                  <option value="a5" className="bg-slate-800 text-white">Half Sheet / A5 (148mm × 210mm)</option>
+                  <option value="full_long" className="bg-slate-800 text-white">Full Long Bond (8.5" × 13")</option>
+                </select>
+              </div>
+
               <button 
                 onClick={() => window.print()} 
-                className="px-5 py-2 bg-[#C01D38] hover:bg-[#A5192D] text-white rounded-xl font-bold text-xs shadow transition-all flex items-center gap-2 cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#C01D38] hover:bg-[#A5192D] text-white rounded-xl font-bold text-xs shadow transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
-                <FiPrinter /> Print Document Now
+                <FiPrinter /> Print
               </button>
               <button 
                 onClick={() => setShowClinicSlipPrintView(false)} 
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer"
+                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer"
               >
-                Close Preview
+                Close
               </button>
             </div>
           </div>
 
-          {/* A5-ish or Half A4 Paper Printable Sheet */}
-          <div className="w-[148mm] min-h-[210mm] bg-white shadow-2xl print:shadow-none p-8 relative flex flex-col text-slate-900 font-sans border border-slate-200 print:border-none print:p-8">
-            
-            <div>
-              <div className="mb-4 relative">
-                
-                {/* Header Image Background */}
-                <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto" />
+          {/* Printable Sheet based on selected Paper Size */}
+          {clinicSlipPaperSize === 'quarter_long' ? (
+            /* 1/4 Long Bond Paper (4.25in x 6.5in) - Perfectly proportioned, zero scatter */
+            <div className="clinicslip-sheet w-[4.25in] h-[6.5in] max-h-[6.5in] min-h-[6.5in] bg-white shadow-2xl print:shadow-none p-3.5 relative flex flex-col justify-between text-slate-900 font-sans border border-slate-200 print:border-none print:p-3 overflow-hidden select-none">
+              <div>
+                {/* Scaled Header with Index 9.4 overlay */}
+                <div className="mb-1 relative">
+                  <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto max-h-[42px] object-contain" />
+                  <div className="absolute top-[3%] right-[0%] bottom-[35%] w-[22%] z-10 overflow-visible">
+                    <div className="w-[300%] h-[300%] scale-[0.27] origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-1 py-0.5 shadow-sm font-sans leading-none">
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[12px]">Index:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[12px]">9.4</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[12px]">Rev:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[12px]">01</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[12px]">Date:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[12px]">08/01/24</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[11px]">Ctrl:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[11px]">9.4-C-25</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                {/* Right: Document Info Box overlay */}
-                <div className="absolute top-[5%] right-[0%] bottom-[41%] w-[17%] z-10 overflow-visible">
-                  <div className="w-[200%] h-[200%] scale-50 origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-1 shadow-sm font-sans leading-none">
-                    <div className="flex items-end justify-between gap-1">
-                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Index No.:</span>
-                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">9.4</span>
+                {/* Title */}
+                <div className="text-center my-0.5">
+                  <h3 className="text-[12px] font-black uppercase tracking-wider text-slate-800 font-sans border-b border-slate-300 pb-0.5 inline-block px-3">
+                    CLINIC SLIP
+                  </h3>
+                </div>
+
+                {/* Form Fields */}
+                <div className="text-slate-800 text-[10px] space-y-1.5 font-sans leading-tight">
+                  <div className="flex justify-between items-end gap-2">
+                    <div className="flex items-end gap-1 flex-1 min-w-0">
+                      <span className="text-slate-600 font-semibold whitespace-nowrap">Date:</span>
+                      <span className="border-b border-black flex-1 pb-0.5 font-medium truncate">{new Date().toLocaleDateString('en-US')}</span>
                     </div>
-                    <div className="flex items-end justify-between gap-1">
-                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Revision No.:</span>
-                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">01</span>
+                    <div className="flex items-end gap-1 flex-1 min-w-0">
+                      <span className="text-slate-600 font-semibold whitespace-nowrap">Time:</span>
+                      <span className="border-b border-black flex-1 pb-0.5 font-medium truncate">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
-                    <div className="flex items-end justify-between gap-1">
-                      <span className="text-slate-800 whitespace-nowrap text-[14px]">Effective Date:</span>
-                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[14px]">08/01/2024</span>
+                  </div>
+
+                  <div className="flex items-end gap-1">
+                    <span className="text-slate-600 font-semibold whitespace-nowrap">Name:</span>
+                    <span className="border-b border-black flex-1 pb-0.5 font-bold uppercase truncate">{activeNoteEntry.patient_name}</span>
+                  </div>
+
+                  <div className="flex items-end gap-1">
+                    <span className="text-slate-600 font-semibold whitespace-nowrap">Yr &amp; Course:</span>
+                    <span className="border-b border-black flex-1 pb-0.5 truncate">
+                      {selectedProfileDetails
+                        ? [
+                            selectedProfileDetails.year_level,
+                            selectedProfileDetails.course || selectedProfileDetails.college_dept
+                          ].filter(Boolean).join(' - ')
+                        : ''}
+                    </span>
+                  </div>
+
+                  <div className="flex items-end gap-1">
+                    <span className="text-slate-600 font-semibold whitespace-nowrap">Chief Complaint:</span>
+                    <span className="border-b border-black flex-1 pb-0.5 truncate font-medium">{activeNoteEntry.purpose}</span>
+                  </div>
+
+                  <div>
+                    <div className="text-slate-700 font-semibold text-[9.5px]">Cues:</div>
+                    <div className="border-b border-black w-full min-h-[1.15rem] leading-tight truncate px-0.5">
+                      {diagnosis ? diagnosis.split('\n')[0] : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[0] : '')}
                     </div>
-                    <div className="flex items-end justify-between gap-1">
-                      <span className="text-slate-800 whitespace-nowrap text-[13px]">Control No.:</span>
-                      <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[13px]">9.4 -C- 2025</span>
+                    <div className="border-b border-black w-full min-h-[1.15rem] leading-tight truncate px-0.5">
+                      {diagnosis ? diagnosis.split('\n')[1] || '' : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[1] || '' : '')}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-slate-700 font-semibold text-[9.5px]">Intervention/Remarks:</div>
+                    <div className="border-b border-black w-full min-h-[1.15rem] leading-tight truncate px-0.5">
+                      {treatment ? treatment.split('\n')[0] : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[0] : '')}
+                    </div>
+                    <div className="border-b border-black w-full min-h-[1.15rem] leading-tight truncate px-0.5">
+                      {treatment ? treatment.split('\n')[1] || '' : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[1] || '' : '')}
+                    </div>
+                  </div>
+
+                  <div className="pt-0.5 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 border-[1.2px] border-black shrink-0 flex items-center justify-center font-bold text-[9px] pb-0.5">
+                        {clinicSlipData.advised === 'home' && <span>✓</span>}
+                      </div>
+                      <span className="font-medium text-[9.5px]">Advised to go home</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 border-[1.2px] border-black shrink-0 flex items-center justify-center font-bold text-[9px] pb-0.5">
+                        {clinicSlipData.advised === 'class' && <span>✓</span>}
+                      </div>
+                      <span className="font-medium text-[9.5px]">May resume to class</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Certificate Header Title */}
-              <div className="text-center mb-6 mt-4">
-                <h3 className="text-xl font-bold uppercase tracking-wide text-slate-800 font-sans">CLINIC SLIP</h3>
-              </div>
-
-              {/* Main Form Fields */}
-              <div className="text-slate-800 text-[14px] space-y-4 font-sans leading-relaxed">
-                
-                <div className="flex justify-between items-end gap-4">
-                  <div className="flex items-end gap-2 flex-1">
-                    <span className="whitespace-nowrap">Date:</span>
-                    <span className="border-b border-black w-full min-w-[120px] pb-0.5">{new Date().toLocaleDateString('en-US')}</span>
-                  </div>
-                  <div className="flex items-end gap-2 flex-1">
-                    <span className="whitespace-nowrap">Time:</span>
-                    <span className="border-b border-black w-full min-w-[120px] pb-0.5">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-end gap-2">
-                  <span className="whitespace-nowrap">Name:</span>
-                  <span className="border-b border-black w-full pb-0.5 font-bold uppercase">{activeNoteEntry.patient_name}</span>
-                </div>
-
-                <div className="flex items-end gap-2">
-                  <span className="whitespace-nowrap">Year &amp; Course:</span>
-                  <span className="border-b border-black w-full pb-0.5">
-                    {selectedProfileDetails
-                      ? [
-                          selectedProfileDetails.year_level,
-                          selectedProfileDetails.course || selectedProfileDetails.college_dept
-                        ].filter(Boolean).join(' - ')
-                      : ''}
-                  </span>
-                </div>
-
-                <div className="flex items-end gap-2 mt-6">
-                  <span className="whitespace-nowrap">Chief Complaint:</span>
-                  <span className="border-b border-black w-full pb-0.5">{activeNoteEntry.purpose}</span>
-                </div>
-
-                <div className="mt-4">
-                  <div className="mb-1">Cues:</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{diagnosis ? diagnosis.split('\n')[0] : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[0] : '')}</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{diagnosis ? diagnosis.split('\n')[1] || '' : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[1] || '' : '')}</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{diagnosis ? diagnosis.split('\n')[2] || '' : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[2] || '' : '')}</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
-                </div>
-
-                <div className="mt-4">
-                  <div className="mb-1">Intervention/Remarks:</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{treatment ? treatment.split('\n')[0] : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[0] : '')}</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{treatment ? treatment.split('\n')[1] || '' : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[1] || '' : '')}</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2">{treatment ? treatment.split('\n')[2] || '' : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[2] || '' : '')}</div>
-                  <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
-                </div>
-
-                <div className="mt-8 pl-4 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-[14px] h-[14px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-[10px] pb-0.5">
-                      {clinicSlipData.advised === 'home' && <span>✓</span>}
-                    </div>
-                    <span>Advised to go home</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-[14px] h-[14px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-[10px] pb-0.5">
-                      {clinicSlipData.advised === 'class' && <span>✓</span>}
-                    </div>
-                    <span>May resume to class</span>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            {/* Bottom Signatures Section */}
-            <div className="pt-4 pb-8 mt-auto">
-              <div className="flex justify-end pr-8">
-                <div className="text-center w-[250px]">
-                  <div className="border-b border-black w-full font-bold uppercase text-[15px] pb-1 mb-1">
+              {/* Signatures */}
+              <div className="pt-1 flex justify-end">
+                <div className="text-center w-[150px]">
+                  <div className="border-b border-black w-full font-bold uppercase text-[10.5px] pb-0.5 truncate">
                     {clinicSlipData.personnel}
                   </div>
-                  <div className="text-[13px] text-slate-800">School Nurse/ Clinic Clerk</div>
+                  <div className="text-[8.5px] text-slate-600">School Nurse / Clinic Clerk</div>
                 </div>
               </div>
             </div>
+          ) : clinicSlipPaperSize === 'half_long' ? (
+            /* 1/2 Crosswise Long Bond (8.5in x 6.5in) - Elegant 2-column landscape layout */
+            <div className="clinicslip-sheet w-[8.5in] h-[6.5in] max-h-[6.5in] min-h-[6.5in] bg-white shadow-2xl print:shadow-none p-6 relative flex flex-col justify-between text-slate-900 font-sans border border-slate-200 print:border-none print:p-6 overflow-hidden select-none">
+              <div>
+                {/* Header Image Background with Info Box */}
+                <div className="mb-2 relative">
+                  <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto max-h-[56px] object-contain" />
+                  <div className="absolute top-[3%] right-[0%] bottom-[35%] w-[18%] z-10 overflow-visible">
+                    <div className="w-[230%] h-[230%] scale-[0.43] origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-0.5 shadow-sm font-sans leading-none">
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Index No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[13px]">9.4</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Revision No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[13px]">01</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Effective Date:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[13px]">08/01/2024</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[12px]">Control No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[12px]">9.4 -C- 2025</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-          </div>
+                {/* Title */}
+                <div className="text-center my-1">
+                  <h3 className="text-base font-bold uppercase tracking-wider text-slate-800 font-sans border-b border-slate-300 pb-0.5 inline-block px-4">
+                    CLINIC SLIP
+                  </h3>
+                </div>
+
+                {/* Two-column Content Grid */}
+                <div className="grid grid-cols-2 gap-6 text-[12px] font-sans mt-2">
+                  {/* Left Column: Details & Advice */}
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between items-end gap-2">
+                      <div className="flex items-end gap-1 flex-1 min-w-0">
+                        <span className="text-slate-600 font-semibold whitespace-nowrap">Date:</span>
+                        <span className="border-b border-black flex-1 pb-0.5 font-medium truncate">{new Date().toLocaleDateString('en-US')}</span>
+                      </div>
+                      <div className="flex items-end gap-1 flex-1 min-w-0">
+                        <span className="text-slate-600 font-semibold whitespace-nowrap">Time:</span>
+                        <span className="border-b border-black flex-1 pb-0.5 font-medium truncate">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-end gap-1">
+                      <span className="text-slate-600 font-semibold whitespace-nowrap">Name:</span>
+                      <span className="border-b border-black flex-1 pb-0.5 font-bold uppercase truncate">{activeNoteEntry.patient_name}</span>
+                    </div>
+
+                    <div className="flex items-end gap-1">
+                      <span className="text-slate-600 font-semibold whitespace-nowrap">Yr &amp; Course:</span>
+                      <span className="border-b border-black flex-1 pb-0.5 truncate">
+                        {selectedProfileDetails
+                          ? [
+                              selectedProfileDetails.year_level,
+                              selectedProfileDetails.course || selectedProfileDetails.college_dept
+                            ].filter(Boolean).join(' - ')
+                          : ''}
+                      </span>
+                    </div>
+
+                    <div className="flex items-end gap-1">
+                      <span className="text-slate-600 font-semibold whitespace-nowrap">Chief Complaint:</span>
+                      <span className="border-b border-black flex-1 pb-0.5 truncate font-medium">{activeNoteEntry.purpose}</span>
+                    </div>
+
+                    <div className="pt-2 space-y-1.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-3.5 h-3.5 border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-[10px] pb-0.5">
+                          {clinicSlipData.advised === 'home' && <span>✓</span>}
+                        </div>
+                        <span className="font-medium text-slate-800">Advised to go home</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-3.5 h-3.5 border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-[10px] pb-0.5">
+                          {clinicSlipData.advised === 'class' && <span>✓</span>}
+                        </div>
+                        <span className="font-medium text-slate-800">May resume to class</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Cues, Intervention & Signatory */}
+                  <div className="space-y-2">
+                    <div>
+                      <div className="text-slate-700 font-semibold text-[11px] mb-0.5">Cues:</div>
+                      <div className="border-b border-black w-full min-h-[1.25rem] leading-tight truncate px-1">{diagnosis ? diagnosis.split('\n')[0] : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[0] : '')}</div>
+                      <div className="border-b border-black w-full min-h-[1.25rem] leading-tight truncate px-1">{diagnosis ? diagnosis.split('\n')[1] || '' : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[1] || '' : '')}</div>
+                      <div className="border-b border-black w-full min-h-[1.25rem] leading-tight truncate px-1">{diagnosis ? diagnosis.split('\n')[2] || '' : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[2] || '' : '')}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-slate-700 font-semibold text-[11px] mb-0.5">Intervention/Remarks:</div>
+                      <div className="border-b border-black w-full min-h-[1.25rem] leading-tight truncate px-1">{treatment ? treatment.split('\n')[0] : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[0] : '')}</div>
+                      <div className="border-b border-black w-full min-h-[1.25rem] leading-tight truncate px-1">{treatment ? treatment.split('\n')[1] || '' : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[1] || '' : '')}</div>
+                      <div className="border-b border-black w-full min-h-[1.25rem] leading-tight truncate px-1">{treatment ? treatment.split('\n')[2] || '' : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[2] || '' : '')}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Signatures at bottom right */}
+              <div className="pt-2 flex justify-end">
+                <div className="text-center w-[200px]">
+                  <div className="border-b border-black w-full font-bold uppercase text-[12px] pb-0.5 truncate">
+                    {clinicSlipData.personnel}
+                  </div>
+                  <div className="text-[10px] text-slate-600">School Nurse / Clinic Clerk</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* A5 or Full Page Sheet */
+            <div className={`clinicslip-sheet ${clinicSlipPaperSize === 'full_long' ? 'w-[8.5in] min-h-[13in]' : 'w-[148mm] min-h-[210mm]'} bg-white shadow-2xl print:shadow-none p-8 relative flex flex-col justify-between text-slate-900 font-sans border border-slate-200 print:border-none print:p-8`}>
+              <div>
+                <div className="mb-4 relative">
+                  <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto" />
+                  <div className="absolute top-[5%] right-[0%] bottom-[41%] w-[17%] z-10 overflow-visible">
+                    <div className="w-[200%] h-[200%] scale-50 origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-1 shadow-sm font-sans leading-none">
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Index No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">9.4</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Revision No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">01</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Effective Date:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[14px]">08/01/2024</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1">
+                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Control No.:</span>
+                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[13px]">9.4 -C- 2025</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-center mb-6 mt-4">
+                  <h3 className="text-xl font-bold uppercase tracking-wide text-slate-800 font-sans">CLINIC SLIP</h3>
+                </div>
+
+                <div className="text-slate-800 text-[14px] space-y-4 font-sans leading-relaxed">
+                  <div className="flex justify-between items-end gap-4">
+                    <div className="flex items-end gap-2 flex-1">
+                      <span className="whitespace-nowrap">Date:</span>
+                      <span className="border-b border-black w-full min-w-[120px] pb-0.5">{new Date().toLocaleDateString('en-US')}</span>
+                    </div>
+                    <div className="flex items-end gap-2 flex-1">
+                      <span className="whitespace-nowrap">Time:</span>
+                      <span className="border-b border-black w-full min-w-[120px] pb-0.5">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-end gap-2">
+                    <span className="whitespace-nowrap">Name:</span>
+                    <span className="border-b border-black w-full pb-0.5 font-bold uppercase">{activeNoteEntry.patient_name}</span>
+                  </div>
+
+                  <div className="flex items-end gap-2">
+                    <span className="whitespace-nowrap">Year &amp; Course:</span>
+                    <span className="border-b border-black w-full pb-0.5">
+                      {selectedProfileDetails
+                        ? [
+                            selectedProfileDetails.year_level,
+                            selectedProfileDetails.course || selectedProfileDetails.college_dept
+                          ].filter(Boolean).join(' - ')
+                        : ''}
+                    </span>
+                  </div>
+
+                  <div className="flex items-end gap-2 mt-6">
+                    <span className="whitespace-nowrap">Chief Complaint:</span>
+                    <span className="border-b border-black w-full pb-0.5">{activeNoteEntry.purpose}</span>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="mb-1">Cues:</div>
+                    <div className="border-b border-black w-full h-[1.5rem] mb-2">{diagnosis ? diagnosis.split('\n')[0] : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[0] : '')}</div>
+                    <div className="border-b border-black w-full h-[1.5rem] mb-2">{diagnosis ? diagnosis.split('\n')[1] || '' : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[1] || '' : '')}</div>
+                    <div className="border-b border-black w-full h-[1.5rem] mb-2">{diagnosis ? diagnosis.split('\n')[2] || '' : (activeNoteEntry.diagnosis ? activeNoteEntry.diagnosis.split('\n')[2] || '' : '')}</div>
+                    <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
+                    <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="mb-1">Intervention/Remarks:</div>
+                    <div className="border-b border-black w-full h-[1.5rem] mb-2">{treatment ? treatment.split('\n')[0] : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[0] : '')}</div>
+                    <div className="border-b border-black w-full h-[1.5rem] mb-2">{treatment ? treatment.split('\n')[1] || '' : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[1] || '' : '')}</div>
+                    <div className="border-b border-black w-full h-[1.5rem] mb-2">{treatment ? treatment.split('\n')[2] || '' : (activeNoteEntry.treatment ? activeNoteEntry.treatment.split('\n')[2] || '' : '')}</div>
+                    <div className="border-b border-black w-full h-[1.5rem] mb-2"></div>
+                  </div>
+
+                  <div className="mt-8 pl-4 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-[14px] h-[14px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-[10px] pb-0.5">
+                        {clinicSlipData.advised === 'home' && <span>✓</span>}
+                      </div>
+                      <span>Advised to go home</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-[14px] h-[14px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-[10px] pb-0.5">
+                        {clinicSlipData.advised === 'class' && <span>✓</span>}
+                      </div>
+                      <span>May resume to class</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 pb-8 mt-auto">
+                <div className="flex justify-end pr-8">
+                  <div className="text-center w-[250px]">
+                    <div className="border-b border-black w-full font-bold uppercase text-[15px] pb-1 mb-1">
+                      {clinicSlipData.personnel}
+                    </div>
+                    <div className="text-[13px] text-slate-800">School Nurse/ Clinic Clerk</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {isStaffVitalsModalOpen && activeNoteEntry && (
