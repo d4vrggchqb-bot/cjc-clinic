@@ -1000,7 +1000,7 @@ const InventoryReport: React.FC = () => {
               />
               <div className="flex justify-between items-center px-1 text-[11px] font-semibold text-slate-600">
                 <span className="uppercase tracking-wider text-[#A5192D] font-bold">
-                  {effectiveBranch === 'all' ? 'College Clinic & All Branches' : effectiveBranch.toUpperCase()}
+                  {effectiveBranch === 'all' ? 'All Clinic Branches' : effectiveBranch.toUpperCase()}
                 </span>
                 <span>
                   Report Date: {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -1032,7 +1032,7 @@ const InventoryReport: React.FC = () => {
               <div className="space-y-2 py-2 border-b border-slate-300">
                 <div className="text-center">
                   <h1 className="text-base sm:text-lg font-black tracking-wide uppercase text-slate-900">
-                    SCR-9.5 COLLEGE CLINIC MEDICINE/SUPPLIES INVENTORY REGISTER
+                    SCR-9.5 {effectiveBranch === 'all' ? 'ALL CLINIC BRANCHES' : effectiveBranch.toUpperCase()} MEDICINE/SUPPLIES INVENTORY REGISTER
                   </h1>
                 </div>
                 

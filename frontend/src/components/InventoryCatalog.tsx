@@ -258,9 +258,9 @@ const InventoryCatalog: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const itemsRes = await apiFetch('/api/index.php?route=inventory&action=items');
-      setItems(itemsRes.items || []);
       const branchParam = selectedBranchFilter !== 'all' ? `&branch=${encodeURIComponent(selectedBranchFilter)}` : '';
+      const itemsRes = await apiFetch(`/api/index.php?route=inventory&action=items${branchParam}`);
+      setItems(itemsRes.items || []);
       const batchesRes = await apiFetch(`/api/index.php?route=inventory&action=batches&include_all=1${branchParam}`);
       setBatches(batchesRes.batches || []);
     } catch (e) {
@@ -275,8 +275,13 @@ const InventoryCatalog: React.FC = () => {
   const batchesByItemId = React.useMemo(() => {
     const map = new Map<number, InventoryBatch[]>();
     for (const b of batches) {
-      if (selectedBranchFilter !== 'all' && b.clinic_branch !== selectedBranchFilter) {
-        continue;
+      if (selectedBranchFilter !== 'all') {
+        const isMatch = b.clinic_branch === selectedBranchFilter ||
+          ((selectedBranchFilter === 'Basic Education Clinic' || selectedBranchFilter === 'BED Clinic') &&
+           (b.clinic_branch === 'Basic Education Clinic' || b.clinic_branch === 'BED Clinic'));
+        if (!isMatch) {
+          continue;
+        }
       }
       const list = map.get(b.item_id) || [];
       list.push(b);
@@ -715,7 +720,7 @@ const InventoryCatalog: React.FC = () => {
       });
       if (res && res.success !== false) {
         setShowAddBatch(null);
-        setNewBatch({ item_id: 0, clinic_branch: 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
+        setNewBatch({ item_id: 0, clinic_branch: userBranch || 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
         fetchData();
       } else {
         alert(res?.message || 'Failed to add batch.');
@@ -2603,7 +2608,7 @@ const InventoryCatalog: React.FC = () => {
                 <div className="font-black text-lg text-red-800 uppercase">Cor Jesu College, Inc.</div>
                 <div className="text-xs text-slate-600">Sacred Heart Avenue, Digos City, Province of Davao del Sur, 8002 Philippines</div>
                 <div className="font-bold text-base mt-2 uppercase tracking-wide">Inventory of Equipment/Apparatus Tools and Materials</div>
-                <div className="text-xs mt-1">Area: <strong>College Clinic</strong> &nbsp;|&nbsp; S.Y.: <strong>{new Date().getFullYear()}-{new Date().getFullYear() + 1}</strong></div>
+                <div className="text-xs mt-1">Area: <strong>{selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')}</strong> &nbsp;|&nbsp; S.Y.: <strong>{new Date().getFullYear()}-{new Date().getFullYear() + 1}</strong></div>
               </div>
               <table className="w-full border-collapse text-xs">
                 <thead>
@@ -2642,15 +2647,15 @@ const InventoryCatalog: React.FC = () => {
         </div>
       )}
 
-      {/* SCRA / College Clinic Medicine/Supplies Inventory Print View (matching Page 5) */}
+      {/* SCRA / Medicine/Supplies Inventory Print View (matching Page 5) */}
       {exportData?.type === 'medicine' && (
         <div className="hidden print:block font-sans text-sm p-8">
           <div className="text-center mb-6 border-b-2 border-slate-800 pb-3">
             <div className="font-black text-xl text-red-900 uppercase tracking-wide">Cor Jesu College, Inc.</div>
             <div className="text-xs text-slate-600">Sacred Heart Avenue, Digos City, Province of Davao del Sur, 8002 Philippines</div>
-            <div className="text-xs text-slate-700 font-semibold mt-0.5">Basic Education Department / Health Services Clinic</div>
+            <div className="text-xs text-slate-700 font-semibold mt-0.5">{selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')} / Health Services Clinic</div>
             <div className="font-bold text-base mt-3 uppercase tracking-wider text-slate-900">
-              SCRA / COLLEGE CLINIC MEDICINE/SUPPLIES INVENTORY REGISTER
+              SCR-9.5 {(selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')).toUpperCase()} MEDICINE/SUPPLIES INVENTORY REGISTER
             </div>
             <div className="text-xs mt-1.5 flex items-center justify-center gap-4">
               <span>[{exportMedOptions.semester === '1st' ? 'X' : ' '}] 1st Semester</span>
@@ -2714,7 +2719,7 @@ const InventoryCatalog: React.FC = () => {
           <div className="text-center mb-4 border-b-2 border-slate-800 pb-3">
             <div className="font-black text-lg text-red-800 uppercase">Cor Jesu College, Inc.</div>
             <div className="text-xs text-slate-600">Sacred Heart Avenue, Digos City, Province of Davao del Sur, 8002 Philippines</div>
-            <div className="font-bold text-base mt-2 uppercase">College Clinic Calibration Register</div>
+            <div className="font-bold text-base mt-2 uppercase">{selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')} Calibration Register</div>
           </div>
           <table className="w-full border-collapse text-xs">
             <thead>

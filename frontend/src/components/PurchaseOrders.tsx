@@ -63,7 +63,8 @@ const PurchaseOrders: React.FC = () => {
 
   const fetchOrders = async () => {
     try {
-      const res = await apiFetch('/api/index.php?route=inventory&action=purchases');
+      const branchParam = isSuperAdmin && selectedBranch !== 'All Branches' ? `&branch=${encodeURIComponent(selectedBranch)}` : '';
+      const res = await apiFetch(`/api/index.php?route=inventory&action=purchases${branchParam}`);
       setOrders(res.purchases || []);
     } catch (e) {
       console.error(e);
@@ -72,7 +73,7 @@ const PurchaseOrders: React.FC = () => {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [selectedBranch]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
