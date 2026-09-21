@@ -5,12 +5,16 @@ import { FiGrid, FiUsers, FiActivity, FiClock, FiBox, FiLogOut, FiSettings, FiFi
 import { useConfirm } from '../context/ConfirmContext';
 import { useBranch } from '../context/BranchContext';
 import { SyncStatusBadge } from './SyncStatusBadge';
+import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
+
+const GOOGLE_CLIENT_ID = '814203352511-rp2uq7eajh56v8k9gnspbmureb2hpk3a.apps.googleusercontent.com';
 
 interface SavedAccount {
   username: string;
   name?: string;
   role?: string;
   branch?: string;
+  account_type?: string;
 }
 
 const SAVED_ACCOUNTS_KEY = 'cjc_saved_switch_accounts';
@@ -28,16 +32,18 @@ const getSavedAccountsFromStorage = (): SavedAccount[] => {
   return [];
 };
 
-const saveAccountToStorage = (acc: { username: string; name?: string; role?: string; clinic_branch?: string; branch?: string }): SavedAccount[] => {
-  if (!acc.username) return getSavedAccountsFromStorage();
+const saveAccountToStorage = (acc: { username: string; name?: string; role?: string; clinic_branch?: string; branch?: string; account_type?: string }): SavedAccount[] => {
+  if (!acc || !acc.username) return getSavedAccountsFromStorage();
   try {
     const list = getSavedAccountsFromStorage();
     const existingIdx = list.findIndex(a => a.username.toLowerCase() === acc.username.toLowerCase());
+    const accountType = acc.account_type || (acc.username.includes('@') ? 'gsuite' : 'personal');
     const newItem: SavedAccount = {
       username: acc.username,
       name: acc.name || acc.username,
       role: acc.role || 'Staff',
-      branch: acc.clinic_branch || acc.branch || 'College Clinic'
+      branch: acc.clinic_branch || acc.branch || 'College Clinic',
+      account_type: accountType
     };
     if (existingIdx >= 0) {
       list[existingIdx] = { ...list[existingIdx], ...newItem };
@@ -137,10 +143,42 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
     }
   };
 
+  const handleGoogleSwitchSuccess = async (credentialResponse: CredentialResponse) => {
+    setSwitchError('');
+    setSwitchLoading(true);
+    try {
+      await apiFetch('/api/index.php?action=logout', { method: 'POST' });
+      clearCsrfToken();
+
+      const response = await apiFetch('/api/index.php?action=google_login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: credentialResponse.credential }),
+      });
+      if (response.success) {
+        if (response.user) {
+          saveAccountToStorage(response.user);
+        }
+        window.location.href = '/dashboard';
+      } else {
+        setSwitchError(response.error || 'Google Login failed. Ensure you are using an authorized GSuite account.');
+        setSwitchLoading(false);
+      }
+    } catch {
+      setSwitchError('Network error. Could not connect to the server.');
+      setSwitchLoading(false);
+    }
+  };
+
   const handleSwitchAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!switchUsername.trim() || !switchPassword.trim()) {
-      setSwitchError('Please provide username and password.');
+    const isGsuite = switchUsername.includes('@');
+    if (!switchUsername.trim()) {
+      setSwitchError('Please provide username or email.');
+      return;
+    }
+    if (!isGsuite && !switchPassword.trim()) {
+      setSwitchError('Password is required to switch to a Personal account.');
       return;
     }
     setSwitchLoading(true);
@@ -451,7 +489,14 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded ${
+                                acc.account_type === 'gsuite' || acc.username.includes('@')
+                                  ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                  : 'bg-purple-100 text-purple-700 border border-purple-200'
+                              }`}>
+                                {acc.account_type === 'gsuite' || acc.username.includes('@') ? 'GSuite' : 'Personal'}
+                              </span>
                               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600">
                                 {acc.username}
                               </span>
@@ -476,9 +521,34 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                   )}
                 </div>
 
-                <form onSubmit={handleSwitchAccountSubmit} className="space-y-3">
+                <div className="pt-2 pb-3 border-t border-slate-100">
+                  <div className="flex items-center gap-3 mb-2.5">
+                    <div className="flex-1 h-px bg-slate-200" />
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Switch via GSuite Email</span>
+                    <div className="flex-1 h-px bg-slate-200" />
+                  </div>
+                  <div className="flex justify-center">
+                    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                      <GoogleLogin
+                        onSuccess={handleGoogleSwitchSuccess}
+                        onError={() => setSwitchError('Google Sign-In was unsuccessful.')}
+                        theme="outline"
+                        size="medium"
+                        text="continue_with"
+                        shape="rectangular"
+                      />
+                    </GoogleOAuthProvider>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSwitchAccountSubmit} className="space-y-3 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="flex-1 h-px bg-slate-200" />
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Or Switch via Username/Password</span>
+                    <div className="flex-1 h-px bg-slate-200" />
+                  </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600 block mb-1">Username</label>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Username / GSuite Email</label>
                     <div className="relative">
                       <FiUserCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                       <input
@@ -486,14 +556,19 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                         value={switchUsername}
                         onChange={(e) => setSwitchUsername(e.target.value)}
                         className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-[#C01D38] bg-slate-50 focus:bg-white"
-                        placeholder="Username"
+                        placeholder="Username or GSuite email"
                         required
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-600 block mb-1">Password</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs font-bold text-slate-600 block">Password</label>
+                      <span className={`text-[10px] font-bold ${switchUsername.includes('@') ? 'text-emerald-600 font-semibold' : 'text-amber-700 font-bold'}`}>
+                        {switchUsername.includes('@') ? 'Optional for GSuite' : 'Required for Personal Account'}
+                      </span>
+                    </div>
                     <div className="relative">
                       <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                       <input
@@ -501,8 +576,8 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
                         value={switchPassword}
                         onChange={(e) => setSwitchPassword(e.target.value)}
                         className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-[#C01D38] bg-slate-50 focus:bg-white"
-                        placeholder="Password"
-                        required
+                        placeholder={switchUsername.includes('@') ? "Password (optional if using Google Sign-In above)" : "Password (required for personal account)"}
+                        required={!switchUsername.includes('@')}
                       />
                     </div>
                   </div>

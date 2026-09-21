@@ -107,14 +107,17 @@ export default function Settings() {
   }, [activeTab]);
 
   const handleAddUser = async () => {
-    if (!newUser.username.trim()) return alert('Email / Username is required');
+    if (!newUser.username.trim()) return alert('Email / Username is required.');
+    if (newUser.account_type === 'personal' && !newUser.password.trim()) {
+      return alert('Password is mandatory for personal accounts (e.g., CollegeAdmin).');
+    }
     try {
       const res = await apiFetch('/api/index.php?route=auth&action=create_user', {
         method: 'POST',
         body: JSON.stringify(newUser)
       });
       if (res && res.success) {
-        setNewUser({ username: '', password: '', role: 'Staff', clinic_branch: 'College Clinic' });
+        setNewUser({ account_type: 'gsuite', username: '', password: '', name: '', role: 'Staff', clinic_branch: 'College Clinic' });
         fetchUsers();
         alert('User added successfully!');
       } else {
@@ -123,17 +126,42 @@ export default function Settings() {
     } catch (e: any) { alert(e?.message || 'Failed to add user.'); }
   };
 
-  const handleDeleteUser = async (id: number) => {
+  const handleResetUserPassword = async (u: any) => {
+    const newPass = prompt(`Enter new password for user "${u.username}":`);
+    if (!newPass || !newPass.trim()) return;
+    try {
+      const res = await apiFetch('/api/index.php?route=auth&action=reset_password', {
+        method: 'POST',
+        body: JSON.stringify({ id: u.id, new_password: newPass.trim() })
+      });
+      if (res && res.success) {
+        alert(`Password for ${u.username} has been updated successfully!`);
+      } else {
+        alert(res?.message || 'Failed to reset password.');
+      }
+    } catch (e) {
+      alert('Failed to reset password.');
+    }
+  };
+
+  const handleDeleteUser = async (id: number, username: string) => {
     const confirmed = await confirm({
-      title: 'Delete User',
-      message: 'Are you sure you want to delete this user?',
+      title: 'Delete User Account',
+      message: `Are you sure you want to delete the user account "${username}"?`,
       type: 'danger'
     });
     if (!confirmed) return;
     try {
-      await apiFetch('/api/index.php?route=auth&action=delete_user', { method: 'POST', body: JSON.stringify({ id }) });
-      fetchUsers();
-    } catch (e) { alert('Failed to delete user'); }
+      const res = await apiFetch('/api/index.php?route=auth&action=delete_user', { method: 'POST', body: JSON.stringify({ id }) });
+      if (res && res.success) {
+        alert(res.message || `User account "${username}" deleted successfully.`);
+        fetchUsers();
+      } else {
+        alert(res?.message || 'Failed to delete user.');
+      }
+    } catch (e) {
+      alert('Failed to delete user.');
+    }
   };
 
   const handleChangePassword = async () => {
@@ -477,48 +505,195 @@ export default function Settings() {
 
           {activeTab === 'users' && (
             <>
-              <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-                <h3 className="text-[#8c1526] font-bold text-lg mb-2">System Users</h3>
-                <p className="text-slate-500 text-sm mb-4">Accounts that can log in to CJC-Clinic+.</p>
-                
-                <div className="flex gap-2 mb-4 bg-slate-50 p-3 rounded border border-slate-200">
-                  <input type="text" placeholder="Google Email (@g.cjc.edu.ph)" className="border px-2 py-1 text-sm rounded flex-1" value={newUser.username} onChange={e=>setNewUser({...newUser, username: e.target.value})}/>
-                  <input type="password" placeholder="Password (Optional)" className="border px-2 py-1 text-sm rounded flex-1" value={newUser.password} onChange={e=>setNewUser({...newUser, password: e.target.value})}/>
-                  <select className="border px-2 py-1 text-sm rounded" value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})}>
-                    <option>Staff</option>
-                    <option>Admin</option>
-                    <option>Superadmin</option>
-                  </select>
-                  <select className="border px-2 py-1 text-sm rounded" value={newUser.clinic_branch || 'College Clinic'} onChange={e=>setNewUser({...newUser, clinic_branch: e.target.value})}>
-                    <option>College Clinic</option>
-                    <option>Basic Education Clinic</option>
-                    <option>Power Campus Clinic</option>
-                  </select>
-                  <button onClick={handleAddUser} className="bg-[#28a745] text-white px-3 py-1 rounded text-sm font-bold">+ Add User</button>
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                <div>
+                  <h3 className="text-[#8c1526] font-bold text-lg mb-1 flex items-center gap-2">
+                    <FiUsers className="w-5 h-5 text-[#8c1526]" /> System User Accounts
+                  </h3>
+                  <p className="text-slate-500 text-xs">Manage authorization and accounts for CJC Clinic system personnel.</p>
                 </div>
 
-                <table className="w-full text-left text-sm border-collapse border border-slate-200">
-                  <thead className="bg-slate-100 border-b border-slate-200">
-                    <tr>
-                      <th className="px-4 py-2 font-bold">Email / Username</th>
-                      <th className="px-4 py-2 font-bold">Role</th>
-                      <th className="px-4 py-2 font-bold">Branch</th>
-                      <th className="px-4 py-2 font-bold">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map(u => (
-                      <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="px-4 py-2">{u.username}</td>
-                        <td className="px-4 py-2">{u.role}</td>
-                        <td className="px-4 py-2 text-slate-500">{u.clinic_branch || 'College Clinic'}</td>
-                        <td className="px-4 py-2">
-                          <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 hover:text-red-800 text-xs font-bold bg-red-50 px-2 py-1 rounded">Delete</button>
-                        </td>
+                {/* Add User Panel */}
+                <div className="bg-slate-50/80 rounded-2xl border border-slate-200 p-5 space-y-4">
+                  <div className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                    Add New User Account
+                  </div>
+
+                  {/* Step 1: Account Type Selection */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-2">1. Select Account Type:</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setNewUser({ ...newUser, account_type: 'gsuite' })}
+                        className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 cursor-pointer ${
+                          newUser.account_type === 'gsuite'
+                            ? 'bg-blue-50/90 border-blue-500 text-blue-950 ring-2 ring-blue-500/20 shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-bold text-sm ${newUser.account_type === 'gsuite' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                          G
+                        </div>
+                        <div>
+                          <div className="text-xs font-extrabold flex items-center gap-1.5">
+                            GSuite Email Account
+                            <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">Google Login</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 font-normal">
+                            Uses official CJC email (@g.cjc.edu.ph). Password is optional since users log in via Google.
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setNewUser({ ...newUser, account_type: 'personal' })}
+                        className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 cursor-pointer ${
+                          newUser.account_type === 'personal'
+                            ? 'bg-rose-50/90 border-[#8c1526] text-rose-950 ring-2 ring-[#8c1526]/20 shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-bold text-sm ${newUser.account_type === 'personal' ? 'bg-[#8c1526] text-white' : 'bg-slate-200 text-slate-600'}`}>
+                          P
+                        </div>
+                        <div>
+                          <div className="text-xs font-extrabold flex items-center gap-1.5">
+                            Personal Account
+                            <span className="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-bold">Custom Username</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 font-normal">
+                            Custom login username (e.g. CollegeAdmin, BedAdmin). Password is <strong className="text-rose-700">MANDATORY</strong>.
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Step 2: Account Details Inputs */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-2">2. Account Credentials & Role:</label>
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5">
+                      <input 
+                        type="text" 
+                        placeholder={newUser.account_type === 'gsuite' ? "Email (@g.cjc.edu.ph)" : "Username (e.g. CollegeAdmin)"} 
+                        className="border border-slate-300 px-3 py-2 text-xs rounded-xl bg-white font-medium focus:outline-none focus:border-[#8c1526] md:col-span-2" 
+                        value={newUser.username} 
+                        onChange={e => setNewUser({ ...newUser, username: e.target.value })}
+                        required
+                      />
+                      <input 
+                        type="password" 
+                        placeholder={newUser.account_type === 'personal' ? "Password (Required *)" : "Password (Optional)"} 
+                        className={`border px-3 py-2 text-xs rounded-xl bg-white font-medium focus:outline-none focus:border-[#8c1526] ${
+                          newUser.account_type === 'personal' && !newUser.password ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                        }`} 
+                        value={newUser.password} 
+                        onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                        required={newUser.account_type === 'personal'}
+                      />
+                      <select 
+                        className="border border-slate-300 px-3 py-2 text-xs rounded-xl bg-white font-medium focus:outline-none focus:border-[#8c1526]" 
+                        value={newUser.role} 
+                        onChange={e => setNewUser({ ...newUser, role: e.target.value })}
+                      >
+                        <option value="Staff">Staff</option>
+                        <option value="Admin">Admin</option>
+                        <option value="Superadmin">Superadmin</option>
+                        <option value="Doctor">Doctor</option>
+                        <option value="Nurse">Nurse</option>
+                        <option value="Clerk">Clerk</option>
+                      </select>
+                      <select 
+                        className="border border-slate-300 px-3 py-2 text-xs rounded-xl bg-white font-medium focus:outline-none focus:border-[#8c1526]" 
+                        value={newUser.clinic_branch || 'College Clinic'} 
+                        onChange={e => setNewUser({ ...newUser, clinic_branch: e.target.value })}
+                      >
+                        <option value="College Clinic">College Clinic</option>
+                        <option value="Basic Education Clinic">Basic Education Clinic</option>
+                        <option value="Power Campus Clinic">Power Campus Clinic</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button 
+                      onClick={handleAddUser} 
+                      className="bg-[#8c1526] hover:bg-[#700d1e] text-white px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <FiPlus className="w-4 h-4" /> Add {newUser.account_type === 'gsuite' ? 'GSuite Account' : 'Personal Account'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Users Table */}
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-100/80 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold">
+                      <tr>
+                        <th className="px-4 py-3">Username / Email</th>
+                        <th className="px-4 py-3">Account Type</th>
+                        <th className="px-4 py-3">Role</th>
+                        <th className="px-4 py-3">Clinic Branch</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {users.map(u => {
+                        const isGSuite = u.account_type === 'gsuite' || u.username.includes('@');
+                        const isPrimarySuperadmin = u.username.toLowerCase() === 'superadmin';
+                        return (
+                          <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-4 py-3 font-semibold text-slate-800">
+                              <div className="flex items-center gap-2">
+                                <span>{u.username}</span>
+                                {isPrimarySuperadmin && (
+                                  <span className="text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                                    System Primary
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              {isGSuite ? (
+                                <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                                  GSuite Email
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 bg-rose-50 text-[#8c1526] border border-rose-200 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                                  Personal Account
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-slate-700">{u.role}</td>
+                            <td className="px-4 py-3 text-slate-500">{u.clinic_branch || 'College Clinic'}</td>
+                            <td className="px-4 py-3 text-right space-x-2">
+                              <button 
+                                onClick={() => handleResetUserPassword(u)} 
+                                className="text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer"
+                              >
+                                Set Password
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteUser(u.id, u.username)} 
+                                disabled={isPrimarySuperadmin}
+                                title={isPrimarySuperadmin ? "The primary superadmin account cannot be deleted" : "Delete account"}
+                                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all ${
+                                  isPrimarySuperadmin
+                                    ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                                    : 'text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 cursor-pointer'
+                                }`}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">

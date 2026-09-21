@@ -81,29 +81,31 @@ class AuthController extends BaseController {
         $name = $payload['name'] ?? explode('@', $email)[0];
         
         $pdo = cjcDatabaseConnection();
-        $stmt = $pdo->prepare('SELECT id, username, password_hash, name, role, clinic_branch FROM users WHERE username = :username LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, username, password_hash, name, role, clinic_branch, account_type FROM users WHERE username = :username LIMIT 1');
         $stmt->execute(['username' => $username]);
         $user = $stmt->fetch();
         
         if (!$user) {
             // User does not exist in the database. Reject login.
             $this->jsonResponse(['success' => false, 'error' => 'Access Denied. Your account has not been authorized by the administrator.'], 403);
-            $branch = trim($user['clinic_branch'] ?? '');
-            $user = [
-                'id' => $user['id'],
-                'username' => $user['username'],
-                'name' => $user['name'],
-                'role' => $user['role'],
-                'clinic_branch' => !empty($branch) ? $branch : 'College Clinic'
-            ];
         }
         
+        $branch = trim($user['clinic_branch'] ?? '');
+        $userData = [
+            'id' => $user['id'],
+            'username' => $user['username'],
+            'name' => $user['name'],
+            'role' => $user['role'],
+            'clinic_branch' => !empty($branch) ? $branch : 'College Clinic',
+            'account_type'  => $user['account_type'] ?? 'gsuite'
+        ];
+        
         session_regenerate_id(true);
-        $_SESSION['cjc_user'] = $user;
+        $_SESSION['cjc_user'] = $userData;
         $_SESSION['cjc_last_activity'] = time();
         cjcLogAudit('Signed in with Google.', 'SIGN_IN', 'Sign-in');
         
-        $this->jsonResponse(['success' => true, 'user' => $user]);
+        $this->jsonResponse(['success' => true, 'user' => $userData]);
     }
 
 
@@ -127,8 +129,21 @@ class AuthController extends BaseController {
         cjcRequireAuth();
         cjcRequireRole(['Admin', 'Superadmin']); // Assuming Admin can manage users
         $pdo = cjcDatabaseConnection();
-        $stmt = $pdo->query('SELECT id, username, name, role, clinic_branch, created_at FROM users ORDER BY username ASC');
-        $this->jsonResponse(['users' => $stmt->fetchAll()]);
+
+        try {
+            @$pdo->exec("ALTER TABLE users ADD COLUMN account_type ENUM('gsuite', 'personal') DEFAULT 'personal'");
+            @$pdo->exec("UPDATE users SET account_type = 'gsuite' WHERE username LIKE '%@%' AND (account_type IS NULL OR account_type = '')");
+            @$pdo->exec("UPDATE users SET account_type = 'personal' WHERE username NOT LIKE '%@%' AND (account_type IS NULL OR account_type = '')");
+        } catch (Exception $e) {}
+
+        $stmt = $pdo->query('SELECT id, username, name, role, clinic_branch, account_type, created_at FROM users ORDER BY username ASC');
+        $users = $stmt->fetchAll();
+        foreach ($users as &$u) {
+            if (empty($u['account_type'])) {
+                $u['account_type'] = (str_contains($u['username'], '@')) ? 'gsuite' : 'personal';
+            }
+        }
+        $this->jsonResponse(['users' => $users]);
     }
 
     public function createUser() {
@@ -140,11 +155,17 @@ class AuthController extends BaseController {
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         $username = trim($input['username'] ?? '');
         $password = $input['password'] ?? '';
-        $name = trim($input['name'] ?? $username);
+        $name = trim($input['name'] ?? '');
+        if (empty($name)) $name = $username;
         $role = trim($input['role'] ?? 'Staff');
         $clinic_branch = trim($input['clinic_branch'] ?? 'College Clinic');
+        $account_type = trim($input['account_type'] ?? '');
         
-        $allowedRoles = ['Superadmin', 'Admin', 'Staff', 'Clerk'];
+        if (empty($account_type)) {
+            $account_type = (str_contains($username, '@')) ? 'gsuite' : 'personal';
+        }
+
+        $allowedRoles = ['Superadmin', 'Admin', 'Staff', 'Clerk', 'Doctor', 'Nurse'];
         if (!in_array($role, $allowedRoles, true)) {
             $this->jsonResponse(['success' => false, 'message' => 'Invalid role specified.'], 400);
         }
@@ -157,16 +178,28 @@ class AuthController extends BaseController {
         }
         
         if (empty($username)) {
-            $this->jsonResponse(['success' => false, 'message' => 'Username is required.'], 400);
+            $this->jsonResponse(['success' => false, 'message' => 'Username or email is required.'], 400);
         }
-        if (empty($password)) {
-            $password = bin2hex(random_bytes(16));
+
+        if ($account_type === 'personal') {
+            if (empty($password)) {
+                $this->jsonResponse(['success' => false, 'message' => 'Password is mandatory for personal accounts (e.g., CollegeAdmin).'], 400);
+            }
+        } else {
+            // For GSuite Email accounts, password is optional
+            if (empty($password)) {
+                $password = bin2hex(random_bytes(16));
+            }
         }
         
         $pdo = cjcDatabaseConnection();
         try {
-            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, name, role, clinic_branch) VALUES (?, ?, ?, ?, ?)');
-            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $name, $role, $clinic_branch]);
+            @$pdo->exec("ALTER TABLE users ADD COLUMN account_type ENUM('gsuite', 'personal') DEFAULT 'personal'");
+        } catch (Exception $e) {}
+
+        try {
+            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, name, role, clinic_branch, account_type) VALUES (?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $name, $role, $clinic_branch, $account_type]);
             $this->jsonResponse(['success' => true]);
         } catch (PDOException $e) {
             if ($e->getCode() == 23000) {
@@ -185,14 +218,41 @@ class AuthController extends BaseController {
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         $id = (int)($input['id'] ?? 0);
         
-        if ($id === $_SESSION['cjc_user']['id']) {
-            $this->jsonResponse(['success' => false, 'message' => 'Cannot delete yourself.'], 400);
+        if ($id === (int)($_SESSION['cjc_user']['id'] ?? 0)) {
+            $this->jsonResponse(['success' => false, 'message' => 'You cannot delete the account you are currently logged in to. Please switch to another admin account first.'], 400);
         }
         
         $pdo = cjcDatabaseConnection();
-        $stmt = $pdo->prepare('DELETE FROM users WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT username, role FROM users WHERE id = ?');
         $stmt->execute([$id]);
-        $this->jsonResponse(['success' => true]);
+        $user = $stmt->fetch();
+        
+        if (!$user) {
+            $this->jsonResponse(['success' => false, 'message' => 'User account not found.'], 404);
+        }
+
+        if (strtolower($user['username']) === 'superadmin') {
+            $this->jsonResponse(['success' => false, 'message' => 'The primary "superadmin" system account cannot be deleted.'], 400);
+        }
+
+        try {
+            // Nullify foreign key references so accounts with activity logs can be safely deleted
+            try { $pdo->prepare('UPDATE audit_logs SET user_id = NULL WHERE user_id = ?')->execute([$id]); } catch (\Exception $e) {}
+            try { $pdo->prepare('UPDATE password_resets SET user_id = NULL WHERE user_id = ?')->execute([$id]); } catch (\Exception $e) {}
+            try { $pdo->prepare('UPDATE borrowings SET released_by = NULL WHERE released_by = ?')->execute([$id]); } catch (\Exception $e) {}
+            try { $pdo->prepare('UPDATE borrowed_item_returns SET processed_by = NULL WHERE processed_by = ?')->execute([$id]); } catch (\Exception $e) {}
+            try { $pdo->prepare('UPDATE inventory_logs SET processed_by = NULL WHERE processed_by = ?')->execute([$id]); } catch (\Exception $e) {}
+            try { $pdo->prepare('UPDATE inventory_dispensations SET processed_by = NULL WHERE processed_by = ?')->execute([$id]); } catch (\Exception $e) {}
+            try { $pdo->prepare('UPDATE appointments SET created_by = NULL WHERE created_by = ?')->execute([$id]); } catch (\Exception $e) {}
+
+            $stmt = $pdo->prepare('DELETE FROM users WHERE id = ?');
+            $stmt->execute([$id]);
+            $this->jsonResponse(['success' => true, 'message' => 'User account deleted successfully.']);
+        } catch (\PDOException $e) {
+            $this->jsonResponse(['success' => false, 'message' => 'Cannot delete user because they have linked records: ' . $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => 'Failed to delete user.'], 500);
+        }
     }
 
     public function resetPassword() {
@@ -360,7 +420,7 @@ class AuthController extends BaseController {
     private function authenticateUser(string $username, string $password): ?array {
         try {
             $pdo = cjcDatabaseConnection();
-            $stmt = $pdo->prepare('SELECT id, username, password_hash, name, role, clinic_branch FROM users WHERE LOWER(username) = LOWER(:username) LIMIT 1');
+            $stmt = $pdo->prepare('SELECT id, username, password_hash, name, role, clinic_branch, account_type FROM users WHERE LOWER(username) = LOWER(:username) LIMIT 1');
             $stmt->execute(['username' => $username]);
             $user = $stmt->fetch();
 
@@ -372,6 +432,7 @@ class AuthController extends BaseController {
                     'name'          => $user['name'],
                     'role'          => $user['role'],
                     'clinic_branch' => !empty($branch) ? $branch : 'College Clinic',
+                    'account_type'  => $user['account_type'] ?? (str_contains($user['username'], '@') ? 'gsuite' : 'personal'),
                 ];
             }
         } catch (PDOException $exception) {

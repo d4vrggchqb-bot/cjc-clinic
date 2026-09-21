@@ -46,6 +46,9 @@ try {
     try { $pdo->exec("ALTER TABLE `consultations` ADD COLUMN `appointment_id` INT NULL AFTER `profile_id`;"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE `consultations` ADD CONSTRAINT `fk_consultations_appointment` FOREIGN KEY (`appointment_id`) REFERENCES `appointments`(`id`) ON DELETE SET NULL;"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE `appointments` MODIFY COLUMN `status` ENUM('Scheduled', 'In Consultation', 'Completed', 'Cancelled', 'No-Show') DEFAULT 'Scheduled';"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `account_type` ENUM('gsuite', 'personal') DEFAULT 'personal';"); } catch (Exception $e) {}
+    try { $pdo->exec("UPDATE `users` SET `account_type` = 'gsuite' WHERE `username` LIKE '%@%';"); } catch (Exception $e) {}
+    try { $pdo->exec("UPDATE `users` SET `account_type` = 'personal' WHERE `username` NOT LIKE '%@%';"); } catch (Exception $e) {}
 
     // Inventory Batches: Main vs Drawer & Batch details
     try { $pdo->exec("ALTER TABLE `inventory_batches` ADD COLUMN `main_stock` INT NOT NULL DEFAULT 0 AFTER `stock_remaining`;"); } catch (Exception $e) {}
