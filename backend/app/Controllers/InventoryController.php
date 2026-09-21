@@ -51,6 +51,7 @@ class InventoryController extends BaseController {
             ");
             $stmt->execute();
         } else {
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
             $stmt = $pdo->prepare("
                 SELECT i.*, 
                        COALESCE(SUM(CASE WHEN b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as remaining_stock,
@@ -63,7 +64,7 @@ class InventoryController extends BaseController {
                            (SELECT SUM(l.quantity_changed) 
                             FROM inventory_logs l 
                             JOIN inventory_batches b2 ON l.batch_id = b2.id 
-                            WHERE b2.item_id = i.id AND l.action_type = 'restock' AND b2.clinic_branch = ?), 0
+                            WHERE b2.item_id = i.id AND l.action_type = 'restock' AND (b2.clinic_branch = ? OR b2.clinic_branch = ?)), 0
                          )
                        ) as overall_stock,
                        (SELECT file_url FROM equipment_calibrations WHERE item_id = i.id AND file_url IS NOT NULL ORDER BY id DESC LIMIT 1) as latest_cert_url,
@@ -72,11 +73,11 @@ class InventoryController extends BaseController {
                        (SELECT calibrated_by FROM equipment_calibrations WHERE item_id = i.id ORDER BY id DESC LIMIT 1) as latest_calibrated_by,
                        (SELECT COUNT(*) FROM equipment_calibrations WHERE item_id = i.id) as cert_count
                 FROM inventory_items i
-                LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.clinic_branch = ?
+                LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
                 GROUP BY i.id 
                 ORDER BY i.generic_name ASC
             ");
-            $stmt->execute([$branch, $branch]);
+            $stmt->execute([$branch, $branchAlt, $branch, $branchAlt]);
         }
 
         $items = $stmt->fetchAll();
@@ -230,8 +231,10 @@ class InventoryController extends BaseController {
         }
         
         if ($branch !== 'all' && $branch !== 'All Branches') {
-            $whereClauses[] = "b.clinic_branch = :branch";
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            $whereClauses[] = "(b.clinic_branch = :branch OR b.clinic_branch = :branchAlt)";
             $params['branch'] = $branch;
+            $params['branchAlt'] = $branchAlt;
         }
 
         $whereSql = count($whereClauses) > 0 ? "WHERE " . implode(" AND ", $whereClauses) : "";
@@ -550,14 +553,15 @@ class InventoryController extends BaseController {
         cjcRequireAuth();
         $pdo = cjcDatabaseConnection();
         $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : ($_GET['branch'] ?? $this->getUserBranch());
+        $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
         $stmt = $pdo->prepare("
             SELECT i.id, i.category, i.generic_name, i.brand_name, i.dosage, i.formulation, IFNULL(SUM(b.stock_remaining), 0) as total_stock, i.alert_threshold
             FROM inventory_items i
-            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.clinic_branch = :branch
+            LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = :branch OR b.clinic_branch = :branchAlt)
             GROUP BY i.id
             HAVING total_stock <= i.alert_threshold
         ");
-        $stmt->execute(['branch' => $branch]);
+        $stmt->execute(['branch' => $branch, 'branchAlt' => $branchAlt]);
         $this->jsonResponse(['low_stock' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     }
 
@@ -566,13 +570,16 @@ class InventoryController extends BaseController {
         cjcRequireAuth();
         $pdo = cjcDatabaseConnection();
         if (!$this->isSuperAdmin()) {
-            $stmt = $pdo->prepare("SELECT * FROM purchase_requests WHERE clinic_branch = ? ORDER BY requested_date DESC");
-            $stmt->execute([$this->getUserBranch()]);
+            $branch = $this->getUserBranch();
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            $stmt = $pdo->prepare("SELECT * FROM purchase_requests WHERE (clinic_branch = ? OR clinic_branch = ?) ORDER BY requested_date DESC");
+            $stmt->execute([$branch, $branchAlt]);
         } else {
             $branch = $_GET['branch'] ?? 'all';
             if ($branch !== 'all' && $branch !== 'All Branches') {
-                $stmt = $pdo->prepare("SELECT * FROM purchase_requests WHERE clinic_branch = ? ORDER BY requested_date DESC");
-                $stmt->execute([$branch]);
+                $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+                $stmt = $pdo->prepare("SELECT * FROM purchase_requests WHERE (clinic_branch = ? OR clinic_branch = ?) ORDER BY requested_date DESC");
+                $stmt->execute([$branch, $branchAlt]);
             } else {
                 $stmt = $pdo->query("SELECT * FROM purchase_requests ORDER BY requested_date DESC");
             }
@@ -679,11 +686,17 @@ class InventoryController extends BaseController {
         $branchFilter = "";
         $params = [];
         if (!$this->isSuperAdmin()) {
-            $branchFilter = " WHERE b.clinic_branch = ? ";
-            $params[] = $this->getUserBranch();
+            $branch = $this->getUserBranch();
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            $branchFilter = " WHERE (b.clinic_branch = ? OR b.clinic_branch = ?) ";
+            $params[] = $branch;
+            $params[] = $branchAlt;
         } else if (!empty($_GET['branch']) && $_GET['branch'] !== 'all' && $_GET['branch'] !== 'All Branches') {
-            $branchFilter = " WHERE b.clinic_branch = ? ";
-            $params[] = $_GET['branch'];
+            $branch = $_GET['branch'];
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            $branchFilter = " WHERE (b.clinic_branch = ? OR b.clinic_branch = ?) ";
+            $params[] = $branch;
+            $params[] = $branchAlt;
         }
 
         $stmt = $pdo->prepare("
@@ -1121,6 +1134,7 @@ class InventoryController extends BaseController {
         cjcRequireAuth();
         $pdo = cjcDatabaseConnection();
         $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : ($_GET['branch'] ?? $this->getUserBranch());
+        $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
 
         $stmt = $pdo->prepare("
             SELECT i.id, i.generic_name, i.brand_name, i.formulation, i.serial_no, i.model_no,
@@ -1129,12 +1143,12 @@ class InventoryController extends BaseController {
                    (SELECT ec.serial_no FROM equipment_calibrations ec WHERE ec.item_id = i.id AND ec.serial_no IS NOT NULL ORDER BY ec.id DESC LIMIT 1) as latest_calib_serial,
                    i.last_calibrated, i.calibration_due
             FROM inventory_items i
-            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.clinic_branch = ?
+            LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
             WHERE i.category = 'equipment'
             GROUP BY i.id
             ORDER BY i.generic_name ASC
         ");
-        $stmt->execute([$branch]);
+        $stmt->execute([$branch, $branchAlt]);
         $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $this->jsonResponse(['success' => true, 'items' => $items]);
     }
@@ -1144,18 +1158,19 @@ class InventoryController extends BaseController {
         cjcRequireAuth();
         $pdo = cjcDatabaseConnection();
         $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : ($_GET['branch'] ?? $this->getUserBranch());
+        $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
 
         $stmt = $pdo->prepare("
             SELECT i.id, i.generic_name, i.brand_name, i.dosage, i.formulation,
                    COALESCE(SUM(CASE WHEN b.status = 'active' THEN b.stock_remaining ELSE 0 END), 0) as quantity,
                    MIN(CASE WHEN b.status = 'active' AND b.stock_remaining > 0 THEN b.expired_on ELSE NULL END) as earliest_expiry
             FROM inventory_items i
-            LEFT JOIN inventory_batches b ON i.id = b.item_id AND b.clinic_branch = ?
+            LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
             WHERE i.category IN ('medicine', 'supply')
             GROUP BY i.id
             ORDER BY i.generic_name ASC
         ");
-        $stmt->execute([$branch]);
+        $stmt->execute([$branch, $branchAlt]);
         $rawItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $today = new DateTime();
@@ -1182,6 +1197,8 @@ class InventoryController extends BaseController {
         $pdo = cjcDatabaseConnection();
 
         if (!$this->isSuperAdmin()) {
+            $branch = $this->getUserBranch();
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
             $stmt = $pdo->prepare("
                 SELECT ec.id, ec.calibration_date, ec.created_at,
                        i.generic_name as equipment_name,
@@ -1191,10 +1208,10 @@ class InventoryController extends BaseController {
                 FROM equipment_calibrations ec
                 JOIN inventory_items i ON ec.item_id = i.id
                 LEFT JOIN inventory_batches b ON ec.batch_id = b.id
-                WHERE ec.cert_type = 'external_upload' AND (b.clinic_branch = ? OR b.clinic_branch IS NULL)
+                WHERE ec.cert_type = 'external_upload' AND (b.clinic_branch = ? OR b.clinic_branch = ? OR b.clinic_branch IS NULL)
                 ORDER BY ec.calibration_date DESC, ec.created_at DESC
             ");
-            $stmt->execute([$this->getUserBranch()]);
+            $stmt->execute([$branch, $branchAlt]);
         } else {
             $stmt = $pdo->prepare("
                 SELECT ec.id, ec.calibration_date, ec.created_at,
@@ -1274,8 +1291,10 @@ class InventoryController extends BaseController {
         $batchParams = [];
 
         if ($branch !== 'all') {
-            $batchWhere[] = "b.clinic_branch = :branch";
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            $batchWhere[] = "(b.clinic_branch = :branch OR b.clinic_branch = :branchAlt)";
             $batchParams['branch'] = $branch;
+            $batchParams['branchAlt'] = $branchAlt;
         }
 
         if ($semester !== 'all' && !empty($semester)) {
@@ -1806,8 +1825,10 @@ class InventoryController extends BaseController {
         $branchSql = "";
         $params = [];
         if ($branch !== 'all' && $branch !== 'All Branches') {
-            $branchSql = " AND b.clinic_branch = :branch ";
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            $branchSql = " AND (b.clinic_branch = :branch OR b.clinic_branch = :branchAlt) ";
             $params['branch'] = $branch;
+            $params['branchAlt'] = $branchAlt;
         }
 
         try {
@@ -1897,8 +1918,10 @@ class InventoryController extends BaseController {
         $params = [];
 
         if ($branch !== 'all' && $branch !== 'All Branches') {
-            $where[] = "b.clinic_branch = :branch";
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            $where[] = "(b.clinic_branch = :branch OR b.clinic_branch = :branchAlt)";
             $params['branch'] = $branch;
+            $params['branchAlt'] = $branchAlt;
         }
 
         if ($actionFilter !== 'all') {
