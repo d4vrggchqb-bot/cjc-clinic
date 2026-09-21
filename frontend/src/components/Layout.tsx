@@ -178,7 +178,7 @@ const Layout: React.FC<{ children: React.ReactNode, user?: any }> = ({ children,
     { id: 'patients', label: 'PATIENT LIST', icon: FiUsers, roles: ['Admin', 'Staff', 'Doctor', 'Nurse'] },
     { id: 'consultation', label: 'CONSULTATION', icon: FiActivity, roles: ['Admin', 'Staff', 'Doctor', 'Nurse'] },
     { id: 'appointments', label: 'APPOINTMENTS', icon: FiClock, roles: ['Admin', 'Staff', 'Doctor', 'Nurse'] },
-    { id: 'inventory', label: 'INVENTORY', icon: FiBox, roles: ['Admin', 'Staff', 'Doctor', 'Nurse'] },
+    { id: 'inventory', label: 'INVENTORY', icon: FiBox, roles: ['Superadmin', 'Admin', 'Staff', 'Doctor', 'Nurse'] },
     { id: 'borrowings', label: 'EQUIPMENT BOOKING', icon: FiCalendar, roles: ['Admin', 'Staff', 'Doctor', 'Nurse'] },
     { id: 'reports', label: 'REPORTS', icon: FiFileText, roles: ['Superadmin', 'Admin', 'Staff', 'Doctor', 'Nurse'] },
     { id: 'settings', label: 'SYSTEM SETTINGS', icon: FiSettings, roles: ['Superadmin'] }

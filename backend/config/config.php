@@ -119,6 +119,11 @@ function cjcRequireAuth(): void
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
+
+    // Release session lock early for GET requests to allow concurrent requests without blocking
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+        session_write_close();
+    }
 }
 
 // ─── CSRF Protection ─────────────────────────────────────────────────────────

@@ -24,9 +24,14 @@ import {
   FiFileText,
   FiDownload,
   FiExternalLink,
-  FiPaperclip
+  FiPaperclip,
+  FiRepeat,
+  FiInbox
 } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
+import { useBranch } from '../context/BranchContext';
+import TransferToDrawerModal from './TransferToDrawerModal';
+import AddMedicineModal from './AddMedicineModal';
 
 interface InventoryItem {
   id: number;
@@ -42,6 +47,9 @@ interface InventoryItem {
   alert_threshold: number;
   overall_stock?: number;
   remaining_stock?: number;
+  main_stock?: number;
+  drawer_stock?: number;
+  total_stock?: number;
   date_acquired?: string | null;
   date_purchased?: string | null;
   last_calibrated?: string | null;
@@ -78,18 +86,22 @@ interface InventoryBatch {
   item_id: number;
   clinic_branch: string;
   batch_number: string | null;
+  lot_number?: string | null;
   stock_remaining: number;
+  main_stock?: number;
+  drawer_stock?: number;
   initial_stock?: number;
   dispensed_qty?: number;
   disposed_qty?: number;
   date_arrived: string | null;
   expired_on: string | null;
+  restock_semester?: string | null;
+  school_year?: string | null;
   last_calibrated?: string | null;
   calibration_due?: string | null;
   calibration_notes?: string | null;
   status: string;
 }
-
 
 interface BatchLog {
   id: number;
@@ -215,19 +227,41 @@ const InventoryCatalog: React.FC = () => {
     calibration_due?: string;
     calibration_notes?: string;
   }>({ category: 'medicine', customCategory: '', brand_name: '', generic_name: '', dosage: '', formulation: '', alert_threshold: 20 });
+  const { userBranch, isSuperAdmin, selectedBranch, setSelectedBranch } = useBranch();
+
+  // Branch filter: Default to user's assigned branch! Non-superadmin is strictly locked to userBranch.
+  const initialBranchFilter = isSuperAdmin 
+    ? (selectedBranch === 'All Branches' ? 'all' : (selectedBranch || userBranch || 'all')) 
+    : (userBranch || 'College Clinic');
+
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(initialBranchFilter);
+
+  useEffect(() => {
+    if (!isSuperAdmin) {
+      setSelectedBranchFilter(userBranch || 'College Clinic');
+    } else if (selectedBranch) {
+      setSelectedBranchFilter(selectedBranch === 'All Branches' ? 'all' : selectedBranch);
+    }
+  }, [userBranch, selectedBranch, isSuperAdmin]);
+
   const [editItemForm, setEditItemForm] = useState<InventoryItem | null>(null);
-  const [newBatch, setNewBatch] = useState({ item_id: 0, clinic_branch: 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
+  const [newBatch, setNewBatch] = useState({ item_id: 0, clinic_branch: userBranch || 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
   const [editBatchData, setEditBatchData] = useState({ batch_id: 0, batch_number: '', date_arrived: '', expired_on: '', stock_remaining: 0, last_calibrated: '', calibration_due: '', calibration_notes: '' });
 
-  const [dispenseData, setDispenseData] = useState({ clinic_branch: 'College Clinic', quantity: 1, disposed_to: '', reason: '' });
+  const [dispenseData, setDispenseData] = useState({ clinic_branch: userBranch || 'College Clinic', quantity: 1, disposed_to: '', reason: '' });
 
-  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
+  // Dual Pool Tab & Modals State matching clinic workflow
+  const [poolTab, setPoolTab] = useState<'all' | 'main' | 'drawer'>('all');
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferBatchId, setTransferBatchId] = useState<number | null>(null);
+  const [showAddMedicineModal, setShowAddMedicineModal] = useState(false);
 
   const fetchData = async () => {
     try {
       const itemsRes = await apiFetch('/api/index.php?route=inventory&action=items');
       setItems(itemsRes.items || []);
-      const batchesRes = await apiFetch('/api/index.php?route=inventory&action=batches&include_all=1');
+      const branchParam = selectedBranchFilter !== 'all' ? `&branch=${encodeURIComponent(selectedBranchFilter)}` : '';
+      const batchesRes = await apiFetch(`/api/index.php?route=inventory&action=batches&include_all=1${branchParam}`);
       setBatches(batchesRes.batches || []);
     } catch (e) {
       console.error(e);
@@ -236,7 +270,7 @@ const InventoryCatalog: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [selectedBranchFilter]);
 
   const batchesByItemId = React.useMemo(() => {
     const map = new Map<number, InventoryBatch[]>();
@@ -251,10 +285,38 @@ const InventoryCatalog: React.FC = () => {
     return map;
   }, [batches, selectedBranchFilter]);
 
+  const getMainStock = (itemId: number) => {
+    const itemBatches = batchesByItemId.get(itemId) || [];
+    return itemBatches
+      .filter(b => b.status !== 'depleted')
+      .reduce((sum, b) => sum + (b.main_stock !== undefined ? b.main_stock : b.stock_remaining), 0);
+  };
+
+  const getDrawerStock = (itemId: number) => {
+    const itemBatches = batchesByItemId.get(itemId) || [];
+    return itemBatches
+      .filter(b => b.status !== 'depleted')
+      .reduce((sum, b) => sum + (b.drawer_stock !== undefined ? b.drawer_stock : 0), 0);
+  };
+
   const getRemainingStock = (itemId: number) => {
     const itemBatches = batchesByItemId.get(itemId) || [];
     return itemBatches.filter(b => b.status !== 'depleted').reduce((sum, b) => sum + b.stock_remaining, 0);
   };
+
+  const poolCounts = React.useMemo(() => {
+    let mainCount = 0;
+    let drawerCount = 0;
+    items.forEach(item => {
+      if (getMainStock(item.id) > 0) mainCount++;
+      if (getDrawerStock(item.id) > 0) drawerCount++;
+    });
+    return {
+      all: items.length,
+      main: mainCount,
+      drawer: drawerCount
+    };
+  }, [items, batchesByItemId]);
 
   const getOverallStock = (item: InventoryItem) => {
     const itemBatches = batchesByItemId.get(item.id) || [];
@@ -704,6 +766,10 @@ const InventoryCatalog: React.FC = () => {
   // Filtered items computation memoized
   const filteredItems = React.useMemo(() => {
     return items.filter(item => {
+      // Dual-Pool Filter
+      if (poolTab === 'main' && getMainStock(item.id) <= 0) return false;
+      if (poolTab === 'drawer' && getDrawerStock(item.id) <= 0) return false;
+
       if (categoryFilter !== 'all') {
         if (categoryFilter === 'other') {
           if (['medicine', 'supply', 'equipment'].includes(item.category)) return false;
@@ -730,46 +796,169 @@ const InventoryCatalog: React.FC = () => {
 
       return true;
     });
-  }, [items, categoryFilter, statusFilter, searchTerm, batchesByItemId]);
+  }, [items, categoryFilter, statusFilter, searchTerm, poolTab, batchesByItemId]);
 
   return (
     <div className="flex flex-col h-full space-y-4">
-      {/* Header & Primary Actions */}
+      {/* Top Header & Dual Pool Subtabs matching Clinic Workflow */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-2 border-b border-slate-100">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Dual-Pool Tabs matching Clinic Photo Page 1 */}
+          <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setPoolTab('all')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                poolTab === 'all'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Total Inventory ({poolCounts.all})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPoolTab('main')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                poolTab === 'main'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-blue-700 hover:text-blue-900'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+              Main Inventory ({poolCounts.main})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPoolTab('drawer')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                poolTab === 'drawer'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-emerald-700 hover:text-emerald-900'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              Drawer Inventory ({poolCounts.drawer})
+            </button>
+          </div>
+        </div>
+
+        {/* Primary Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-start lg:justify-end">
+          {!isSuperAdmin ? (
+            <>
+              {/* Transfer to Drawer Button (Page 3) */}
+              <button
+                type="button"
+                onClick={() => { setTransferBatchId(null); setShowTransferModal(true); }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl flex items-center text-xs font-semibold shadow-sm transition-all gap-1.5 cursor-pointer"
+                title="Transfer bulk medicine from Main to Drawer"
+              >
+                <FiRepeat className="text-sm" /> Transfer to Drawer
+              </button>
+
+              {/* Add Medicine Button (Page 2) */}
+              <button
+                type="button"
+                onClick={() => setShowAddMedicineModal(true)}
+                className="bg-[#A5192D] hover:bg-[#8c1526] text-white px-3.5 py-2 rounded-xl flex items-center text-xs font-semibold shadow-sm transition-all gap-1.5 cursor-pointer"
+                title="Add fresh medicine stocks to Main Inventory"
+              >
+                <FiPlus className="text-sm" /> Add Medicine
+              </button>
+
+              {/* Catalog Item (Supplies / Equipment) */}
+              <button
+                type="button"
+                onClick={() => setShowAddItem(true)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-3 py-2 rounded-xl flex items-center text-xs font-medium transition-colors gap-1 cursor-pointer"
+                title="Create new catalog definition for equipment or supplies"
+              >
+                <FiBox className="text-xs" /> New Item
+              </button>
+            </>
+          ) : (
+            <span className="px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-semibold flex items-center gap-1.5">
+              <FiEye className="w-3.5 h-3.5 text-amber-600" /> Read-Only View
+            </span>
+          )}
+
+          {/* Export Dropdown / Buttons */}
+          <div className="flex items-center gap-1 border-l border-slate-200 pl-2 ml-1">
+            <button
+              onClick={() => setShowExportMedModal(true)}
+              disabled={isExporting}
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-2 rounded-lg flex items-center text-xs font-medium shadow-xs transition-colors gap-1"
+              title="Export Official SCRA Medicine Register (Page 5)"
+            >
+              <FiPrinter size={12} /> SCRA Register
+            </button>
+            <button
+              onClick={() => { setShowExportEquipModal(false); handleExportEquipment(); }}
+              disabled={isExporting}
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-2 rounded-lg flex items-center text-xs font-medium shadow-xs transition-colors gap-1"
+              title="Export Equipment & Physical Assets Register"
+            >
+              <FiPrinter size={12} /> Equipment
+            </button>
+            <button
+              onClick={() => handleExportCalibRegister()}
+              disabled={isExporting}
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-2 rounded-lg flex items-center text-xs font-medium shadow-xs transition-colors gap-1"
+              title="Export Calibration Register"
+            >
+              <FiPrinter size={12} /> Calibration
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter and Search Toolbar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <h2 className="text-xl font-semibold text-slate-800 flex items-center">
-          <FiBox className="mr-2" /> Catalog Items
-        </h2>
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto flex-1">
           {/* Search Box */}
-          <div className="relative flex-1 sm:w-64">
+          <div className="relative flex-1 sm:w-72">
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
               type="text"
-              placeholder="Search items..."
+              placeholder="Search medicines, dosage, brand..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-red-700 bg-white"
+              className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-[#A5192D] bg-white"
             />
           </div>
           
           {/* Branch Filter Dropdown */}
           <select 
             value={selectedBranchFilter} 
-            onChange={(e) => setSelectedBranchFilter(e.target.value)}
-            className="border border-slate-300 text-sm rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:border-red-700 bg-white font-medium"
-            title="Filter stock by clinic branch"
+            disabled={!isSuperAdmin}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedBranchFilter(val);
+              if (isSuperAdmin) {
+                setSelectedBranch(val === 'all' ? 'All Branches' : val);
+              }
+            }}
+            className="border border-slate-300 text-xs sm:text-sm rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-[#A5192D] bg-white font-medium disabled:bg-slate-100 disabled:text-slate-700 disabled:cursor-not-allowed"
+            title={isSuperAdmin ? "Filter stock by clinic branch" : `Assigned Branch: ${userBranch} (Role Restricted)`}
           >
-            <option value="all">🏢 All Branches (Combined)</option>
-            <option value="College Clinic">College Clinic</option>
-            <option value="Basic Education Clinic">Basic Education Clinic</option>
-            <option value="Power Campus Clinic">Power Campus Clinic</option>
+            {isSuperAdmin && <option value="all">🏢 All Branches</option>}
+            {isSuperAdmin ? (
+              <>
+                <option value="College Clinic">College Clinic</option>
+                <option value="Basic Education Clinic">Basic Education Clinic</option>
+                <option value="Power Campus Clinic">Power Campus Clinic</option>
+              </>
+            ) : (
+              <option value={userBranch}>🏢 {userBranch}</option>
+            )}
           </select>
 
           {/* Category Dropdown */}
           <select 
             value={categoryFilter} 
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="border border-slate-300 text-sm rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:border-red-700 bg-white font-medium"
+            className="border border-slate-300 text-xs sm:text-sm rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-[#A5192D] bg-white font-medium"
           >
             <option value="all">All Categories</option>
             <option value="medicine">Medicine</option>
@@ -777,36 +966,6 @@ const InventoryCatalog: React.FC = () => {
             <option value="equipment">Equipments</option>
             <option value="other">Others</option>
           </select>
-
-          <button onClick={() => setShowAddItem(true)} className="bg-red-700 text-white px-4 py-2 rounded-md hover:bg-red-800 flex items-center text-sm font-medium shadow-sm transition-colors shrink-0">
-            <FiPlus className="mr-1" /> New Catalog Item
-          </button>
-
-          {/* Export Buttons */}
-          <button
-            onClick={() => { setShowExportEquipModal(false); handleExportEquipment(); }}
-            disabled={isExporting}
-            className="bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-md flex items-center text-xs font-medium shadow-sm transition-colors shrink-0 gap-1"
-            title="Export Equipment Inventory"
-          >
-            <FiPrinter size={13} /> Equipment Inventory
-          </button>
-          <button
-            onClick={() => setShowExportMedModal(true)}
-            disabled={isExporting}
-            className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-md flex items-center text-xs font-medium shadow-sm transition-colors shrink-0 gap-1"
-            title="Export Medicine/Supplies Inventory (SCR-9.5)"
-          >
-            <FiPrinter size={13} /> Medicine Register
-          </button>
-          <button
-            onClick={() => handleExportCalibRegister()}
-            disabled={isExporting}
-            className="bg-blue-700 hover:bg-blue-800 text-white px-3 py-2 rounded-md flex items-center text-xs font-medium shadow-sm transition-colors shrink-0 gap-1"
-            title="Export Calibration Register"
-          >
-            <FiPrinter size={13} /> Calibration Register
-          </button>
         </div>
       </div>
 
@@ -878,8 +1037,9 @@ const InventoryCatalog: React.FC = () => {
             <tr>
               <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Item Name</th>
               <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Category</th>
-              <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Overall Stock</th>
-              <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Remaining Stock</th>
+              <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-center">Main Stock</th>
+              <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-center">Drawer Stock</th>
+              <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-center">Total Available</th>
               <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Alert / Status</th>
               <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-right">Actions</th>
             </tr>
@@ -887,14 +1047,15 @@ const InventoryCatalog: React.FC = () => {
           <tbody className="divide-y divide-slate-100">
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-slate-500 italic text-sm">
+                <td colSpan={7} className="p-8 text-center text-slate-500 italic text-sm">
                   No catalog items found matching the selected filter criteria.
                 </td>
               </tr>
             ) : (
               filteredItems.map(item => {
-                const overallStock = getOverallStock(item);
                 const remainingStock = getRemainingStock(item.id);
+                const itemMainStock = getMainStock(item.id);
+                const itemDrawerStock = getDrawerStock(item.id);
                 const isLowStock = isItemLowStock(item);
                 const isExpanded = expandedItemId === item.id;
                 const itemBatches = batchesByItemId.get(item.id) || [];
@@ -909,7 +1070,7 @@ const InventoryCatalog: React.FC = () => {
                   <React.Fragment key={item.id}>
                     <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => toggleExpand(item.id)}>
                       <td className="p-3">
-                        <div className="font-medium text-slate-800">{item.generic_name}</div>
+                        <div className="font-semibold text-slate-800">{item.generic_name}</div>
                         <div className="text-xs text-slate-500">
                           {item.brand_name || 'No Brand'} 
                           {item.dosage ? ` - ${item.dosage}` : ''}
@@ -919,14 +1080,23 @@ const InventoryCatalog: React.FC = () => {
                       <td className="p-3">
                         <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-md capitalize font-medium">{item.category}</span>
                       </td>
-                      <td className="p-3">
-                        <span className="font-semibold text-slate-700 text-sm">
-                          {overallStock}
+                      <td className="p-3 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded text-xs font-bold ${
+                          itemMainStock > 0 ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-slate-100 text-slate-400'
+                        }`}>
+                          {itemMainStock}
                         </span>
                       </td>
-                      <td className="p-3">
-                        <div className="flex items-center">
-                          <span className={`font-bold text-sm ${isLowStock ? 'text-orange-600' : 'text-emerald-600'}`}>
+                      <td className="p-3 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded text-xs font-bold ${
+                          itemDrawerStock > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-400'
+                        }`}>
+                          {itemDrawerStock}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center">
+                          <span className={`font-bold text-sm ${isLowStock ? 'text-orange-600' : 'text-slate-800'}`}>
                             {remainingStock}
                           </span>
                           {isLowStock && <FiAlertCircle className="ml-1.5 text-orange-500" title="Low Stock Alert" />}
@@ -934,6 +1104,34 @@ const InventoryCatalog: React.FC = () => {
                       </td>
                       <td className="p-3">
                         <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          {/* Drawer Low / Empty Alert Badges */}
+                          {['medicine', 'supply'].includes(item.category) && itemDrawerStock <= 0 && itemMainStock > 0 && (
+                            <span 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTransferBatchId(null);
+                                setShowTransferModal(true);
+                              }}
+                              className="px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1 cursor-pointer hover:bg-amber-200/80 transition-colors" 
+                              title="Drawer stock is empty! Click to transfer medicine from Main Stockroom"
+                            >
+                              <FiInbox size={11} /> Drawer Empty
+                            </span>
+                          )}
+                          {['medicine', 'supply'].includes(item.category) && itemDrawerStock > 0 && itemDrawerStock <= (item.alert_threshold > 0 ? Math.ceil(item.alert_threshold / 2) : 5) && itemMainStock > 0 && (
+                            <span 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTransferBatchId(null);
+                                setShowTransferModal(true);
+                              }}
+                              className="px-2 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1 cursor-pointer hover:bg-blue-100 transition-colors" 
+                              title="Drawer stock is low! Click to replenish from Main Stockroom"
+                            >
+                              <FiInbox size={11} /> Drawer Low
+                            </span>
+                          )}
+
                           {/* Expiry Status Badge */}
                           {earliestBatch && expiryDiffDays !== null && (
                             expiryDiffDays <= 0 ? (
@@ -965,25 +1163,27 @@ const InventoryCatalog: React.FC = () => {
                           )}
 
                           {/* Default status when everything is fine */}
-                          {(!earliestBatch || expiryDiffDays === null || expiryDiffDays > 60) && (!isEquipment || calibDiffDays === null) && !isLowStock && (
+                          {(!earliestBatch || expiryDiffDays === null || expiryDiffDays > 60) && (!isEquipment || calibDiffDays === null) && !isLowStock && (itemDrawerStock > 0 || itemMainStock <= 0) && (
                             <span className="text-slate-400 text-xs italic">Normal</span>
                           )}
                         </div>
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right whitespace-nowrap">
                         {item.category === 'equipment' && (
                           <div className="inline-flex items-center gap-1 mr-1">
                             {/* Upload External Cert Button */}
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); handleOpenUploadCert(item); }}
-                              className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
-                              title="Upload Calibration Certificate from External Calibrator"
-                            >
-                              <FiUploadCloud size={12} /> Upload Cert
-                            </button>
+                            {!isSuperAdmin && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleOpenUploadCert(item); }}
+                                className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                title="Upload Calibration Certificate from External Calibrator"
+                              >
+                                <FiUploadCloud size={12} /> Upload Cert
+                              </button>
+                            )}
 
-                            {/* Calibration History / View Certs Button */}
+                            {/* Calibration History / View Certs Button (Superadmin can view) */}
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); handleOpenCalibHistory(item); }}
@@ -995,32 +1195,51 @@ const InventoryCatalog: React.FC = () => {
                           </div>
                         )}
 
+                        {!isSuperAdmin && (
+                          <>
+                            {/* Quick Transfer to Drawer Button */}
+                            {itemMainStock > 0 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTransferBatchId(null);
+                                  setShowTransferModal(true);
+                                }}
+                                className="text-blue-600 hover:text-blue-800 p-1 mx-0.5 rounded hover:bg-blue-50 transition-colors inline-flex items-center cursor-pointer"
+                                title="Transfer stock from Main to Drawer"
+                              >
+                                <FiRepeat size={16} />
+                              </button>
+                            )}
 
-                        <button 
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            setShowEditItem(item); 
-                            setEditItemForm({ ...item }); 
-                          }} 
-                          className="text-slate-600 hover:text-slate-900 p-1 mx-1" 
-                          title="Edit Item Details & Calibration"
-                        >
-                          <FiEdit3 size={16} />
-                        </button>
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setShowEditItem(item); 
+                                setEditItemForm({ ...item }); 
+                              }} 
+                              className="text-slate-600 hover:text-slate-900 p-1 mx-0.5 cursor-pointer" 
+                              title="Edit Item Details & Calibration"
+                            >
+                              <FiEdit3 size={16} />
+                            </button>
 
-                        <button onClick={(e) => { e.stopPropagation(); setShowAddBatch(item.id); }} className="text-emerald-600 hover:text-emerald-800 p-1 mx-1" title="Restock (Add Batch)">
-                          <FiPlusCircle size={18} />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setShowDispense(item.id); }} className="text-blue-600 hover:text-blue-800 p-1 mx-1" title="Dispense (FEFO)">
-                          <FiMinusCircle size={18} />
-                        </button>
-                        {isExpanded ? <FiChevronUp className="inline ml-2" /> : <FiChevronDown className="inline ml-2" />}
+                            <button onClick={(e) => { e.stopPropagation(); setShowAddBatch(item.id); }} className="text-emerald-600 hover:text-emerald-800 p-1 mx-0.5 cursor-pointer" title="Restock (Add Batch)">
+                              <FiPlusCircle size={18} />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); setShowDispense(item.id); }} className="text-blue-600 hover:text-blue-800 p-1 mx-0.5 cursor-pointer" title="Dispense (FEFO)">
+                              <FiMinusCircle size={18} />
+                            </button>
+                          </>
+                        )}
+                        {isExpanded ? <FiChevronUp className="inline ml-1" /> : <FiChevronDown className="inline ml-1" />}
                       </td>
                     </tr>
                     
                     {isExpanded && (
                       <tr className="bg-slate-50 border-b-2 border-slate-200">
-                        <td colSpan={6} className="p-4">
+                        <td colSpan={7} className="p-4">
                           <div className="bg-white rounded-md border border-slate-200 p-3 shadow-inner">
                             <div className="flex justify-between items-center mb-2">
                               <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -1039,11 +1258,11 @@ const InventoryCatalog: React.FC = () => {
                                 <thead>
                                   <tr className="text-slate-500 border-b border-slate-100 bg-slate-50/50">
                                     <th className="p-2">Branch</th>
-                                    <th className="p-2">Batch #</th>
-                                    <th className="p-2 text-center">Initial Stock</th>
-                                    <th className="p-2 text-center">Dispensed</th>
-                                    <th className="p-2 text-center">Expired / Disposed</th>
-                                    <th className="p-2 text-center">Remaining</th>
+                                    <th className="p-2">LOT / Batch #</th>
+                                    <th className="p-2">Restock Period</th>
+                                    <th className="p-2 text-center">Main Stock</th>
+                                    <th className="p-2 text-center">Drawer Stock</th>
+                                    <th className="p-2 text-center">Total Remaining</th>
                                     <th className="p-2">Arrived</th>
                                     <th className="p-2">Expiry</th>
                                     <th className="p-2">Status</th>
@@ -1055,9 +1274,8 @@ const InventoryCatalog: React.FC = () => {
                                     const bDiff = getDaysDifference(b.expired_on);
                                     const isBatchExpired = bDiff !== null && bDiff <= 0;
                                     const isBatchNear = bDiff !== null && bDiff > 0 && bDiff <= 60;
-                                    const dispensed = b.dispensed_qty || 0;
-                                    const disposed = b.disposed_qty || 0;
-                                    const initial = b.initial_stock !== undefined ? b.initial_stock : (b.stock_remaining + dispensed + disposed);
+                                    const bMainStock = b.main_stock !== undefined ? b.main_stock : b.stock_remaining;
+                                    const bDrawerStock = b.drawer_stock !== undefined ? b.drawer_stock : 0;
 
                                     return (
                                       <tr 
@@ -1067,10 +1285,21 @@ const InventoryCatalog: React.FC = () => {
                                         title="Click to view detailed batch trace audit & disposal logs"
                                       >
                                         <td className="p-2 font-medium">{b.clinic_branch}</td>
-                                        <td className="p-2 font-mono font-bold text-slate-700">#{b.batch_number || b.id}</td>
-                                        <td className="p-2 text-center font-medium text-slate-600">{initial}</td>
-                                        <td className="p-2 text-center font-bold text-blue-600">{dispensed}</td>
-                                        <td className="p-2 text-center font-bold text-rose-600">{disposed}</td>
+                                        <td className="p-2 font-mono font-bold text-slate-700">#{b.lot_number || b.batch_number || b.id}</td>
+                                        <td className="p-2 text-slate-600">
+                                          <div>{b.restock_semester || '1st Sem'}</div>
+                                          {b.school_year && <div className="text-[10px] text-slate-400">{b.school_year}</div>}
+                                        </td>
+                                        <td className="p-2 text-center">
+                                          <span className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded text-[11px]">
+                                            {bMainStock}
+                                          </span>
+                                        </td>
+                                        <td className="p-2 text-center">
+                                          <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded text-[11px]">
+                                            {bDrawerStock}
+                                          </span>
+                                        </td>
                                         <td className="p-2 text-center font-bold text-slate-900">{b.stock_remaining}</td>
                                         <td className="p-2 text-slate-500">{b.date_arrived || 'N/A'}</td>
                                         <td className="p-2">
@@ -1089,67 +1318,97 @@ const InventoryCatalog: React.FC = () => {
                                             {b.stock_remaining === 0 ? 'depleted' : b.status}
                                           </span>
                                         </td>
-                                        <td className="p-2 text-right space-x-1" onClick={e => e.stopPropagation()}>
-                                           {isEquipment && (
-                                             <>
-                                               <button
-                                                 type="button"
-                                                 onClick={() => handleOpenUploadCert(item, b)}
-                                                 className="bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
-                                                 title={`Upload Calibration Cert for Batch #${b.batch_number || b.id}`}
-                                               >
-                                                 <FiUploadCloud size={11} /> Calib
-                                               </button>
-                                               <button
-                                                 type="button"
-                                                 onClick={() => handleOpenCalibCertForm(item, b)}
-                                                 className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
-                                                 title={`Generate CJC Calibration Cert for Batch #${b.batch_number || b.id}`}
-                                               >
-                                                 <FiPrinter size={11} /> Cert
-                                               </button>
-                                             </>
-                                           )}
+                                        <td className="p-2 text-right space-x-1 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                                            {/* Transfer this batch to drawer */}
+                                            {!isSuperAdmin && bMainStock > 0 && (
+                                              !isBatchExpired ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setTransferBatchId(b.id);
+                                                    setShowTransferModal(true);
+                                                  }}
+                                                  className="bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                                  title="Transfer units from this batch to Drawer"
+                                                >
+                                                  <FiRepeat size={11} /> Transfer
+                                                </button>
+                                              ) : (
+                                                <span 
+                                                  className="bg-slate-100 text-slate-400 border border-slate-200 px-2 py-1 rounded text-[11px] font-medium inline-flex items-center gap-1 cursor-not-allowed select-none opacity-60"
+                                                  title="Expired batch cannot be transferred to drawer"
+                                                >
+                                                  <FiRepeat size={11} /> Transfer
+                                                </span>
+                                              )
+                                            )}
 
-                                           <button 
-                                             type="button"
-                                             onClick={() => handleOpenBatchDetails(b.id)}
-                                             className="bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
-                                             title="View Full Batch Trace Audit & Logs"
-                                           >
-                                             <FiEye size={11} /> Details
-                                           </button>
+                                            {isEquipment && (
+                                              <>
+                                                {!isSuperAdmin && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleOpenUploadCert(item, b)}
+                                                    className="bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                                    title={`Upload Calibration Cert for Batch #${b.batch_number || b.id}`}
+                                                  >
+                                                    <FiUploadCloud size={11} /> Calib
+                                                  </button>
+                                                )}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleOpenCalibCertForm(item, b)}
+                                                  className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                                  title={`Generate CJC Calibration Cert for Batch #${b.batch_number || b.id}`}
+                                                >
+                                                  <FiPrinter size={11} /> Cert
+                                                </button>
+                                              </>
+                                            )}
 
-                                           {b.stock_remaining > 0 && (
-                                             <button 
-                                               type="button"
-                                               onClick={() => {
-                                                 setShowDisposeModal(b);
-                                                 setDisposeForm({ quantity: b.stock_remaining, reason: 'Expired / Unconsumed Disposal', disposed_to: 'CJC Hazardous Medical Waste Bin' });
-                                               }}
-                                               className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
-                                               title="Dispose Unconsumed / Expired Stock"
-                                             >
-                                               <FiTrash2 size={11} /> Dispose
-                                             </button>
-                                           )}
+                                            <button 
+                                              type="button"
+                                              onClick={() => handleOpenBatchDetails(b.id)}
+                                              className="bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                              title="View Full Batch Trace Audit & Logs"
+                                            >
+                                              <FiEye size={11} /> Details
+                                            </button>
 
-                                           <button onClick={() => {
-                                             setEditBatchData({
-                                               batch_id: b.id,
-                                               batch_number: b.batch_number || '',
-                                               date_arrived: b.date_arrived || '',
-                                               expired_on: b.expired_on || '',
-                                               stock_remaining: b.stock_remaining,
-                                               last_calibrated: b.last_calibrated || '',
-                                               calibration_due: b.calibration_due || '',
-                                               calibration_notes: b.calibration_notes || ''
-                                             });
-                                             setShowEditBatch(true);
-                                           }} className="text-slate-500 hover:text-slate-800 p-1" title="Edit Batch">
-                                             <FiEdit3 size={13} />
-                                           </button>
-                                         </td>
+                                            {!isSuperAdmin && (
+                                              <>
+                                                {b.stock_remaining > 0 && (
+                                                  <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setShowDisposeModal(b);
+                                                      setDisposeForm({ quantity: b.stock_remaining, reason: 'Expired / Unconsumed Disposal', disposed_to: 'CJC Hazardous Medical Waste Bin' });
+                                                    }}
+                                                    className="bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                                    title="Dispose Unconsumed / Expired Stock"
+                                                  >
+                                                    <FiTrash2 size={11} /> Dispose
+                                                  </button>
+                                                )}
+
+                                                <button onClick={() => {
+                                                  setEditBatchData({
+                                                    batch_id: b.id,
+                                                    batch_number: b.batch_number || '',
+                                                    date_arrived: b.date_arrived || '',
+                                                    expired_on: b.expired_on || '',
+                                                    stock_remaining: b.stock_remaining,
+                                                    last_calibrated: b.last_calibrated || '',
+                                                    calibration_due: b.calibration_due || '',
+                                                    calibration_notes: b.calibration_notes || ''
+                                                  });
+                                                  setShowEditBatch(true);
+                                                }} className="text-slate-500 hover:text-slate-800 p-1 cursor-pointer" title="Edit Batch">
+                                                  <FiEdit3 size={13} />
+                                                </button>
+                                              </>
+                                            )}
+                                          </td>
                                       </tr>
                                     );
                                   })}
@@ -1635,10 +1894,21 @@ const InventoryCatalog: React.FC = () => {
             <form onSubmit={handleAddBatch} className="space-y-3">
               <div>
                 <label className="block text-sm font-medium mb-1">Clinic Branch</label>
-                <select className="w-full border p-2 rounded" value={newBatch.clinic_branch} onChange={e => setNewBatch({...newBatch, clinic_branch: e.target.value})}>
-                  <option value="College Clinic">College Clinic</option>
-                  <option value="BED Clinic">BED Clinic</option>
-                  <option value="Power Campus Clinic">Power Campus Clinic</option>
+                <select 
+                  className="w-full border p-2 rounded disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed" 
+                  value={isSuperAdmin ? newBatch.clinic_branch : userBranch} 
+                  disabled={!isSuperAdmin}
+                  onChange={e => setNewBatch({...newBatch, clinic_branch: e.target.value})}
+                >
+                  {isSuperAdmin ? (
+                    <>
+                      <option value="College Clinic">College Clinic</option>
+                      <option value="Basic Education Clinic">Basic Education Clinic</option>
+                      <option value="Power Campus Clinic">Power Campus Clinic</option>
+                    </>
+                  ) : (
+                    <option value={userBranch}>{userBranch}</option>
+                  )}
                 </select>
               </div>
               <div>
@@ -1677,10 +1947,21 @@ const InventoryCatalog: React.FC = () => {
             <form onSubmit={handleDispense} className="space-y-3">
               <div>
                 <label className="block text-sm font-medium mb-1">From Clinic Branch</label>
-                <select className="w-full border p-2 rounded" value={dispenseData.clinic_branch} onChange={e => setDispenseData({...dispenseData, clinic_branch: e.target.value})}>
-                  <option value="College Clinic">College Clinic</option>
-                  <option value="BED Clinic">BED Clinic</option>
-                  <option value="Power Campus Clinic">Power Campus Clinic</option>
+                <select 
+                  className="w-full border p-2 rounded disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed" 
+                  value={isSuperAdmin ? dispenseData.clinic_branch : userBranch} 
+                  disabled={!isSuperAdmin}
+                  onChange={e => setDispenseData({...dispenseData, clinic_branch: e.target.value})}
+                >
+                  {isSuperAdmin ? (
+                    <>
+                      <option value="College Clinic">College Clinic</option>
+                      <option value="Basic Education Clinic">Basic Education Clinic</option>
+                      <option value="Power Campus Clinic">Power Campus Clinic</option>
+                    </>
+                  ) : (
+                    <option value={userBranch}>{userBranch}</option>
+                  )}
                 </select>
               </div>
               <div>
@@ -2361,42 +2642,69 @@ const InventoryCatalog: React.FC = () => {
         </div>
       )}
 
-      {/* Medicine/Supplies Inventory Print View (rendered off-screen for print) */}
+      {/* SCRA / College Clinic Medicine/Supplies Inventory Print View (matching Page 5) */}
       {exportData?.type === 'medicine' && (
         <div className="hidden print:block font-sans text-sm p-8">
-          <div className="text-center mb-4 border-b-2 border-slate-800 pb-3">
-            <div className="font-black text-lg text-red-800 uppercase">Cor Jesu College, Inc.</div>
+          <div className="text-center mb-6 border-b-2 border-slate-800 pb-3">
+            <div className="font-black text-xl text-red-900 uppercase tracking-wide">Cor Jesu College, Inc.</div>
             <div className="text-xs text-slate-600">Sacred Heart Avenue, Digos City, Province of Davao del Sur, 8002 Philippines</div>
-            <div className="font-bold text-base mt-2 uppercase">SCR-9.5 College Clinic Medicine/Supplies Inventory Register</div>
-            <div className="text-xs mt-1">
-              [{exportMedOptions.semester === '1st' ? 'X' : ' '}] 1st Semester &nbsp; [{exportMedOptions.semester === '2nd' ? 'X' : ' '}] 2nd Semester &nbsp; S.Y. [{exportMedOptions.school_year}]
+            <div className="text-xs text-slate-700 font-semibold mt-0.5">Basic Education Department / Health Services Clinic</div>
+            <div className="font-bold text-base mt-3 uppercase tracking-wider text-slate-900">
+              SCRA / COLLEGE CLINIC MEDICINE/SUPPLIES INVENTORY REGISTER
             </div>
-            <div className="text-xs mt-1 font-semibold">As of {new Date(exportMedOptions.as_of).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+            <div className="text-xs mt-1.5 flex items-center justify-center gap-4">
+              <span>[{exportMedOptions.semester === '1st' ? 'X' : ' '}] 1st Semester</span>
+              <span>[{exportMedOptions.semester === '2nd' ? 'X' : ' '}] 2nd Semester</span>
+              <span>S.Y. [{exportMedOptions.school_year}]</span>
+            </div>
+            <div className="text-xs mt-1 font-semibold text-slate-600">
+              As of {new Date(exportMedOptions.as_of).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
           </div>
           <table className="w-full border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-100">
-                <th className="border border-slate-400 p-1.5 text-center">Item No.</th>
-                <th className="border border-slate-400 p-1.5">Medicine Name</th>
-                <th className="border border-slate-400 p-1.5">Dosage/Strength</th>
-                <th className="border border-slate-400 p-1.5 text-center">Quantity</th>
-                <th className="border border-slate-400 p-1.5 text-center">Expiry Date</th>
-                <th className="border border-slate-400 p-1.5">Remarks</th>
+              <tr className="bg-slate-100 uppercase text-[11px] font-bold">
+                <th className="border border-slate-400 p-2 text-center w-12">Item No.</th>
+                <th className="border border-slate-400 p-2 text-left">Generic Name / Description</th>
+                <th className="border border-slate-400 p-2 text-left">Brand / Dosage</th>
+                <th className="border border-slate-400 p-2 text-center">Quantity on Hand</th>
+                <th className="border border-slate-400 p-2 text-center">Expiry Date</th>
+                <th className="border border-slate-400 p-2 text-left">Remarks</th>
               </tr>
             </thead>
             <tbody>
               {exportData.items.map((item: any, idx: number) => (
                 <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                  <td className="border border-slate-300 p-1.5 text-center">{idx + 1}</td>
-                  <td className="border border-slate-300 p-1.5 font-medium">{item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''}</td>
-                  <td className="border border-slate-300 p-1.5">{item.dosage || item.formulation || '---'}</td>
-                  <td className="border border-slate-300 p-1.5 text-center">{item.quantity} {item.formulation || ''}</td>
-                  <td className="border border-slate-300 p-1.5 text-center">{item.earliest_expiry ? new Date(item.earliest_expiry).toLocaleDateString('en-PH', {month:'2-digit', year:'numeric'}) : 'N/A'}</td>
-                  <td className="border border-slate-300 p-1.5">{item.remarks}</td>
+                  <td className="border border-slate-300 p-2 text-center font-medium">{idx + 1}</td>
+                  <td className="border border-slate-300 p-2 font-semibold text-slate-800">{item.generic_name}</td>
+                  <td className="border border-slate-300 p-2">{item.brand_name || ''} {item.dosage || item.formulation || '---'}</td>
+                  <td className="border border-slate-300 p-2 text-center font-bold">{item.quantity} {item.unit || item.formulation || 'pcs'}</td>
+                  <td className="border border-slate-300 p-2 text-center">{item.earliest_expiry ? new Date(item.earliest_expiry).toLocaleDateString('en-PH', {month:'2-digit', year:'numeric'}) : 'N/A'}</td>
+                  <td className="border border-slate-300 p-2 text-slate-600 italic">
+                    {item.remarks || `Dispensed ready. Will expire on ${item.earliest_expiry ? new Date(item.earliest_expiry).toLocaleDateString('en-PH', {month:'short', year:'numeric'}) : 'N/A'}`}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          {/* Signature Sign-offs matching Page 5 */}
+          <div className="mt-12 grid grid-cols-2 gap-12 text-xs pt-6">
+            <div>
+              <p className="text-slate-500 mb-8">Prepared by:</p>
+              <div className="border-t border-slate-700 w-64 pt-1">
+                <p className="font-bold text-slate-800 uppercase">Registered Clinic Nurse</p>
+                <p className="text-[11px] text-slate-500">CJC Health Services Clinic</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-slate-500 mb-8">Noted by:</p>
+              <div className="border-t border-slate-700 w-64 pt-1">
+                <p className="font-bold text-slate-800 uppercase">School Physician / Clinic In-Charge</p>
+                <p className="text-[11px] text-slate-500">Cor Jesu College, Inc.</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2434,6 +2742,30 @@ const InventoryCatalog: React.FC = () => {
           </table>
         </div>
       )}
+
+      {/* Transfer to Drawer Modal (Page 3) */}
+      <TransferToDrawerModal
+        isOpen={showTransferModal}
+        onClose={() => {
+          setShowTransferModal(false);
+          setTransferBatchId(null);
+        }}
+        onSuccess={() => {
+          fetchData();
+        }}
+        preselectedBatchId={transferBatchId}
+        clinicBranch={selectedBranchFilter !== 'all' ? selectedBranchFilter : userBranch}
+      />
+
+      {/* Add Medicine Modal (Page 2) */}
+      <AddMedicineModal
+        isOpen={showAddMedicineModal}
+        onClose={() => setShowAddMedicineModal(false)}
+        onSuccess={() => {
+          fetchData();
+        }}
+        clinicBranch={selectedBranchFilter !== 'all' ? selectedBranchFilter : userBranch}
+      />
 
     </div>
   );

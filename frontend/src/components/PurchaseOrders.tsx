@@ -3,6 +3,7 @@ import { apiFetch } from '../utils/api';
 import { FiPlus, FiCheckCircle } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
+import { useBranch } from '../context/BranchContext';
 
 
 interface PurchaseOrder {
@@ -21,6 +22,7 @@ interface PurchaseOrder {
 
 const PurchaseOrders: React.FC = () => {
   const { confirm } = useConfirm();
+  const { userBranch, isSuperAdmin } = useBranch();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showReceive, setShowReceive] = useState<PurchaseOrder | null>(null);
@@ -32,7 +34,7 @@ const PurchaseOrders: React.FC = () => {
     brand_name: '', 
     dosage: '',
     formulation: '',
-    clinic_branch: 'College Clinic',
+    clinic_branch: userBranch || 'College Clinic',
     supplier: '',
     quantity_ordered: 1,
     expected_delivery_date: ''
@@ -46,7 +48,7 @@ const PurchaseOrders: React.FC = () => {
       brand_name: '',
       dosage: '',
       formulation: '',
-      clinic_branch: 'College Clinic',
+      clinic_branch: userBranch || 'College Clinic',
       supplier: '',
       quantity_ordered: 1,
       expected_delivery_date: ''
@@ -188,14 +190,20 @@ const PurchaseOrders: React.FC = () => {
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-slate-800">Purchase Orders</h2>
-        <div className="flex gap-2">
-          <button onClick={handleDraftFromLowStock} className="bg-orange-100 text-orange-800 px-4 py-2 rounded-md hover:bg-orange-200 flex items-center text-sm font-medium transition-colors cursor-pointer">
-            Draft from Low Stock
-          </button>
-          <button onClick={() => setShowAdd(true)} className="bg-[#8c1526] text-white px-4 py-2 rounded-md hover:bg-[#7a1221] flex items-center text-sm font-medium cursor-pointer shadow-sm">
-            <FiPlus className="mr-1" /> New Order
-          </button>
-        </div>
+        {!isSuperAdmin ? (
+          <div className="flex gap-2">
+            <button onClick={handleDraftFromLowStock} className="bg-orange-100 text-orange-800 px-4 py-2 rounded-md hover:bg-orange-200 flex items-center text-sm font-medium transition-colors cursor-pointer">
+              Draft from Low Stock
+            </button>
+            <button onClick={() => setShowAdd(true)} className="bg-[#8c1526] text-white px-4 py-2 rounded-md hover:bg-[#7a1221] flex items-center text-sm font-medium cursor-pointer shadow-sm">
+              <FiPlus className="mr-1" /> New Order
+            </button>
+          </div>
+        ) : (
+          <span className="px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-semibold">
+            Read-Only View
+          </span>
+        )}
       </div>
 
       <div className="overflow-auto flex-1 border border-slate-200 rounded-lg">
@@ -237,22 +245,28 @@ const PurchaseOrders: React.FC = () => {
                   </span>
                 </td>
                 <td className="p-3 text-right">
-                  {order.status === 'pending' && (
-                    <button onClick={() => handleUpdateStatus(order.id, 'approved')} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer mr-2">Approve</button>
-                  )}
-                  {order.status === 'approved' && (
-                    <button onClick={async () => {
-                      setReceiveData({ actual_quantity: order.quantity_ordered, expiry_date: '', batch_number: 'Loading...' });
-                      setShowReceive(order);
-                      try {
-                        const res = await apiFetch(`/api/index.php?route=inventory&action=get_next_batch&generic_name=${encodeURIComponent(order.generic_name)}&category=${encodeURIComponent(order.category)}`);
-                        if (res.suggested_batch) {
-                          setReceiveData(prev => ({ ...prev, batch_number: res.suggested_batch }));
-                        }
-                      } catch (e) {
-                        setReceiveData(prev => ({ ...prev, batch_number: '' }));
-                      }
-                    }} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer mr-2">Receive Items</button>
+                  {!isSuperAdmin ? (
+                    <>
+                      {order.status === 'pending' && (
+                        <button onClick={() => handleUpdateStatus(order.id, 'approved')} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer mr-2">Approve</button>
+                      )}
+                      {order.status === 'approved' && (
+                        <button onClick={async () => {
+                          setReceiveData({ actual_quantity: order.quantity_ordered, expiry_date: '', batch_number: 'Loading...' });
+                          setShowReceive(order);
+                          try {
+                            const res = await apiFetch(`/api/index.php?route=inventory&action=get_next_batch&generic_name=${encodeURIComponent(order.generic_name)}&category=${encodeURIComponent(order.category)}`);
+                            if (res.suggested_batch) {
+                              setReceiveData(prev => ({ ...prev, batch_number: res.suggested_batch }));
+                            }
+                          } catch (e) {
+                            setReceiveData(prev => ({ ...prev, batch_number: '' }));
+                          }
+                        }} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer mr-2">Receive Items</button>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-xs text-slate-400 italic">View Only</span>
                   )}
                 </td>
               </tr>
@@ -286,10 +300,21 @@ const PurchaseOrders: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Clinic Branch *</label>
-                  <select className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] bg-white font-medium" value={newOrder.clinic_branch} onChange={e => setNewOrder({...newOrder, clinic_branch: e.target.value})}>
-                    <option value="College Clinic">College Clinic</option>
-                    <option value="BED Clinic">BED Clinic</option>
-                    <option value="Power Campus Clinic">Power Campus Clinic</option>
+                  <select 
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] bg-white font-medium disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed" 
+                    value={isSuperAdmin ? newOrder.clinic_branch : userBranch} 
+                    disabled={!isSuperAdmin}
+                    onChange={e => setNewOrder({...newOrder, clinic_branch: e.target.value})}
+                  >
+                    {isSuperAdmin ? (
+                      <>
+                        <option value="College Clinic">College Clinic</option>
+                        <option value="Basic Education Clinic">Basic Education Clinic</option>
+                        <option value="Power Campus Clinic">Power Campus Clinic</option>
+                      </>
+                    ) : (
+                      <option value={userBranch}>{userBranch}</option>
+                    )}
                   </select>
                 </div>
               </div>

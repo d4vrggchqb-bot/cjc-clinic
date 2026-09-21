@@ -36,6 +36,11 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     ...(options.headers as Record<string, string>),
   };
 
+  let body = options.body;
+  if (!isForm && body && typeof body === 'object' && !(body instanceof Blob) && !(body instanceof ArrayBuffer)) {
+    body = JSON.stringify(body);
+  }
+
   if (!isForm && !headers['Content-Type'] && method !== 'GET') {
     headers['Content-Type'] = 'application/json';
   }
@@ -82,6 +87,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   try {
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
+      body,
       headers,
       signal: controller.signal,
       credentials: 'include',

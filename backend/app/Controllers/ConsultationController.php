@@ -453,7 +453,7 @@ class ConsultationController extends BaseController {
             ]);
 
             // Handle Inventory Dispensing
-            $branch = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+            $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : (!empty($data['clinic_branch']) ? $data['clinic_branch'] : $this->getUserBranch());
             if (!empty($dispensedItems)) {
                 // Get patient name for disposed_to
                 $pStmt = $pdo->prepare("SELECT p.id, p.first_name, p.last_name FROM profiles p JOIN consultations c ON p.id = c.profile_id WHERE c.id = ?");
@@ -467,30 +467,72 @@ class ConsultationController extends BaseController {
                     $qty = (int)$dItem['quantity'];
                     if ($itemId <= 0 || $qty <= 0) continue;
 
-                    // FEFO Logic
-                    $bStmt = $pdo->prepare("
-                        SELECT id, stock_remaining FROM inventory_batches 
-                        WHERE item_id = ? AND clinic_branch = ? AND stock_remaining > 0 
+                    $remQty = $qty;
+
+                    // Pass 1: Deduct from Drawer Inventory first (FEFO: earliest expiration, unexpired only)
+                    $drawerStmt = $pdo->prepare("
+                        SELECT id, stock_remaining, COALESCE(drawer_stock, 0) as drawer_stock, COALESCE(main_stock, 0) as main_stock 
+                        FROM inventory_batches 
+                        WHERE item_id = ? AND clinic_branch = ? AND drawer_stock > 0 
                           AND (expired_on >= CURDATE() OR expired_on IS NULL)
                         ORDER BY expired_on ASC, date_arrived ASC
                     ");
-                    $bStmt->execute([$itemId, $branch]);
-                    $batches = $bStmt->fetchAll();
+                    $drawerStmt->execute([$itemId, $branch]);
+                    $drawerBatches = $drawerStmt->fetchAll(PDO::FETCH_ASSOC);
 
-                    $remQty = $qty;
-                    foreach ($batches as $batch) {
+                    foreach ($drawerBatches as $batch) {
                         if ($remQty <= 0) break;
-                        $available = (int)$batch['stock_remaining'];
-                        $consumed = min($available, $remQty);
-                        $newStock = $available - $consumed;
+                        $curDrawer = (int)$batch['drawer_stock'];
+                        $curMain = (int)$batch['main_stock'];
+                        $deduct = min($curDrawer, $remQty);
 
-                        $uStmt = $pdo->prepare("UPDATE inventory_batches SET stock_remaining = ?, status = IF(?=0, 'depleted', 'active') WHERE id = ?");
-                        $uStmt->execute([$newStock, $newStock, $batch['id']]);
+                        $newDrawer = $curDrawer - $deduct;
+                        $newStock = $newDrawer + $curMain;
 
-                        $lStmt = $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'dispense', ?, ?, ?, ?)");
-                        $lStmt->execute([$batch['id'], -$consumed, $disposedTo, $profileId, $_SESSION['cjc_user']['id']]);
+                        $uStmt = $pdo->prepare("UPDATE inventory_batches SET drawer_stock = ?, stock_remaining = ?, status = IF(?=0, 'depleted', 'active') WHERE id = ?");
+                        $uStmt->execute([$newDrawer, $newStock, $newStock, $batch['id']]);
 
-                        $remQty -= $consumed;
+                        $lStmt = $pdo->prepare("
+                            INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, source_location, disposed_to, profile_id, processed_by) 
+                            VALUES (?, 'dispense', ?, 'drawer', ?, ?, ?)
+                        ");
+                        $lStmt->execute([$batch['id'], -$deduct, $disposedTo, $profileId, $_SESSION['cjc_user']['id']]);
+
+                        $remQty -= $deduct;
+                    }
+
+                    // Pass 2: If drawer is depleted/insufficient, overflow to Main Inventory (FEFO)
+                    if ($remQty > 0) {
+                        $mainStmt = $pdo->prepare("
+                            SELECT id, stock_remaining, COALESCE(drawer_stock, 0) as drawer_stock, COALESCE(main_stock, 0) as main_stock 
+                            FROM inventory_batches 
+                            WHERE item_id = ? AND clinic_branch = ? AND main_stock > 0 
+                          AND (expired_on >= CURDATE() OR expired_on IS NULL)
+                        ORDER BY expired_on ASC, date_arrived ASC
+                        ");
+                        $mainStmt->execute([$itemId, $branch]);
+                        $mainBatches = $mainStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                        foreach ($mainBatches as $batch) {
+                            if ($remQty <= 0) break;
+                            $curDrawer = (int)$batch['drawer_stock'];
+                            $curMain = (int)$batch['main_stock'];
+                            $deduct = min($curMain, $remQty);
+
+                            $newMain = $curMain - $deduct;
+                            $newStock = $curDrawer + $newMain;
+
+                            $uStmt = $pdo->prepare("UPDATE inventory_batches SET main_stock = ?, stock_remaining = ?, status = IF(?=0, 'depleted', 'active') WHERE id = ?");
+                            $uStmt->execute([$newMain, $newStock, $newStock, $batch['id']]);
+
+                            $lStmt = $pdo->prepare("
+                                INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, source_location, disposed_to, profile_id, processed_by) 
+                                VALUES (?, 'dispense', ?, 'main', ?, ?, ?)
+                            ");
+                            $lStmt->execute([$batch['id'], -$deduct, $disposedTo . ' (Main Stock Overflow - Drawer Depleted)', $profileId, $_SESSION['cjc_user']['id']]);
+
+                            $remQty -= $deduct;
+                        }
                     }
                 }
             }

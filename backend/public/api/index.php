@@ -83,6 +83,14 @@ switch ($route) {
             $controller->getBatches();
         } elseif ($action === 'add_batch') {
             $controller->addBatch();
+        } elseif ($action === 'add_medicine') {
+            $controller->addMedicine();
+        } elseif ($action === 'transfer_to_drawer') {
+            $controller->transferToDrawer();
+        } elseif ($action === 'expiration_watch') {
+            $controller->getExpirationWatch();
+        } elseif ($action === 'audit_trail') {
+            $controller->getAuditTrail();
         } elseif ($action === 'dispense') {
             $controller->dispense();
         } elseif ($action === 'low_stock') {
@@ -103,7 +111,7 @@ switch ($route) {
             $controller->predictive_alerts();
         } elseif ($action === 'batch_details') {
             $controller->getBatchDetails();
-        } elseif ($action === 'dispose_batch') {
+        } elseif ($action === 'dispose_batch' || $action === 'dispose_batch_stock') {
             $controller->disposeBatch();
         } elseif ($action === 'get_calibrations') {
             $controller->getCalibrations();
@@ -119,6 +127,8 @@ switch ($route) {
             $controller->exportMedicine();
         } elseif ($action === 'export_calibration_register') {
             $controller->exportCalibrationRegister();
+        } elseif ($action === 'inventory_report') {
+            $controller->getInventoryReport();
         }
         break;
 

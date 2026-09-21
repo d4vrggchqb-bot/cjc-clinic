@@ -47,6 +47,22 @@ try {
     try { $pdo->exec("ALTER TABLE `consultations` ADD CONSTRAINT `fk_consultations_appointment` FOREIGN KEY (`appointment_id`) REFERENCES `appointments`(`id`) ON DELETE SET NULL;"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE `appointments` MODIFY COLUMN `status` ENUM('Scheduled', 'In Consultation', 'Completed', 'Cancelled', 'No-Show') DEFAULT 'Scheduled';"); } catch (Exception $e) {}
 
+    // Inventory Batches: Main vs Drawer & Batch details
+    try { $pdo->exec("ALTER TABLE `inventory_batches` ADD COLUMN `main_stock` INT NOT NULL DEFAULT 0 AFTER `stock_remaining`;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `inventory_batches` ADD COLUMN `drawer_stock` INT NOT NULL DEFAULT 0 AFTER `main_stock`;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `inventory_batches` ADD COLUMN `lot_number` VARCHAR(50) DEFAULT NULL AFTER `batch_number`;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `inventory_batches` ADD COLUMN `restock_semester` VARCHAR(50) DEFAULT '1st Semester' AFTER `expired_on`;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `inventory_batches` ADD COLUMN `school_year` VARCHAR(20) DEFAULT '2025-2026' AFTER `restock_semester`;"); } catch (Exception $e) {}
+
+    // Backfill existing batches: if main_stock and drawer_stock are both 0 but stock_remaining > 0, set main_stock = stock_remaining
+    try { $pdo->exec("UPDATE `inventory_batches` SET `main_stock` = `stock_remaining` WHERE `main_stock` = 0 AND `drawer_stock` = 0 AND `stock_remaining` > 0;"); } catch (Exception $e) {}
+    try { $pdo->exec("UPDATE `inventory_batches` SET `lot_number` = `batch_number` WHERE (`lot_number` IS NULL OR `lot_number` = '') AND `batch_number` IS NOT NULL;"); } catch (Exception $e) {}
+
+    // Inventory Logs: Add transfer and edit action types and locations
+    try { $pdo->exec("ALTER TABLE `inventory_logs` MODIFY COLUMN `action_type` ENUM('restock', 'dispense', 'dispose', 'adjust', 'transfer', 'edit') NOT NULL;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `inventory_logs` ADD COLUMN `source_location` ENUM('main', 'drawer') NULL AFTER `quantity_changed`;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `inventory_logs` ADD COLUMN `target_location` ENUM('main', 'drawer') NULL AFTER `source_location`;"); } catch (Exception $e) {}
+
     // Patient profile attachments (used by the Patient View modal)
     $pdo->exec("
     CREATE TABLE IF NOT EXISTS `profile_attachments` (

@@ -40,4 +40,12 @@ abstract class BaseController {
         $branch = trim($user['clinic_branch'] ?? '');
         return !empty($branch) ? $branch : 'College Clinic';
     }
+
+    /**
+     * Check if the current authenticated user is a Superadmin
+     */
+    protected function isSuperAdmin(): bool {
+        $user = $this->getCurrentUser();
+        return strtolower($user['role'] ?? '') === 'superadmin';
+    }
 }

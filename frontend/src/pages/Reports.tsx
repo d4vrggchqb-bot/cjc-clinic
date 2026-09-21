@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
 import { FiDownload, FiCalendar, FiFilter, FiFileText, FiActivity, FiUsers, FiTrendingUp, FiX, FiPrinter, FiEye, FiCheck, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import {
@@ -316,6 +317,25 @@ const Reports: React.FC = () => {
 
   return (
     <div className="px-5 py-5 w-full">
+      {/* Quick Access to Inventory & Medicine Registers */}
+      <div className="mb-4 bg-gradient-to-r from-red-50 via-rose-50 to-white border border-red-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#A5192D] text-white flex items-center justify-center font-bold flex-shrink-0 shadow-xs">
+            <FiFileText className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-xs sm:text-sm font-bold text-slate-800">Looking for Official Medicine & Equipment Inventory Registers?</h4>
+            <p className="text-[11px] text-slate-500">Generate Form SCR-9.5 (Medicine/Supplies Register) and Equipment/Tools Registers with Cor Jesu College official headers.</p>
+          </div>
+        </div>
+        <Link 
+          to="/inventory"
+          className="px-3.5 py-1.5 bg-[#A5192D] hover:bg-[#8B1424] text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
+        >
+          <span>Open Inventory Reports</span> →
+        </Link>
+      </div>
+
       {/* Toolbar (Filters & Actions) */}
       <div className="mb-6 sm:mb-8 bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
         <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4">
