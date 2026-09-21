@@ -25,9 +25,12 @@ interface LogbookEntry {
   clinic_branch?: string;
   patient_id_number: string;
   patient_name: string;
+  profile_type?: string;
   address?: string;
   time_in: string;
   purpose: string;
+  clinic_process?: string;
+  emergency_disposition?: string;
   time_out: string | null;
   blood_pressure?: string;
   temperature?: string;
@@ -72,6 +75,16 @@ const Consultation: React.FC = () => {
   // Today's Scheduled Appointments State (for Quick Check-in search hints)
   const [todaysAppointments, setTodaysAppointments] = useState<any[]>([]);
 
+  const [clinicProcesses, setClinicProcesses] = useState<any[]>([
+    { id: 'cp_gen', name: 'General Health Services', requires_disposition: false, is_active: true },
+    { id: 'cp_med', name: 'Medical check-up', requires_disposition: false, is_active: true },
+    { id: 'cp_den', name: 'Dental Check-up', requires_disposition: false, is_active: true },
+    { id: 'cp_otc', name: 'OTC Medicine', requires_disposition: false, is_active: true },
+    { id: 'cp_emg', name: 'Emergency Cases', requires_disposition: true, is_active: true }
+  ]);
+  const [selectedProcess, setSelectedProcess] = useState('');
+  const [emergencyDisposition, setEmergencyDisposition] = useState('');
+
   useEffect(() => {
     apiFetch('/api/index.php?route=settings&action=get')
       .then(res => {
@@ -84,6 +97,9 @@ const Consultation: React.FC = () => {
           }
           if (Array.isArray(res.settings.common_conditions) && res.settings.common_conditions.length > 0) {
             setCommonConditions(res.settings.common_conditions);
+          }
+          if (Array.isArray(res.settings.clinic_processes) && res.settings.clinic_processes.length > 0) {
+            setClinicProcesses(res.settings.clinic_processes.filter((p: any) => p.is_active !== false));
           }
         }
       })
@@ -485,7 +501,9 @@ const Consultation: React.FC = () => {
           profile_id: selectedPatient.id,
           patient_name: selectedPatient.name,
           patient_id_number: selectedPatient.patient_id_number,
-          purpose: purpose
+          purpose: purpose,
+          clinic_process: selectedProcess,
+          emergency_disposition: selectedProcess === 'Emergency Cases' ? emergencyDisposition : null
         })
       });
 
@@ -494,6 +512,8 @@ const Consultation: React.FC = () => {
         setSelectedPatient(null);
         setSearch('');
         setPurpose('');
+        setSelectedProcess('');
+        setEmergencyDisposition('');
         setPeriod('today');
         setKanbanStatus('all');
         setCurrentPage(1);
@@ -1013,6 +1033,51 @@ const Consultation: React.FC = () => {
                   )}
                 </div>
 
+                {/* School Clinic Process Dropdown (Only for Students & Employees, excluding Guests) */}
+                {(!selectedPatient || (selectedPatient.profile_type?.toLowerCase() !== 'guest' && selectedPatient.profile_type?.toLowerCase() !== 'visitor')) && (
+                  <div className="w-full sm:w-[220px]">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-semibold text-slate-700">Clinic Process</label>
+                      <span className="text-[10px] text-slate-400 font-normal">Select type</span>
+                    </div>
+                    <select
+                      value={selectedProcess}
+                      onChange={(e) => {
+                        setSelectedProcess(e.target.value);
+                        if (e.target.value !== 'Emergency Cases') {
+                          setEmergencyDisposition('');
+                        }
+                      }}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] focus:ring-1 focus:ring-[#8c1526] h-[40px] bg-white font-medium text-slate-800 cursor-pointer"
+                    >
+                      <option value="">-- Select Process --</option>
+                      {clinicProcesses.map((proc: any, idx: number) => (
+                        <option key={proc.id || idx} value={proc.name}>
+                          {proc.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Emergency Cases Disposition Selector (Conditional) */}
+                {selectedProcess === 'Emergency Cases' && (
+                  <div className="w-full sm:w-[200px]">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-semibold text-amber-800">Disposition *</label>
+                    </div>
+                    <select
+                      value={emergencyDisposition}
+                      onChange={(e) => setEmergencyDisposition(e.target.value)}
+                      className="w-full border border-amber-300 bg-amber-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600 h-[40px] font-bold text-amber-900 cursor-pointer"
+                    >
+                      <option value="">-- Outcome --</option>
+                      <option value="Managed in the Clinic">Managed in the Clinic</option>
+                      <option value="Referred to ER">Referred to ER</option>
+                    </select>
+                  </div>
+                )}
+
                 {/* Cues / Purpose Input */}
                 <div className="flex-1 min-w-[280px] relative">
                   <div className="flex justify-between items-center mb-1.5">
@@ -1209,6 +1274,12 @@ const Consultation: React.FC = () => {
                           {entry.appointment_code && (
                             <span className="font-mono text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 px-2 py-0.5 rounded shadow-2xs" title="Scheduled Appointment">
                               📅 {entry.appointment_code}
+                            </span>
+                          )}
+                          {entry.clinic_process && (
+                            <span className="font-sans text-[10px] font-bold bg-[#8c1526]/10 text-[#8c1526] border border-[#8c1526]/20 px-2 py-0.5 rounded shadow-2xs" title="Clinic Process">
+                              🏥 {entry.clinic_process}
+                              {entry.emergency_disposition ? ` (${entry.emergency_disposition})` : ''}
                             </span>
                           )}
                           <span>{entry.purpose}</span>

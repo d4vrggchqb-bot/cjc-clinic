@@ -89,6 +89,9 @@ class ConsultationController extends BaseController {
                            p.address,
                            c.created_at AS time_in,
                            c.purpose,
+                           c.clinic_process,
+                           c.emergency_disposition,
+                           p.profile_type,
                            c.time_out,
                            c.blood_pressure,
                            c.temperature,
@@ -260,18 +263,23 @@ class ConsultationController extends BaseController {
             } catch (Exception $e) {}
         }
 
+        $clinic_process = isset($input['clinic_process']) ? trim($input['clinic_process']) : null;
+        $emergency_disposition = isset($input['emergency_disposition']) ? trim($input['emergency_disposition']) : null;
+
         try {
             $stmt = $pdo->prepare(
-                'INSERT INTO consultations (profile_id, appointment_id, purpose, status, attended_by, clinic_branch)
-                 VALUES (:profile_id, :appointment_id, :purpose, :status, :attended_by, :clinic_branch)'
+                'INSERT INTO consultations (profile_id, appointment_id, purpose, clinic_process, emergency_disposition, status, attended_by, clinic_branch)
+                 VALUES (:profile_id, :appointment_id, :purpose, :clinic_process, :emergency_disposition, :status, :attended_by, :clinic_branch)'
             );
             $stmt->execute([
-                'profile_id'     => $profile_id,
-                'appointment_id' => $appointmentId > 0 ? $appointmentId : null,
-                'purpose'        => $purpose,
-                'status'         => 'waiting',
-                'attended_by'    => $attended_by,
-                'clinic_branch'  => $branch
+                'profile_id'            => $profile_id,
+                'appointment_id'        => $appointmentId > 0 ? $appointmentId : null,
+                'purpose'               => $purpose,
+                'clinic_process'        => !empty($clinic_process) ? $clinic_process : null,
+                'emergency_disposition' => !empty($emergency_disposition) ? $emergency_disposition : null,
+                'status'                => 'waiting',
+                'attended_by'           => $attended_by,
+                'clinic_branch'         => $branch
             ]);
 
             $newId = $pdo->lastInsertId();

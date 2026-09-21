@@ -40,6 +40,13 @@ export default function Settings() {
             common_conditions: Array.isArray(res.settings.common_conditions) ? res.settings.common_conditions : ['Febrile Illness', 'Tension Headache', 'Dysmenorrhea', 'Upper Respiratory Infection', 'Hyperacidity', 'Acute Gastroenteritis', 'Allergic Rhinitis'],
             health_history_presets: Array.isArray(res.settings.health_history_presets) ? res.settings.health_history_presets : ['Asthma', 'Thyroid Disease', 'Heart Disease', 'High Blood Pressure', 'Epilepsy / Seizures', 'Tuberculosis', 'History of Fainting', 'Allergies (Food / Drug)', 'Rheumatic Heart Disease', 'Lung Disease', 'Diabetes', 'Kidney Disease'],
             medcert_personnel: Array.isArray(res.settings.medcert_personnel) ? res.settings.medcert_personnel : [],
+            clinic_processes: Array.isArray(res.settings.clinic_processes) ? res.settings.clinic_processes : [
+              { id: 'cp_gen', name: 'General Health Services', requires_disposition: false, is_active: true },
+              { id: 'cp_med', name: 'Medical check-up', requires_disposition: false, is_active: true },
+              { id: 'cp_den', name: 'Dental Check-up', requires_disposition: false, is_active: true },
+              { id: 'cp_otc', name: 'OTC Medicine', requires_disposition: false, is_active: true },
+              { id: 'cp_emg', name: 'Emergency Cases', requires_disposition: true, is_active: true }
+            ],
           });
         }
         setLoading(false);
@@ -234,6 +241,7 @@ export default function Settings() {
         {[
           { id: 'academic', label: 'Academic Setup', icon: FiBookOpen },
           { id: 'clinical', label: 'Clinical Presets', icon: FiActivity },
+          { id: 'processes', label: 'Clinic Processes', icon: FiSettings },
           { id: 'users', label: 'User Accounts', icon: FiUsers },
           { id: 'import', label: 'Data Import', icon: FiUpload },
           { id: 'backup', label: 'Backup', icon: FiHardDrive },
@@ -501,6 +509,17 @@ export default function Settings() {
                 }}
               />
             </>
+          )}
+
+          {activeTab === 'processes' && (
+            <ClinicProcessEditor 
+              items={settings.clinic_processes || []}
+              onSave={(newList: any) => {
+                const updated = { ...settings, clinic_processes: newList };
+                setSettings(updated);
+                saveSettings({ clinic_processes: newList });
+              }}
+            />
           )}
 
           {activeTab === 'users' && (
@@ -1336,6 +1355,184 @@ const PersonnelEditor = ({ items, onSave }: any) => {
                   title="Delete Personnel"
                 >
                   <FiTrash2 />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ClinicProcessEditor = ({ items = [], onSave }: { items: any[]; onSave: (newList: any[]) => void }) => {
+  const { confirm } = useConfirm();
+  const [processes, setProcesses] = useState<any[]>(items);
+  const [name, setName] = useState('');
+  const [requiresDisposition, setRequiresDisposition] = useState(false);
+  const [editingIdx, setEditingIdx] = useState(-1);
+
+  useEffect(() => {
+    setProcesses(items || []);
+  }, [items]);
+
+  const handleAdd = () => {
+    if (!name.trim()) return;
+    const newProcess = {
+      id: 'cp_' + Date.now(),
+      name: name.trim(),
+      requires_disposition: requiresDisposition,
+      is_active: true
+    };
+    const updated = [...processes, newProcess];
+    setProcesses(updated);
+    onSave(updated);
+    setName('');
+    setRequiresDisposition(false);
+  };
+
+  const handleUpdate = () => {
+    if (editingIdx < 0 || !name.trim()) return;
+    const updated = [...processes];
+    updated[editingIdx] = {
+      ...updated[editingIdx],
+      name: name.trim(),
+      requires_disposition: requiresDisposition
+    };
+    setProcesses(updated);
+    onSave(updated);
+    setEditingIdx(-1);
+    setName('');
+    setRequiresDisposition(false);
+  };
+
+  const handleToggleActive = (idx: number) => {
+    const updated = [...processes];
+    updated[idx] = {
+      ...updated[idx],
+      is_active: updated[idx].is_active === false ? true : false
+    };
+    setProcesses(updated);
+    onSave(updated);
+  };
+
+  const handleDelete = async (idx: number, procName: string) => {
+    const confirmed = await confirm({
+      title: 'Delete Clinic Process',
+      message: `Are you sure you want to delete "${procName}"?`,
+      confirmText: 'Delete',
+      type: 'danger'
+    });
+    if (!confirmed) return;
+    const updated = processes.filter((_, i) => i !== idx);
+    setProcesses(updated);
+    onSave(updated);
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+      <div>
+        <h3 className="text-[#8c1526] font-bold text-lg mb-1 flex items-center gap-2">
+          <FiActivity />
+          School Clinic Processes
+        </h3>
+        <p className="text-slate-500 text-sm">
+          Manage pre-identified clinic processes available during patient check-in / admission for Students and Employees.
+        </p>
+      </div>
+
+      {/* Form */}
+      <div className="flex gap-3 items-end bg-slate-50 p-4 border border-slate-200 rounded-lg flex-wrap">
+        <div className="flex-1 min-w-[240px]">
+          <label className="block text-xs font-semibold text-slate-700 mb-1">Process Name (e.g. Medical check-up)</label>
+          <input 
+            type="text" 
+            value={name} 
+            onChange={e => setName(e.target.value)}
+            placeholder="Enter process name..."
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
+          />
+        </div>
+        <div className="flex items-center gap-2 pb-2">
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+            <input 
+              type="checkbox"
+              checked={requiresDisposition}
+              onChange={e => setRequiresDisposition(e.target.checked)}
+              className="rounded text-[#8c1526] focus:ring-[#8c1526]"
+            />
+            Requires ER / Clinic Disposition
+          </label>
+        </div>
+        <div className="flex items-center">
+          {editingIdx >= 0 ? (
+            <div className="flex gap-2">
+              <button onClick={handleUpdate} className="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-1">
+                <FiCheck /> Update
+              </button>
+              <button onClick={() => { setEditingIdx(-1); setName(''); setRequiresDisposition(false); }} className="bg-slate-400 hover:bg-slate-500 text-white px-3 py-2 rounded-lg text-sm font-bold">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={handleAdd}
+              disabled={!name.trim()}
+              className="bg-[#8c1526] hover:bg-[#7a1221] text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-1 shadow-sm disabled:opacity-50"
+            >
+              <FiPlus /> Add Process
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* List */}
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
+        {processes.length === 0 ? (
+          <div className="p-4 text-sm text-slate-400 bg-white">No clinic processes configured.</div>
+        ) : (
+          processes.map((proc: any, idx: number) => (
+            <div key={proc.id || idx} className="border-b border-slate-100 last:border-0 bg-white p-3.5 flex justify-between items-center hover:bg-slate-50 transition-colors">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleToggleActive(idx)}
+                  className={`text-xs px-2.5 py-0.5 rounded-full font-bold transition-all ${
+                    proc.is_active !== false 
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                      : 'bg-slate-100 text-slate-500 border border-slate-300'
+                  }`}
+                  title="Click to toggle active status"
+                >
+                  {proc.is_active !== false ? 'Active' : 'Inactive'}
+                </button>
+                <div>
+                  <div className="font-bold text-slate-800 text-sm">{proc.name}</div>
+                  {proc.requires_disposition && (
+                    <div className="text-[11px] text-amber-700 font-medium mt-0.5">
+                      • Requires ER Referral / Managed in Clinic disposition
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => {
+                    setEditingIdx(idx);
+                    setName(proc.name);
+                    setRequiresDisposition(!!proc.requires_disposition);
+                  }}
+                  className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded-md"
+                  title="Edit Process"
+                >
+                  <FiEdit2 size={16} />
+                </button>
+                <button 
+                  onClick={() => handleDelete(idx, proc.name)}
+                  className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded-md"
+                  title="Delete Process"
+                >
+                  <FiTrash2 size={16} />
                 </button>
               </div>
             </div>

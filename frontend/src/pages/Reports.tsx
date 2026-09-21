@@ -620,6 +620,46 @@ const Reports: React.FC = () => {
             </div>
           </div>
 
+          {/* School Clinic Process Summary */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm mb-8">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
+              <div>
+                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <div className="w-2 h-6 bg-[#8c1526] rounded-full"></div>
+                  School Clinic Process Summary
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Tally of requested clinic services categorized by Employees and Students</p>
+              </div>
+            </div>
+
+            {(!data.clinic_processes_summary || data.clinic_processes_summary.length === 0) ? (
+              <div className="text-slate-400 text-sm py-4 text-center">No clinic process data recorded for this period.</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {data.clinic_processes_summary.map((proc: any, idx: number) => (
+                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+                    <div className="font-bold text-slate-800 text-sm mb-2 flex items-center justify-between">
+                      <span className="truncate font-semibold">{proc.process}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#8c1526]/10 text-[#8c1526] font-bold">
+                        {proc.employees + proc.students + (proc.others || 0)} total
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-200/60">
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-100">
+                        <span className="text-slate-500 block text-[10px] font-bold uppercase tracking-wider">Employees</span>
+                        <span className="font-extrabold text-slate-800 text-base">{proc.employees}</span>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-100">
+                        <span className="text-slate-500 block text-[10px] font-bold uppercase tracking-wider">Students</span>
+                        <span className="font-extrabold text-[#8c1526] text-base">{proc.students}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Tables Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             {/* Medicines List */}

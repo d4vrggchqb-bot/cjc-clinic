@@ -235,6 +235,27 @@ try {
         }
     }
 
+    try { $pdo->exec("ALTER TABLE `consultations` ADD COLUMN `clinic_process` VARCHAR(100) DEFAULT NULL AFTER `purpose`;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `consultations` ADD COLUMN `emergency_disposition` VARCHAR(100) DEFAULT NULL AFTER `clinic_process`;"); } catch (Exception $e) {}
+
+    // Seed default Clinic Processes in settings if missing
+    try {
+        $checkStmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'clinic_processes' LIMIT 1");
+        $checkStmt->execute();
+        $existing = $checkStmt->fetchColumn();
+        if (!$existing) {
+            $defaultProcesses = [
+                ['id' => 'cp_gen', 'name' => 'General Health Services', 'requires_disposition' => false, 'is_active' => true],
+                ['id' => 'cp_med', 'name' => 'Medical check-up', 'requires_disposition' => false, 'is_active' => true],
+                ['id' => 'cp_den', 'name' => 'Dental Check-up', 'requires_disposition' => false, 'is_active' => true],
+                ['id' => 'cp_otc', 'name' => 'OTC Medicine', 'requires_disposition' => false, 'is_active' => true],
+                ['id' => 'cp_emg', 'name' => 'Emergency Cases', 'requires_disposition' => true, 'is_active' => true]
+            ];
+            $seedStmt = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('clinic_processes', :val)");
+            $seedStmt->execute(['val' => json_encode($defaultProcesses)]);
+        }
+    } catch (Exception $e) {}
+
     echo "Tables and performance indexes created/updated successfully. Recovered {$recoveredExtracts} OCR extract(s).\n";
 
 

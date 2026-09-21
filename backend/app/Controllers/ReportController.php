@@ -211,6 +211,54 @@ class ReportController extends BaseController {
             }
         } catch (PDOException $e) { error_log('Reports Diagnoses Error: ' . $e->getMessage()); }
 
+        // 2b. Clinic Processes Breakdown (Employees vs Students)
+        $clinicProcessesSummary = [];
+        try {
+            $sql = "
+                SELECT 
+                    COALESCE(c.clinic_process, 'Unspecified') AS process,
+                    c.emergency_disposition,
+                    LOWER(COALESCE(p.profile_type, 'student')) AS profile_type,
+                    COUNT(c.id) AS cnt
+                FROM consultations c
+                LEFT JOIN profiles p ON c.profile_id = p.id
+                WHERE c.created_at BETWEEN :start_date AND :end_date $branchConditionAnd $consultationConditions
+                GROUP BY c.clinic_process, c.emergency_disposition, LOWER(COALESCE(p.profile_type, 'student'))
+            ";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($consultationParams);
+            $rawProcessData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $processMap = [];
+            foreach ($rawProcessData as $r) {
+                $processName = $r['process'];
+                if ($processName === 'Emergency Cases' && !empty($r['emergency_disposition'])) {
+                    $keyName = "Emergency Cases - {$r['emergency_disposition']}";
+                } else {
+                    $keyName = $processName;
+                }
+
+                if (!isset($processMap[$keyName])) {
+                    $processMap[$keyName] = [
+                        'process' => $keyName,
+                        'employees' => 0,
+                        'students' => 0,
+                        'others' => 0
+                    ];
+                }
+
+                $pType = $r['profile_type'];
+                if ($pType === 'employee') {
+                    $processMap[$keyName]['employees'] += (int)$r['cnt'];
+                } elseif ($pType === 'student') {
+                    $processMap[$keyName]['students'] += (int)$r['cnt'];
+                } else {
+                    $processMap[$keyName]['others'] += (int)$r['cnt'];
+                }
+            }
+            $clinicProcessesSummary = array_values($processMap);
+        } catch (PDOException $e) { error_log('Reports Clinic Processes Error: ' . $e->getMessage()); }
+
         // 3. Medicines Dispensed
         $medicinesDispensed = [];
         try {
@@ -373,6 +421,7 @@ class ReportController extends BaseController {
             'semester' => $semester,
             'purpose' => $purpose,
             'visits_by_type' => $visitsByType,
+            'clinic_processes_summary' => $clinicProcessesSummary,
             'top_diagnoses' => $topDiagnoses,
             'medicines_dispensed' => $medicinesDispensed,
             'equipment_borrowings' => $equipmentBorrowings,

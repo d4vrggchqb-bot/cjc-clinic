@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS `consultations` (
   `profile_id` INT NOT NULL,
   `appointment_id` INT DEFAULT NULL,
   `purpose` VARCHAR(255) NOT NULL,
+  `clinic_process` VARCHAR(100) DEFAULT NULL,
+  `emergency_disposition` VARCHAR(100) DEFAULT NULL,
   `complaint` TEXT DEFAULT NULL,
   `time_out` TIMESTAMP NULL DEFAULT NULL,
   `blood_pressure` VARCHAR(50) DEFAULT NULL,

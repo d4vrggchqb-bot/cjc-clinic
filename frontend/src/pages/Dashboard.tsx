@@ -41,6 +41,9 @@ const Dashboard: React.FC = () => {
   const [purpose, setPurpose] = useState('');
   const [cues, setCues] = useState<string[]>([]);
   const [selectedCue, setSelectedCue] = useState('');
+  const [clinicProcesses, setClinicProcesses] = useState<any[]>([]);
+  const [selectedProcess, setSelectedProcess] = useState('');
+  const [emergencyDisposition, setEmergencyDisposition] = useState('');
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const searchRef = React.useRef<HTMLDivElement>(null);
 
@@ -220,7 +223,9 @@ const Dashboard: React.FC = () => {
           profile_id: selectedPatient.id,
           patient_name: selectedPatient.name,
           patient_id_number: selectedPatient.patient_id_number,
-          purpose: finalPurpose
+          purpose: finalPurpose,
+          clinic_process: selectedProcess,
+          emergency_disposition: selectedProcess === 'Emergency Cases' ? emergencyDisposition : null
         })
       });
 
@@ -231,6 +236,8 @@ const Dashboard: React.FC = () => {
         setSearch('');
         setPurpose('');
         setSelectedCue('');
+        setSelectedProcess('');
+        setEmergencyDisposition('');
         // We could refresh stats here if needed
       } else {
         toast.error(res.message || 'Failed to check in.', { id: toastId });
@@ -260,15 +267,20 @@ const Dashboard: React.FC = () => {
     }
   }, [showQuickDispense]);
 
-  // Fetch settings cues when quick admit or dispense modal opens
+  // Fetch settings cues and clinic processes when quick admit or dispense modal opens
   useEffect(() => {
-    if ((showQuickAdmit || showQuickDispense) && cues.length === 0) {
+    if (showQuickAdmit || showQuickDispense) {
       apiFetch('/api/index.php?route=settings&action=get')
         .then(res => {
-          if (res.settings && Array.isArray(res.settings.cues)) {
-            setCues(res.settings.cues);
+          if (res.settings) {
+            if (Array.isArray(res.settings.cues)) {
+              setCues(res.settings.cues);
+            }
+            if (Array.isArray(res.settings.clinic_processes)) {
+              setClinicProcesses(res.settings.clinic_processes.filter((p: any) => p.is_active !== false));
+            }
           }
-        }).catch(err => console.error("Failed to fetch settings for cues", err));
+        }).catch(err => console.error("Failed to fetch settings for cues/processes", err));
     }
   }, [showQuickAdmit, showQuickDispense]);
 
@@ -773,6 +785,46 @@ const Dashboard: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Clinic Process Dropdown (for Students & Employees, excluding Guests) */}
+              {(!selectedPatient || (selectedPatient.profile_type?.toLowerCase() !== 'guest' && selectedPatient.profile_type?.toLowerCase() !== 'visitor')) && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Clinic Process</label>
+                  <select
+                    value={selectedProcess}
+                    onChange={(e) => {
+                      setSelectedProcess(e.target.value);
+                      if (e.target.value !== 'Emergency Cases') {
+                        setEmergencyDisposition('');
+                      }
+                    }}
+                    className="w-full border border-slate-300 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-[#C01D38] bg-white font-medium text-slate-800 cursor-pointer"
+                  >
+                    <option value="">-- Select Process --</option>
+                    {clinicProcesses.map((proc: any, idx: number) => (
+                      <option key={proc.id || idx} value={proc.name}>
+                        {proc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Emergency Cases Disposition Selector (Conditional) */}
+              {selectedProcess === 'Emergency Cases' && (
+                <div>
+                  <label className="block text-sm font-semibold text-amber-800 mb-1">Emergency Disposition <span className="text-red-500">*</span></label>
+                  <select
+                    value={emergencyDisposition}
+                    onChange={(e) => setEmergencyDisposition(e.target.value)}
+                    className="w-full border border-amber-300 bg-amber-50 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-amber-600 font-bold text-amber-900 cursor-pointer"
+                  >
+                    <option value="">-- Select Outcome --</option>
+                    <option value="Managed in the Clinic">Managed in the Clinic</option>
+                    <option value="Referred to ER">Referred to ER</option>
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Purpose & Cues <span className="text-red-500">*</span></label>
