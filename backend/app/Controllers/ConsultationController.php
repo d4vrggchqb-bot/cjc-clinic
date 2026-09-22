@@ -70,6 +70,17 @@ class ConsultationController extends BaseController {
             }
         }
 
+        // FIFO Queue Sorting: Active/waiting queue sorted by check-in time ASC (earliest check-in first)
+        $orderBy = "CASE WHEN c.status IN ('waiting', 'active', 'in-progress') THEN 0 ELSE 1 END ASC, 
+                    CASE WHEN c.status IN ('waiting', 'active', 'in-progress') THEN c.created_at END ASC, 
+                    COALESCE(c.time_out, c.created_at) DESC";
+
+        if ($status === 'waiting' || $status === 'in-progress') {
+            $orderBy = "c.created_at ASC";
+        } elseif ($status === 'completed') {
+            $orderBy = "COALESCE(c.time_out, c.created_at) DESC";
+        }
+
         try {
             $countSql = "SELECT COUNT(*) FROM consultations c WHERE $whereClause";
             $countStmt = $pdo->prepare($countSql);
@@ -104,7 +115,7 @@ class ConsultationController extends BaseController {
                     LEFT JOIN profiles p ON p.id = c.profile_id
                     LEFT JOIN appointments a ON a.id = c.appointment_id
                     WHERE $whereClause
-                    ORDER BY c.created_at DESC
+                    ORDER BY $orderBy
                     LIMIT $perPage OFFSET $offset";
 
             $stmt = $pdo->prepare($sql);

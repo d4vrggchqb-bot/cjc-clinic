@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX, FiActivity, FiClock, FiEdit2, FiCalendar } from 'react-icons/fi';
+import { FiSearch, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiPrinter, FiUserPlus, FiX, FiActivity, FiClock, FiEdit2, FiCalendar, FiChevronDown, FiChevronUp, FiList, FiCheckSquare, FiMaximize2, FiMinimize2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../context/ConfirmContext';
 import { useBranch } from '../context/BranchContext';
@@ -42,6 +42,94 @@ interface LogbookEntry {
   sync_status?: string;
 }
 
+const getPatientAge = (profile: any, entry?: any): string => {
+  if (profile?.age) return String(profile.age);
+  if (entry?.age) return String(entry.age);
+  const dob = profile?.birthdate || profile?.bdate || profile?.date_of_birth || entry?.birthdate || entry?.bdate;
+  if (dob) {
+    const birthDate = new Date(dob);
+    if (!isNaN(birthDate.getTime())) {
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age >= 0 ? String(age) : '';
+    }
+  }
+  return '';
+};
+
+
+interface OfficialHeaderProps {
+  indexNo: string;
+  revisionNo: string;
+  effectiveDate: string;
+  controlNo: string;
+  variant?: 'standard' | 'compact';
+}
+
+const OfficialHeader: React.FC<OfficialHeaderProps> = ({
+  indexNo,
+  revisionNo,
+  effectiveDate,
+  controlNo,
+  variant = 'standard'
+}) => {
+  const isCompact = variant === 'compact';
+
+  return (
+    <div className={`relative w-full select-none ${isCompact ? 'mb-1.5' : 'mb-3'}`}>
+      {/* Exact Official Header Image */}
+      <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto block" />
+
+      {/* Control Box Overlay Covering the Image's Right Control Box */}
+      <div className="absolute top-[3%] right-[0.2%] w-[17.8%] h-[46%] z-10 overflow-visible">
+        {isCompact ? (
+          <div className="w-[300%] h-[300%] scale-[0.333] origin-top-left bg-white border border-slate-900 flex flex-col justify-evenly px-1.5 py-0.5 font-sans leading-none shadow-xs">
+            <div className="flex items-end justify-between gap-1">
+              <span className="text-slate-800 whitespace-nowrap text-[12px] font-semibold">Index:</span>
+              <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-extrabold pb-0.5 text-[12px]">{indexNo}</span>
+            </div>
+            <div className="flex items-end justify-between gap-1">
+              <span className="text-slate-800 whitespace-nowrap text-[12px] font-semibold">Rev:</span>
+              <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-extrabold pb-0.5 text-[12px]">{revisionNo}</span>
+            </div>
+            <div className="flex items-end justify-between gap-1">
+              <span className="text-slate-800 whitespace-nowrap text-[12px] font-semibold">Date:</span>
+              <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[12px]">{effectiveDate}</span>
+            </div>
+            <div className="flex items-end justify-between gap-1">
+              <span className="text-slate-800 whitespace-nowrap text-[11px] font-semibold">Ctrl:</span>
+              <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[11px]">{controlNo}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="w-[200%] h-[200%] scale-50 origin-top-left bg-white border border-slate-900 flex flex-col justify-evenly px-2 py-1 font-sans leading-none shadow-xs">
+            <div className="flex items-end justify-between gap-1">
+              <span className="text-slate-800 whitespace-nowrap text-[13px] font-semibold">Index No.:</span>
+              <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-extrabold pb-0.5 text-[13px]">{indexNo}</span>
+            </div>
+            <div className="flex items-end justify-between gap-1">
+              <span className="text-slate-800 whitespace-nowrap text-[13px] font-semibold">Revision No.:</span>
+              <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-extrabold pb-0.5 text-[13px]">{revisionNo}</span>
+            </div>
+            <div className="flex items-end justify-between gap-1">
+              <span className="text-slate-800 whitespace-nowrap text-[13px] font-semibold">Effective Date:</span>
+              <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[13px]">{effectiveDate}</span>
+            </div>
+            <div className="flex items-end justify-between gap-1">
+              <span className="text-slate-800 whitespace-nowrap text-[12px] font-semibold">Control No.:</span>
+              <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[12px]">{controlNo}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 
 const Consultation: React.FC = () => {
   const { confirm } = useConfirm();
@@ -50,6 +138,8 @@ const Consultation: React.FC = () => {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [kanbanStatus, setKanbanStatus] = useState('all'); // all, waiting, in-progress, completed
+  const [isVisitorsExpanded, setIsVisitorsExpanded] = useState(true);
+  const [isVisitorsFullScreen, setIsVisitorsFullScreen] = useState(false);
   const { selectedBranch, setSelectedBranch, displayBranch } = useBranch();
   const [userRole, setUserRole] = useState('');
   const [entries, setEntries] = useState<LogbookEntry[]>([]);
@@ -172,6 +262,7 @@ const Consultation: React.FC = () => {
   const [medcertPaperSize, setMedcertPaperSize] = useState<'half_long' | 'full_long' | 'a4'>('half_long');
   const [medcertData, setMedcertData] = useState({
     issued_to: '',
+    age: '',
     address: '',
     issued_by: '',
     issued_by_position: '',
@@ -1142,26 +1233,63 @@ const Consultation: React.FC = () => {
         </div>
         )}
 
-        {/* Bottom Panel: Data Table */}
-        <div className="flex-1 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+        {/* Bottom Panel: Data Table (Supports Main Content Full Screen Mode) */}
+        <div className={
+          isVisitorsFullScreen
+            ? "absolute inset-0 z-40 bg-white p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl animate-in fade-in duration-200"
+            : "flex-1 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden"
+        }>
+          <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
             <div>
-              <h2 className="font-bold text-slate-800 text-lg">
-                {period === 'today' ? "Today's Visitors" : "Visitors"}
+              <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                {period === 'today' ? "Today's Visitors & Queue" : "Visitors & Queue"}
+                {isVisitorsFullScreen && (
+                  <span className="text-xs font-bold px-2.5 py-0.5 bg-[#8c1526] text-white rounded-full uppercase tracking-wider animate-pulse">
+                    Full Screen View
+                  </span>
+                )}
               </h2>
-              <p className="text-xs text-slate-500">{entries.length} patients</p>
+              <p className="text-xs text-slate-500">{entries.length} total check-ins for this period</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsVisitorsFullScreen(prev => {
+                    const nextState = !prev;
+                    if (nextState) setIsVisitorsExpanded(true);
+                    return nextState;
+                  });
+                }}
+                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded transition-all cursor-pointer shadow-sm ${
+                  isVisitorsFullScreen 
+                    ? 'bg-[#8c1526] text-white hover:bg-[#7a1221]' 
+                    : 'text-[#8c1526] bg-red-50 hover:bg-red-100 border border-red-200'
+                }`}
+                title={isVisitorsFullScreen ? "Exit Full Screen View" : "Full Screen View"}
+              >
+                {isVisitorsFullScreen ? <FiMinimize2 className="w-4 h-4" /> : <FiMaximize2 className="w-4 h-4" />}
+                <span>{isVisitorsFullScreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+              </button>
+              <button 
+                type="button"
+                onClick={() => setIsVisitorsExpanded(prev => !prev)}
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded transition-colors cursor-pointer"
+                title={isVisitorsExpanded ? "Collapse Visitors Section" : "Expand Visitors Section"}
+              >
+                {isVisitorsExpanded ? <FiChevronUp className="w-4 h-4" /> : <FiChevronDown className="w-4 h-4" />}
+                <span>{isVisitorsExpanded ? 'Collapse' : 'Expand'}</span>
+              </button>
               <button 
                 onClick={fetchEntries}
-                className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded transition-colors"
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded transition-colors cursor-pointer"
               >
                 <FiRefreshCw className="w-3.5 h-3.5" />
                 Refresh
               </button>
               <button 
                 onClick={handleCheckoutAll}
-                className="flex items-center gap-1.5 text-xs font-bold text-white bg-[#28a745] hover:bg-[#218838] px-3 py-1.5 rounded transition-colors shadow-sm"
+                className="flex items-center gap-1.5 text-xs font-bold text-white bg-[#28a745] hover:bg-[#218838] px-3 py-1.5 rounded transition-colors shadow-sm cursor-pointer"
               >
                 <FiCheckCircle className="w-3.5 h-3.5" />
                 Set All Time-Out
@@ -1169,50 +1297,52 @@ const Consultation: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex justify-between items-center overflow-x-auto gap-4">
-            <div className="flex gap-2">
-              <button 
-                onClick={() => { setKanbanStatus('all'); setCurrentPage(1); }}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'all' ? 'bg-slate-800 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'}`}
-              >
-                All Consultations
-              </button>
-              <button 
-                onClick={() => { setKanbanStatus('waiting'); setCurrentPage(1); }}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'waiting' ? 'bg-yellow-500 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-yellow-50'}`}
-              >
-                Waiting
-              </button>
-              <button 
-                onClick={() => { setKanbanStatus('in-progress'); setCurrentPage(1); }}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'in-progress' ? 'bg-blue-600 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-blue-50'}`}
-              >
-                In Consultation
-              </button>
-              <button 
-                onClick={() => { setKanbanStatus('completed'); setCurrentPage(1); }}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'completed' ? 'bg-green-600 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-green-50'}`}
-              >
-                Completed
-              </button>
-            </div>
-            
-            {(userRole === 'Superadmin') && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500 uppercase">Branch:</span>
-                <select 
-                  value={selectedBranch}
-                  onChange={(e) => { setSelectedBranch(e.target.value); setCurrentPage(1); }}
-                  className="border border-slate-300 rounded px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white focus:outline-none"
-                >
-                  <option value="All Branches">All Branches</option>
-                  <option value="College Clinic">College Clinic</option>
-                  <option value="Basic Education Clinic">Basic Education Clinic</option>
-                  <option value="Power Campus Clinic">Power Campus Clinic</option>
-                </select>
+          {isVisitorsExpanded && (
+            <>
+              <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex justify-between items-center overflow-x-auto gap-4">
+                <div className="flex gap-2 items-center">
+                  <button 
+                    onClick={() => { setKanbanStatus('all'); setCurrentPage(1); }}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'all' ? 'bg-slate-800 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'}`}
+                  >
+                    All Consultations
+                  </button>
+                  <button 
+                    onClick={() => { setKanbanStatus('waiting'); setCurrentPage(1); }}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'waiting' ? 'bg-yellow-500 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-yellow-50'}`}
+                  >
+                    In-Queue (Waiting)
+                  </button>
+                  <button 
+                    onClick={() => { setKanbanStatus('in-progress'); setCurrentPage(1); }}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'in-progress' ? 'bg-blue-600 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-blue-50'}`}
+                  >
+                    In Consultation
+                  </button>
+                  <button 
+                    onClick={() => { setKanbanStatus('completed'); setCurrentPage(1); }}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${kanbanStatus === 'completed' ? 'bg-green-600 text-white shadow' : 'bg-white text-slate-600 border border-slate-300 hover:bg-green-50'}`}
+                  >
+                    Completed / Timed Out Log
+                  </button>
+                </div>
+                
+                {(userRole === 'Superadmin') && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase">Branch:</span>
+                    <select 
+                      value={selectedBranch}
+                      onChange={(e) => { setSelectedBranch(e.target.value); setCurrentPage(1); }}
+                      className="border border-slate-300 rounded px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white focus:outline-none"
+                    >
+                      <option value="All Branches">All Branches</option>
+                      <option value="College Clinic">College Clinic</option>
+                      <option value="Basic Education Clinic">Basic Education Clinic</option>
+                      <option value="Power Campus Clinic">Power Campus Clinic</option>
+                    </select>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
           <div className="flex-1 overflow-auto">
             <table className="w-full text-left text-sm text-slate-600 border-collapse">
@@ -1382,7 +1512,8 @@ const Consultation: React.FC = () => {
               Next
             </button>
           </div>
-          
+            </>
+          )}
         </div>
       </div>
       {/* Medical Notes & Consultation Widescreen Modal */}
@@ -1735,10 +1866,25 @@ const Consultation: React.FC = () => {
             <div className="p-4 sm:px-6 border-t border-slate-200 flex justify-between items-center bg-white shrink-0">
               <div className="flex gap-2">
                 <button 
-                  onClick={() => {
+                  onClick={async () => {
+                    let profile = selectedProfileDetails;
+                    if (activeNoteEntry && (!profile || profile.id !== activeNoteEntry.profile_id)) {
+                      try {
+                        const profileRes = await apiFetch(`/api/index.php?route=patients&action=get&id=${activeNoteEntry.profile_id}`);
+                        if (profileRes.profile) {
+                          profile = profileRes.profile;
+                          setSelectedProfileDetails(profileRes.profile);
+                        }
+                      } catch (err) {
+                        console.error('Failed to fetch patient profile for medcert', err);
+                      }
+                    }
+                    const computedAge = getPatientAge(profile, activeNoteEntry);
                     setMedcertData({ 
                       ...medcertData, 
                       issued_to: activeNoteEntry.patient_name, 
+                      age: computedAge,
+                      address: profile?.address || activeNoteEntry?.address || medcertData.address || '',
                       is_essentially_normal: false,
                       reason: '',
                       valid_until: '',
@@ -2001,6 +2147,23 @@ const Consultation: React.FC = () => {
               </div>
               <div>
                 <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-semibold text-slate-600">Age (Years Old)</label>
+                  <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setMedcertData({...medcertData, age: getPatientAge(selectedProfileDetails, activeNoteEntry)});
+                        }
+                      }} 
+                    />
+                    Autofill from profile
+                  </label>
+                </div>
+                <input type="text" value={medcertData.age} onChange={e => setMedcertData({...medcertData, age: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" placeholder="e.g. 21" />
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
                   <label className="block text-xs font-semibold text-slate-600">Address (Optional)</label>
                   <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">
                     <input 
@@ -2177,32 +2340,13 @@ const Consultation: React.FC = () => {
             /* 1/2 Crosswise Long Bond (8.5in x 6.5in) - Perfectly proportioned, zero scatter */
             <div className="medcert-sheet w-[8.5in] h-[6.5in] max-h-[6.5in] min-h-[6.5in] bg-white shadow-2xl print:shadow-none px-8 py-5 relative flex flex-col justify-between text-slate-900 font-serif border border-slate-200 print:border-none print:p-6 overflow-hidden select-none">
               <div>
-                {/* Header Image Background with Info Box */}
-                <div className="mb-2 relative">
-                  <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto max-h-[56px] object-contain" />
-
-                  {/* Right: Document Info Box overlay */}
-                  <div className="absolute top-[3%] right-[0%] bottom-[35%] w-[18%] z-10 overflow-visible">
-                    <div className="w-[230%] h-[230%] scale-[0.43] origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-0.5 shadow-sm font-sans leading-none">
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Index No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[13px]">9.9</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Revision No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[13px]">01</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Effective Date:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[13px]">08/01/2024</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[12px]">Control No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[12px]">9.9 -C - 2025</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Official CJC Header */}
+                <OfficialHeader 
+                  indexNo="9.9"
+                  revisionNo="01"
+                  effectiveDate="08/01/2024"
+                  controlNo="9.9 -C - 2025"
+                />
 
                 {/* Certificate Header Title */}
                 <div className="text-center my-1">
@@ -2216,7 +2360,7 @@ const Consultation: React.FC = () => {
                   <p className="font-bold text-[12.5px] font-serif mb-0.5">TO WHOM IT MAY CONCERN:</p>
 
                   <p className="indent-8">
-                    This is to certify that <span className="inline-block border-b border-black min-w-[200px] text-center font-bold px-1 uppercase">{medcertData.issued_to}</span>, <span className="inline-block border-b border-black min-w-[36px] text-center px-1">&nbsp;</span> years old and a resident of <span className="inline-block border-b border-black min-w-[220px] text-center px-1 font-semibold uppercase">{medcertData.address || <>&nbsp;</>}</span> has been examined at the {medcertData.clinic_branch}-Cor Jesu College.
+                    This is to certify that <span className="inline-block border-b border-black min-w-[200px] text-center font-bold px-1 uppercase">{medcertData.issued_to}</span>, <span className="inline-block border-b border-black min-w-[36px] text-center px-1 font-bold">{medcertData.age || getPatientAge(selectedProfileDetails, activeNoteEntry) || <>&nbsp;</>}</span> years old and a resident of <span className="inline-block border-b border-black min-w-[220px] text-center px-1 font-semibold uppercase">{medcertData.address || <>&nbsp;</>}</span> has been examined at the {medcertData.clinic_branch}-Cor Jesu College.
                   </p>
 
                   <div className="pl-6 space-y-1 my-1 leading-snug">
@@ -2264,29 +2408,13 @@ const Consultation: React.FC = () => {
             /* Full Page (Long Bond or A4) */
             <div className={`medcert-sheet ${medcertPaperSize === 'full_long' ? 'w-[8.5in] min-h-[13in]' : 'w-[210mm] min-h-[297mm]'} bg-white shadow-2xl print:shadow-none p-14 relative flex flex-col justify-between text-slate-900 font-serif border border-slate-200 print:border-none print:p-8`}>
               <div>
-                <div className="mb-6 relative">
-                  <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto" />
-                  <div className="absolute top-[5%] right-[0%] bottom-[41%] w-[17%] z-10 overflow-visible">
-                    <div className="w-[200%] h-[200%] scale-50 origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-1 shadow-sm font-sans leading-none">
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Index No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">9.9</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Revision No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">01</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Effective Date:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[14px]">08/01/2024</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Control No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[13px]">9.9 -C - 2025</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Official CJC Header */}
+                <OfficialHeader 
+                  indexNo="9.9"
+                  revisionNo="01"
+                  effectiveDate="08/01/2024"
+                  controlNo="9.9 -C - 2025"
+                />
 
                 <div className="text-center my-8">
                   <h3 className="text-2xl font-extrabold uppercase tracking-widest text-[#8c1526] font-sans underline underline-offset-8">Medical Certificate</h3>
@@ -2295,7 +2423,7 @@ const Consultation: React.FC = () => {
                 <div className="text-slate-800 text-justify text-[15px] space-y-6 mt-8 mb-16 font-serif leading-[2.2]">
                   <p className="font-bold text-base font-serif mb-6">TO WHOM IT MAY CONCERN:</p>
                   <p className="indent-12">
-                    This is to certify that <span className="inline-block border-b border-black min-w-[320px] text-center font-bold px-2 uppercase">{medcertData.issued_to}</span>, <span className="inline-block border-b border-black min-w-[60px] text-center px-2">&nbsp;</span> years old
+                    This is to certify that <span className="inline-block border-b border-black min-w-[320px] text-center font-bold px-2 uppercase">{medcertData.issued_to}</span>, <span className="inline-block border-b border-black min-w-[60px] text-center px-2 font-bold">{medcertData.age || getPatientAge(selectedProfileDetails, activeNoteEntry) || <>&nbsp;</>}</span> years old
                     <br />and a resident of <span className="inline-block border-b border-black min-w-[440px] text-center px-2 font-semibold uppercase">{medcertData.address || <>&nbsp;</>}</span> has been examined at the {medcertData.clinic_branch}-Cor Jesu College.
                   </p>
                   <div className="pl-12 space-y-3 my-6 leading-relaxed">
@@ -2410,30 +2538,14 @@ const Consultation: React.FC = () => {
             /* 1/4 Long Bond Paper (4.25in x 6.5in) - Perfectly proportioned, zero scatter */
             <div className="clinicslip-sheet w-[4.25in] h-[6.5in] max-h-[6.5in] min-h-[6.5in] bg-white shadow-2xl print:shadow-none p-3.5 relative flex flex-col justify-between text-slate-900 font-sans border border-slate-200 print:border-none print:p-3 overflow-hidden select-none">
               <div>
-                {/* Scaled Header with Index 9.4 overlay */}
-                <div className="mb-1 relative">
-                  <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto max-h-[42px] object-contain" />
-                  <div className="absolute top-[3%] right-[0%] bottom-[35%] w-[22%] z-10 overflow-visible">
-                    <div className="w-[300%] h-[300%] scale-[0.27] origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-1 py-0.5 shadow-sm font-sans leading-none">
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[12px]">Index:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[12px]">9.4</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[12px]">Rev:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[12px]">01</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[12px]">Date:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[12px]">08/01/24</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[11px]">Ctrl:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[11px]">9.4-C-25</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Official CJC Header (Compact) */}
+                <OfficialHeader 
+                  indexNo="9.4"
+                  revisionNo="01"
+                  effectiveDate="08/01/2024"
+                  controlNo="9.4 -C- 2025"
+                  variant="compact"
+                />
 
                 {/* Title */}
                 <div className="text-center my-0.5">
@@ -2528,30 +2640,13 @@ const Consultation: React.FC = () => {
             /* 1/2 Crosswise Long Bond (8.5in x 6.5in) - Elegant 2-column landscape layout */
             <div className="clinicslip-sheet w-[8.5in] h-[6.5in] max-h-[6.5in] min-h-[6.5in] bg-white shadow-2xl print:shadow-none p-6 relative flex flex-col justify-between text-slate-900 font-sans border border-slate-200 print:border-none print:p-6 overflow-hidden select-none">
               <div>
-                {/* Header Image Background with Info Box */}
-                <div className="mb-2 relative">
-                  <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto max-h-[56px] object-contain" />
-                  <div className="absolute top-[3%] right-[0%] bottom-[35%] w-[18%] z-10 overflow-visible">
-                    <div className="w-[230%] h-[230%] scale-[0.43] origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-0.5 shadow-sm font-sans leading-none">
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Index No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[13px]">9.4</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Revision No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 text-[13px]">01</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Effective Date:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[13px]">08/01/2024</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[12px]">Control No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-0.5 whitespace-nowrap tracking-tighter text-[12px]">9.4 -C- 2025</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Official CJC Header */}
+                <OfficialHeader 
+                  indexNo="9.4"
+                  revisionNo="01"
+                  effectiveDate="08/01/2024"
+                  controlNo="9.4 -C- 2025"
+                />
 
                 {/* Title */}
                 <div className="text-center my-1">
@@ -2646,29 +2741,13 @@ const Consultation: React.FC = () => {
             /* A5 or Full Page Sheet */
             <div className={`clinicslip-sheet ${clinicSlipPaperSize === 'full_long' ? 'w-[8.5in] min-h-[13in]' : 'w-[148mm] min-h-[210mm]'} bg-white shadow-2xl print:shadow-none p-8 relative flex flex-col justify-between text-slate-900 font-sans border border-slate-200 print:border-none print:p-8`}>
               <div>
-                <div className="mb-4 relative">
-                  <img src="/med_cert_header.png" alt="CJC Header" className="w-full h-auto" />
-                  <div className="absolute top-[5%] right-[0%] bottom-[41%] w-[17%] z-10 overflow-visible">
-                    <div className="w-[200%] h-[200%] scale-50 origin-top-left bg-white border-[1px] border-slate-800 flex flex-col justify-evenly px-2 py-1 shadow-sm font-sans leading-none">
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Index No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">9.4</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Revision No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 text-[14px]">01</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[14px]">Effective Date:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[14px]">08/01/2024</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-1">
-                        <span className="text-slate-800 whitespace-nowrap text-[13px]">Control No.:</span>
-                        <span className="border-b-[1.5px] border-slate-700 flex-1 text-center font-bold pb-1 whitespace-nowrap tracking-tighter text-[13px]">9.4 -C- 2025</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Official CJC Header */}
+                <OfficialHeader 
+                  indexNo="9.4"
+                  revisionNo="01"
+                  effectiveDate="08/01/2024"
+                  controlNo="9.4 -C- 2025"
+                />
 
                 <div className="text-center mb-6 mt-4">
                   <h3 className="text-xl font-bold uppercase tracking-wide text-slate-800 font-sans">CLINIC SLIP</h3>
