@@ -944,10 +944,10 @@ const InventoryReport: React.FC = () => {
       {showPrintModal && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex flex-col items-center justify-start z-50 overflow-y-auto p-4 sm:p-6 animate-in fade-in duration-200">
           
-          {/* Force Landscape Printing via CSS */}
+          {/* Force Folio Landscape Printing via CSS */}
           <style dangerouslySetInnerHTML={{ __html: `
             @page {
-              size: landscape;
+              size: 13in 8.5in; /* Folio / Long Bond (PH) Landscape */
               margin: 8mm 10mm;
             }
             @media print {
@@ -1030,12 +1030,12 @@ const InventoryReport: React.FC = () => {
             id="inventory-report-document"
             className="bg-white w-full max-w-[1240px] p-8 sm:p-10 rounded-b-2xl shadow-2xl border border-slate-200 space-y-4 text-slate-900 print:shadow-none print:border-none print:w-full print:max-w-none print:p-0"
           >
-            {/* 1. Official CJC Header Letterhead */}
+            {/* 1. Official CJC Header Letterhead - Scaled to Full Landscape/Folio Width */}
             <div className="border-b-2 border-slate-900 pb-2 text-center">
               <img
-                src="/cjc_report_header.png"
+                src="/cjc_report_header.png?v=3"
                 alt="Cor Jesu College Header"
-                className="w-full h-auto max-h-24 object-contain mb-1.5 mx-auto"
+                className="w-full h-auto mb-1.5 block"
               />
               <div className="flex justify-between items-center px-1 text-[11px] font-semibold text-slate-600">
                 <span className="uppercase tracking-wider text-[#A5192D] font-bold">

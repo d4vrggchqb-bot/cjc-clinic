@@ -154,8 +154,12 @@ class ReportController extends BaseController {
         $profileConditions = '';
         $profileParams = [];
         if ($department !== 'All Departments' && !empty($department)) {
-            $profileConditions .= ' AND p.college_dept = :dept';
-            $profileParams['dept'] = $department;
+            if ($department === 'Basic Education') {
+                $profileConditions .= " AND (p.college_dept = 'Basic Education' OR p.college_dept LIKE '%Basic Education%' OR p.college_dept LIKE '%BED%')";
+            } else {
+                $profileConditions .= ' AND p.college_dept = :dept';
+                $profileParams['dept'] = $department;
+            }
         }
         if ($program !== 'All Programs' && !empty($program)) {
             $profileConditions .= ' AND p.course = :course';

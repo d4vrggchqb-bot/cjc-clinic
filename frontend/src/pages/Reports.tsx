@@ -29,13 +29,32 @@ const Reports: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const { selectedBranch, setSelectedBranch } = useBranch();
+  const isBedBranch = selectedBranch === 'Basic Education Clinic' || 
+    selectedBranch.toLowerCase().includes('basic education') || 
+    selectedBranch.toLowerCase().includes('bed');
   
   // New Filters
-  const [department, setDepartment] = useState('All Departments');
+  const [department, setDepartment] = useState(() => 
+    (selectedBranch === 'Basic Education Clinic' || selectedBranch.toLowerCase().includes('basic education') || selectedBranch.toLowerCase().includes('bed'))
+      ? 'Basic Education'
+      : 'All Departments'
+  );
   const [program, setProgram] = useState('All Programs');
   const [yearLevel, setYearLevel] = useState('All Year Levels');
   const [semester, setSemester] = useState('All Semesters');
   const [purpose, setPurpose] = useState('All Purposes');
+
+  useEffect(() => {
+    if (isBedBranch) {
+      setDepartment('Basic Education');
+      setProgram('All Programs');
+      setYearLevel('All Year Levels');
+    } else if (department === 'Basic Education' && selectedBranch !== 'All Branches') {
+      setDepartment('All Departments');
+      setProgram('All Programs');
+      setYearLevel('All Year Levels');
+    }
+  }, [isBedBranch, selectedBranch]);
   
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -291,10 +310,12 @@ const Reports: React.FC = () => {
   };
 
   // Computed Arrays for Filters
-  const allDepartments = [
-    ...(globalSettings.departments_hierarchy.map((d: any) => d.department)),
-    "Basic Education"
-  ];
+  const allDepartments = isBedBranch
+    ? ["Basic Education"]
+    : [
+        ...(globalSettings.departments_hierarchy.map((d: any) => d.department)),
+        "Basic Education"
+      ];
   
   let dynamicPrograms: string[] = [];
   let dynamicYearLevels: string[] = [];
@@ -304,8 +325,12 @@ const Reports: React.FC = () => {
     if (program && program !== 'All Programs') {
       const selectedBedProgram = globalSettings.bed_hierarchy.find((b: any) => b.program === program);
       if (selectedBedProgram) {
-        dynamicYearLevels = selectedBedProgram.year_levels;
+        dynamicYearLevels = selectedBedProgram.year_levels || [];
       }
+    } else {
+      dynamicYearLevels = Array.from(new Set(
+        globalSettings.bed_hierarchy.flatMap((b: any) => Array.isArray(b.year_levels) ? b.year_levels : [])
+      ));
     }
   } else if (department !== 'All Departments') {
     const selectedCollegeDept = globalSettings.departments_hierarchy.find((d: any) => d.department === department);
@@ -376,7 +401,7 @@ const Reports: React.FC = () => {
               </div>
             )}
 
-            {/* New Filters */}
+            {/* Department Filter */}
             <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
               <span className="pl-2.5 pr-1 text-slate-400 flex items-center">
                 <FiFilter className="w-3.5 h-3.5" />
@@ -384,12 +409,20 @@ const Reports: React.FC = () => {
               <select 
                 value={department}
                 onChange={(e) => { setDepartment(e.target.value); setProgram('All Programs'); setYearLevel('All Year Levels'); }}
-                className="px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[140px] truncate cursor-pointer pr-2"
+                className={`px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[150px] truncate pr-2 font-semibold ${isBedBranch ? 'cursor-default text-[#A5192D]' : 'cursor-pointer'}`}
+                disabled={isBedBranch}
+                title={isBedBranch ? 'Locked to Basic Education for Basic Education Clinic' : 'Filter by Department'}
               >
-                <option value="All Departments">All Departments</option>
-                {allDepartments.map((dept: string, idx: number) => (
-                  <option key={idx} value={dept}>{dept}</option>
-                ))}
+                {isBedBranch ? (
+                  <option value="Basic Education">Basic Education</option>
+                ) : (
+                  <>
+                    <option value="All Departments">All Departments</option>
+                    {allDepartments.map((dept: string, idx: number) => (
+                      <option key={idx} value={dept}>{dept}</option>
+                    ))}
+                  </>
+                )}
               </select>
             </div>
 
@@ -494,7 +527,9 @@ const Reports: React.FC = () => {
 
             {/* College Visitations Export Options */}
             <div className="flex items-center gap-1 bg-purple-50 p-1.5 rounded-xl border border-purple-200 shadow-2xs">
-              <span className="text-[11px] font-bold text-purple-900 px-1.5 uppercase tracking-wider">Visitations per College:</span>
+              <span className="text-[11px] font-bold text-purple-900 px-1.5 uppercase tracking-wider">
+                {isBedBranch ? 'Visitations per BED Program:' : 'Visitations per College:'}
+              </span>
               <button 
                 type="button"
                 onClick={() => handleExportExcel('college_attendance')}
@@ -956,6 +991,45 @@ const Reports: React.FC = () => {
       {pdfPreviewType && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex flex-col items-center justify-start z-50 overflow-y-auto p-4 sm:p-6 animate-in fade-in duration-200">
           
+          {/* Force Folio Portrait Printing via CSS */}
+          <style dangerouslySetInnerHTML={{ __html: `
+            @page {
+              size: 8.5in 13in; /* Folio / Long Bond (PH) Portrait */
+              margin: 10mm 8mm;
+            }
+            @media print {
+              body, html {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                background: #ffffff !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+              #pdf-preview-document {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+              }
+              table {
+                page-break-inside: auto;
+              }
+              tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+              }
+              thead {
+                display: table-header-group;
+              }
+              tfoot {
+                display: table-footer-group;
+              }
+            }
+          ` }} />
+
           {/* Modal Sticky Control Bar (hidden on print) */}
           <div className="no-print bg-slate-900 text-white w-full max-w-4xl p-4 rounded-t-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 sticky top-0 z-10 border-b border-slate-700">
             <div className="flex items-center gap-2">
@@ -964,9 +1038,9 @@ const Reports: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-sm font-bold tracking-wide">
-                  PDF Report Preview — {pdfPreviewType === 'consultations' ? 'Consultation Logbook' : (pdfPreviewType === 'borrowings' ? 'Equipment Borrowings' : 'Clinic Visitations per College & Program')}
+                  PDF Report Preview — {pdfPreviewType === 'consultations' ? 'Consultation Logbook' : (pdfPreviewType === 'borrowings' ? 'Equipment Borrowings' : (isBedBranch ? 'Clinic Visitations per BED Program' : 'Clinic Visitations per College & Program'))}
                 </h3>
-                <p className="text-[11px] text-slate-400">Official Cor Jesu College Clinic Document Format</p>
+                <p className="text-[11px] text-slate-400">Official Cor Jesu College Clinic Document Format (Folio Portrait)</p>
               </div>
             </div>
 
@@ -1003,15 +1077,19 @@ const Reports: React.FC = () => {
             id="pdf-preview-document"
             className="bg-white w-full max-w-4xl p-8 sm:p-10 rounded-b-2xl shadow-2xl border border-slate-200 space-y-6 text-slate-800 print:shadow-none print:border-none print:w-full print:max-w-none print:p-0"
           >
-            {/* Header / Letterhead - Using Medcert Header Image */}
-            <div className="border-b-2 border-slate-800 pb-4">
-              <img src="/med_cert_header.png" alt="Cor Jesu College Clinic Header" className="w-full h-auto mb-2" />
-              <div className="flex justify-between items-center px-1">
+            {/* Header / Letterhead - Using Official CJC Inventory Header */}
+            <div className="border-b-2 border-slate-900 pb-3 text-center">
+              <img 
+                src="/cjc_report_header.png?v=3" 
+                alt="Cor Jesu College Header" 
+                className="w-full h-auto mb-2 block" 
+              />
+              <div className="flex justify-between items-center px-1 text-[11px] font-semibold text-slate-600">
                 <span className="text-[11px] font-bold text-[#A5192D] tracking-wider uppercase">
                   CJC-Clinic+ Patient Records & Inventory System
                 </span>
                 <span className="text-[11px] text-slate-500 font-semibold">
-                  Official Export Report • Generated: {new Date().toLocaleDateString()}
+                  Official Export Report • Generated: {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </span>
               </div>
             </div>
@@ -1023,7 +1101,7 @@ const Reports: React.FC = () => {
                   ? 'Clinical Consultations & Health Logbook' 
                   : (pdfPreviewType === 'borrowings' 
                     ? 'Equipment & Supplies Borrowing Logbook' 
-                    : 'Summary Report on Clinic Visitations by College & Program')}
+                    : (isBedBranch ? 'Summary Report on Clinic Visitations by BED Program & Level' : 'Summary Report on Clinic Visitations by College & Program'))}
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-xs text-slate-600">
                 <div><span className="font-bold text-slate-500">Period:</span> {startDate} to {endDate}</div>
@@ -1064,8 +1142,8 @@ const Reports: React.FC = () => {
                   <thead>
                     <tr className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[11px]">
                       <th className="p-2.5 border border-slate-700 w-14 text-center">#</th>
-                      <th className="p-2.5 border border-slate-700">College</th>
-                      <th className="p-2.5 border border-slate-700">Programs</th>
+                      <th className="p-2.5 border border-slate-700">{isBedBranch ? 'Department' : 'College'}</th>
+                      <th className="p-2.5 border border-slate-700">{isBedBranch ? 'Program / Level' : 'Programs'}</th>
                       <th className="p-2.5 border border-slate-700 text-right">Visitation</th>
                     </tr>
                   </thead>
