@@ -227,7 +227,7 @@ const InventoryCatalog: React.FC = () => {
     calibration_due?: string;
     calibration_notes?: string;
   }>({ category: 'medicine', customCategory: '', brand_name: '', generic_name: '', dosage: '', formulation: '', alert_threshold: 20 });
-  const { userBranch, isSuperAdmin, selectedBranch, setSelectedBranch } = useBranch();
+  const { userBranch, isSuperAdmin, selectedBranch, setSelectedBranch, currentUserName, currentUser } = useBranch();
 
   // Branch filter: Default to user's assigned branch! Non-superadmin is strictly locked to userBranch.
   const initialBranchFilter = isSuperAdmin 
@@ -602,7 +602,8 @@ const InventoryCatalog: React.FC = () => {
   const handleExportEquipment = async () => {
     setIsExporting(true);
     try {
-      const res = await apiFetch('/api/index.php?route=inventory&action=export_equipment');
+      const branchParam = selectedBranchFilter ? `&branch=${encodeURIComponent(selectedBranchFilter)}` : '';
+      const res = await apiFetch(`/api/index.php?route=inventory&action=export_equipment${branchParam}`);
       if (res.success) {
         setExportData({ type: 'equipment', items: res.items });
         setShowExportEquipModal(true);
@@ -617,7 +618,8 @@ const InventoryCatalog: React.FC = () => {
   const handleExportMedicine = async () => {
     setIsExporting(true);
     try {
-      const res = await apiFetch('/api/index.php?route=inventory&action=export_medicine');
+      const branchParam = selectedBranchFilter ? `&branch=${encodeURIComponent(selectedBranchFilter)}` : '';
+      const res = await apiFetch(`/api/index.php?route=inventory&action=export_medicine${branchParam}`);
       if (res.success) {
         setExportData({ type: 'medicine', items: res.items });
         setShowExportMedModal(false);
@@ -2591,122 +2593,171 @@ const InventoryCatalog: React.FC = () => {
         </div>
       )}
 
-      {/* Equipment Inventory Print View */}
+      {/* Equipment Inventory Print View - Matching Physical CJC Form in Landscape */}
       {exportData?.type === 'equipment' && showExportEquipModal && (
         <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col overflow-hidden max-h-[95vh]">
+          <style dangerouslySetInnerHTML={{ __html: `
+            @page {
+              size: landscape;
+              margin: 8mm 10mm;
+            }
+          ` }} />
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1240px] flex flex-col overflow-hidden max-h-[95vh]">
             <div className="p-4 bg-slate-900 text-white flex justify-between items-center no-print">
-              <span className="font-bold text-sm flex items-center gap-2"><FiPrinter className="text-emerald-400" /> Inventory of Equipment/Apparatus Tools and Materials</span>
+              <span className="font-bold text-sm flex items-center gap-2"><FiPrinter className="text-emerald-400" /> Inventory of Equipment/Apparatus Tools and Materials (Landscape)</span>
               <div className="flex gap-2">
-                <button onClick={() => window.print()} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1"><FiPrinter /> Print</button>
-                <button onClick={() => { setShowExportEquipModal(false); setExportData(null); }} className="text-slate-400 hover:text-white font-bold text-xl px-2">✕</button>
+                <button onClick={() => window.print()} className="bg-[#A5192D] hover:bg-[#8B1424] text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"><FiPrinter /> Print</button>
+                <button onClick={() => { setShowExportEquipModal(false); setExportData(null); }} className="text-slate-400 hover:text-white font-bold text-xl px-2 cursor-pointer">✕</button>
               </div>
             </div>
-            <div className="p-8 overflow-y-auto font-sans text-sm print:p-4">
-              {/* Document Header */}
-              <div className="text-center mb-4 border-b-2 border-slate-800 pb-3">
-                <div className="font-black text-lg text-red-800 uppercase">Cor Jesu College, Inc.</div>
-                <div className="text-xs text-slate-600">Sacred Heart Avenue, Digos City, Province of Davao del Sur, 8002 Philippines</div>
-                <div className="font-bold text-base mt-2 uppercase tracking-wide">Inventory of Equipment/Apparatus Tools and Materials</div>
-                <div className="text-xs mt-1">Area: <strong>{selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')}</strong> &nbsp;|&nbsp; S.Y.: <strong>{new Date().getFullYear()}-{new Date().getFullYear() + 1}</strong></div>
+            <div className="p-8 overflow-y-auto font-sans text-sm print:p-0">
+              {/* Official CJC Header */}
+              <div className="text-center mb-3 border-b-2 border-slate-900 pb-2">
+                <img src="/cjc_report_header.png" alt="Cor Jesu College Header" className="w-full h-auto max-h-24 object-contain mb-1.5 mx-auto" />
+                <div className="font-black text-base mt-2 uppercase tracking-wide text-slate-900">
+                  INVENTORY OF EQUIPMENT/APPARATUS TOOLS AND MATERIALS
+                </div>
+                <div className="text-xs mt-1 font-semibold text-slate-700">
+                  <span>S.Y. {new Date().getFullYear()}-{new Date().getFullYear() + 1}</span>
+                  <span> &nbsp;•&nbsp; </span>
+                  <span>Area: <span className="text-[#A5192D] font-bold uppercase">{selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')}</span></span>
+                </div>
               </div>
-              <table className="w-full border-collapse text-xs">
+              <table className="w-full border-collapse border border-slate-900 text-xs">
                 <thead>
-                  <tr className="bg-slate-100">
-                    <th className="border border-slate-400 p-1.5 text-center">Item No.</th>
-                    <th className="border border-slate-400 p-1.5">Description</th>
-                    <th className="border border-slate-400 p-1.5 text-center">Qty.</th>
-                    <th className="border border-slate-400 p-1.5 text-center">Unit</th>
-                    <th className="border border-slate-400 p-1.5">Brand</th>
-                    <th className="border border-slate-400 p-1.5">Model No.</th>
-                    <th className="border border-slate-400 p-1.5">Serial No.</th>
-                    <th className="border border-slate-400 p-1.5">Supplier</th>
-                    <th className="border border-slate-400 p-1.5">Date Purchased/Fabricated</th>
-                    <th className="border border-slate-400 p-1.5">Remarks</th>
+                  <tr className="bg-slate-100 text-slate-900 font-bold uppercase text-center border-b border-slate-900">
+                    <th className="border border-slate-900 p-2 text-center w-12">Item No.</th>
+                    <th className="border border-slate-900 p-2 text-left min-w-[170px]">Description</th>
+                    <th className="border border-slate-900 p-2 text-center w-12">Qty.</th>
+                    <th className="border border-slate-900 p-2 text-center w-12">Unit</th>
+                    <th className="border border-slate-900 p-2 text-center min-w-[100px]">Brand</th>
+                    <th className="border border-slate-900 p-2 text-center min-w-[100px]">Model No.</th>
+                    <th className="border border-slate-900 p-2 text-center min-w-[100px]">Serial No.</th>
+                    <th className="border border-slate-900 p-2 text-center min-w-[110px]">Supplier</th>
+                    <th className="border border-slate-900 p-2 text-center min-w-[110px]">Date Purchased/Fabricated</th>
+                    <th className="border border-slate-900 p-2 text-left min-w-[140px]">Remarks</th>
                   </tr>
                 </thead>
                 <tbody>
                   {exportData.items.map((item: any, idx: number) => (
-                    <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                      <td className="border border-slate-300 p-1.5 text-center">{idx + 1}</td>
-                      <td className="border border-slate-300 p-1.5 font-medium">{item.generic_name}</td>
-                      <td className="border border-slate-300 p-1.5 text-center">{item.qty || '---'}</td>
-                      <td className="border border-slate-300 p-1.5 text-center">{item.unit || 'Pc'}</td>
-                      <td className="border border-slate-300 p-1.5">{item.brand_name || '---'}</td>
-                      <td className="border border-slate-300 p-1.5">{item.model_no || '---'}</td>
-                      <td className="border border-slate-300 p-1.5">{item.latest_calib_serial || item.serial_no || '---'}</td>
-                      <td className="border border-slate-300 p-1.5">{item.supplier || '---'}</td>
-                      <td className="border border-slate-300 p-1.5">{item.date_purchased || item.date_acquired || '---'}</td>
-                      <td className="border border-slate-300 p-1.5">{item.calibration_notes || 'Excellent Condition'}</td>
+                    <tr key={item.id} className="border-b border-slate-900">
+                      <td className="border border-slate-900 p-2 text-center font-mono font-bold">{idx + 1}</td>
+                      <td className="border border-slate-900 p-2 font-bold text-slate-900">{item.generic_name}</td>
+                      <td className="border border-slate-900 p-2 text-center font-mono font-bold">{item.qty || 1}</td>
+                      <td className="border border-slate-900 p-2 text-center">{item.unit || 'Pc'}</td>
+                      <td className="border border-slate-900 p-2 text-center">{item.brand_name || '----------'}</td>
+                      <td className="border border-slate-900 p-2 text-center font-mono">{item.model_no || '----------'}</td>
+                      <td className="border border-slate-900 p-2 text-center font-mono">{item.latest_calib_serial || item.serial_no || '----------'}</td>
+                      <td className="border border-slate-900 p-2 text-center">{item.supplier || '----------'}</td>
+                      <td className="border border-slate-900 p-2 text-center">{item.date_purchased || item.date_acquired || '----------'}</td>
+                      <td className="border border-slate-900 p-2 text-left">{item.calibration_notes || 'Good Condition'}</td>
                     </tr>
                   ))}
+                  {exportData.items.length === 0 && (
+                    <tr>
+                      <td colSpan={10} className="border border-slate-900 p-4 text-center text-slate-500 italic">
+                        No equipment registered for this branch.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
+
+              {/* Official Signatories */}
+              <div className="mt-8 grid grid-cols-2 gap-12 text-xs pt-4 break-inside-avoid">
+                <div>
+                  <p className="text-slate-600 font-bold mb-6">Prepared by:</p>
+                  <div className="border-t-2 border-slate-800 w-64 pt-1">
+                    <p className="font-bold text-slate-900 uppercase">{currentUserName || 'Clinic In-Charge'}</p>
+                    <p className="text-[11px] text-slate-600 font-semibold">{currentUser?.role ? `Clinic ${currentUser.role} / In-Charge` : 'Clinic Staff / In-Charge'}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-slate-600 font-bold mb-6">Noted by:</p>
+                  <div className="border-t-2 border-slate-800 w-64 pt-1">
+                    <p className="font-bold text-slate-900 uppercase">School Physician</p>
+                    <p className="text-[11px] text-slate-600 font-semibold">Cor Jesu College, Inc.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* SCRA / Medicine/Supplies Inventory Print View (matching Page 5) */}
+      {/* SCRA / Medicine/Supplies Inventory Print View (matching Page 5 in Landscape) */}
       {exportData?.type === 'medicine' && (
         <div className="hidden print:block font-sans text-sm p-8">
-          <div className="text-center mb-6 border-b-2 border-slate-800 pb-3">
-            <div className="font-black text-xl text-red-900 uppercase tracking-wide">Cor Jesu College, Inc.</div>
-            <div className="text-xs text-slate-600">Sacred Heart Avenue, Digos City, Province of Davao del Sur, 8002 Philippines</div>
-            <div className="text-xs text-slate-700 font-semibold mt-0.5">{selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')} / Health Services Clinic</div>
-            <div className="font-bold text-base mt-3 uppercase tracking-wider text-slate-900">
+          <style dangerouslySetInnerHTML={{ __html: `
+            @page {
+              size: landscape;
+              margin: 8mm 10mm;
+            }
+          ` }} />
+          <div className="text-center mb-4 border-b-2 border-slate-900 pb-2">
+            <img src="/cjc_report_header.png" alt="Cor Jesu College Header" className="w-full h-auto max-h-24 object-contain mb-1.5 mx-auto" />
+            <div className="font-bold text-base mt-2 uppercase tracking-wider text-slate-900">
               SCR-9.5 {(selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')).toUpperCase()} MEDICINE/SUPPLIES INVENTORY REGISTER
             </div>
-            <div className="text-xs mt-1.5 flex items-center justify-center gap-4">
+            <div className="text-xs mt-1 flex items-center justify-center gap-4">
               <span>[{exportMedOptions.semester === '1st' ? 'X' : ' '}] 1st Semester</span>
               <span>[{exportMedOptions.semester === '2nd' ? 'X' : ' '}] 2nd Semester</span>
               <span>S.Y. [{exportMedOptions.school_year}]</span>
+              <span>•</span>
+              <span>Area: <strong className="text-[#A5192D] uppercase">{selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')}</strong></span>
             </div>
             <div className="text-xs mt-1 font-semibold text-slate-600">
               As of {new Date(exportMedOptions.as_of).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
           </div>
-          <table className="w-full border-collapse text-xs">
+          <table className="w-full border-collapse border border-slate-900 text-xs">
             <thead>
-              <tr className="bg-slate-100 uppercase text-[11px] font-bold">
-                <th className="border border-slate-400 p-2 text-center w-12">Item No.</th>
-                <th className="border border-slate-400 p-2 text-left">Generic Name / Description</th>
-                <th className="border border-slate-400 p-2 text-left">Brand / Dosage</th>
-                <th className="border border-slate-400 p-2 text-center">Quantity on Hand</th>
-                <th className="border border-slate-400 p-2 text-center">Expiry Date</th>
-                <th className="border border-slate-400 p-2 text-left">Remarks</th>
+              <tr className="bg-slate-100 uppercase text-[11px] font-bold text-center border-b border-slate-900">
+                <th className="border border-slate-900 p-2 text-center w-12">Item No.</th>
+                <th className="border border-slate-900 p-2 text-left">Generic Name / Description</th>
+                <th className="border border-slate-900 p-2 text-center">Brand / Dosage</th>
+                <th className="border border-slate-900 p-2 text-center">Quantity on Hand</th>
+                <th className="border border-slate-900 p-2 text-center">Expiry Date</th>
+                <th className="border border-slate-900 p-2 text-left">Remarks</th>
               </tr>
             </thead>
             <tbody>
               {exportData.items.map((item: any, idx: number) => (
-                <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                  <td className="border border-slate-300 p-2 text-center font-medium">{idx + 1}</td>
-                  <td className="border border-slate-300 p-2 font-semibold text-slate-800">{item.generic_name}</td>
-                  <td className="border border-slate-300 p-2">{item.brand_name || ''} {item.dosage || item.formulation || '---'}</td>
-                  <td className="border border-slate-300 p-2 text-center font-bold">{item.quantity} {item.unit || item.formulation || 'pcs'}</td>
-                  <td className="border border-slate-300 p-2 text-center">{item.earliest_expiry ? new Date(item.earliest_expiry).toLocaleDateString('en-PH', {month:'2-digit', year:'numeric'}) : 'N/A'}</td>
-                  <td className="border border-slate-300 p-2 text-slate-600 italic">
+                <tr key={item.id} className="border-b border-slate-900">
+                  <td className="border border-slate-900 p-2 text-center font-mono font-bold">{idx + 1}</td>
+                  <td className="border border-slate-900 p-2 font-bold text-slate-900">{item.generic_name}</td>
+                  <td className="border border-slate-900 p-2 text-center">{item.brand_name || ''} {item.dosage || item.formulation || '---'}</td>
+                  <td className="border border-slate-900 p-2 text-center font-mono font-bold">{item.quantity} {item.unit || item.formulation || 'pcs'}</td>
+                  <td className="border border-slate-900 p-2 text-center font-mono">{item.earliest_expiry ? new Date(item.earliest_expiry).toLocaleDateString('en-PH', {month:'2-digit', year:'numeric'}) : 'N/A'}</td>
+                  <td className="border border-slate-900 p-2 text-slate-700">
                     {item.remarks || `Dispensed ready. Will expire on ${item.earliest_expiry ? new Date(item.earliest_expiry).toLocaleDateString('en-PH', {month:'short', year:'numeric'}) : 'N/A'}`}
                   </td>
                 </tr>
               ))}
+              {exportData.items.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="border border-slate-900 p-4 text-center text-slate-500 italic">
+                    No medicine records registered for this branch.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
 
           {/* Signature Sign-offs matching Page 5 */}
-          <div className="mt-12 grid grid-cols-2 gap-12 text-xs pt-6">
+          <div className="mt-8 grid grid-cols-2 gap-12 text-xs pt-4 break-inside-avoid">
             <div>
-              <p className="text-slate-500 mb-8">Prepared by:</p>
-              <div className="border-t border-slate-700 w-64 pt-1">
-                <p className="font-bold text-slate-800 uppercase">Registered Clinic Nurse</p>
-                <p className="text-[11px] text-slate-500">CJC Health Services Clinic</p>
+              <p className="text-slate-600 font-bold mb-6">Prepared by:</p>
+              <div className="border-t-2 border-slate-800 w-64 pt-1">
+                <p className="font-bold text-slate-900 uppercase">{currentUserName || 'Clinic In-Charge'}</p>
+                <p className="text-[11px] text-slate-600 font-semibold">{currentUser?.role ? `Clinic ${currentUser.role} / In-Charge` : 'Clinic Staff / In-Charge'}</p>
               </div>
             </div>
             <div>
-              <p className="text-slate-500 mb-8">Noted by:</p>
-              <div className="border-t border-slate-700 w-64 pt-1">
-                <p className="font-bold text-slate-800 uppercase">School Physician / Clinic In-Charge</p>
-                <p className="text-[11px] text-slate-500">Cor Jesu College, Inc.</p>
+              <p className="text-slate-600 font-bold mb-6">Noted by:</p>
+              <div className="border-t-2 border-slate-800 w-64 pt-1">
+                <p className="font-bold text-slate-900 uppercase">School Physician / Clinic In-Charge</p>
+                <p className="text-[11px] text-slate-600 font-semibold">Cor Jesu College, Inc.</p>
               </div>
             </div>
           </div>

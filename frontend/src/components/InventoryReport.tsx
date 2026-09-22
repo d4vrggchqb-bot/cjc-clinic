@@ -940,21 +940,60 @@ const InventoryReport: React.FC = () => {
         </div>
       </div>
 
-      {/* 5. PDF Print Preview Modal (Faithful to physical Cor Jesu College forms) */}
+      {/* 5. PDF Print Preview Modal (Faithful to physical Cor Jesu College forms in Landscape) */}
       {showPrintModal && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex flex-col items-center justify-start z-50 overflow-y-auto p-4 sm:p-6 animate-in fade-in duration-200">
           
+          {/* Force Landscape Printing via CSS */}
+          <style dangerouslySetInnerHTML={{ __html: `
+            @page {
+              size: landscape;
+              margin: 8mm 10mm;
+            }
+            @media print {
+              body, html {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                background: #ffffff !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+              #inventory-report-document {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+              }
+              table {
+                page-break-inside: auto;
+              }
+              tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+              }
+              thead {
+                display: table-header-group;
+              }
+              tfoot {
+                display: table-footer-group;
+              }
+            }
+          ` }} />
+
           {/* Modal Toolbar (hidden on print) */}
-          <div className="no-print bg-slate-900 text-white w-full max-w-4xl p-4 rounded-t-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 sticky top-0 z-20 border-b border-slate-700">
+          <div className="no-print bg-slate-900 text-white w-full max-w-[1240px] p-4 rounded-t-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 sticky top-0 z-20 border-b border-slate-700">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-[#A5192D] flex items-center justify-center text-white font-black text-sm">
                 PDF
               </div>
               <div>
                 <h3 className="text-sm font-bold tracking-wide">
-                  Official Document Preview — {reportMode === 'equipment' ? 'Equipment Register' : 'Form SCR-9.5 Medicine Register'}
+                  Official Document Preview (Landscape) — {reportMode === 'equipment' ? 'Equipment / Tools Register' : (reportMode === 'medicines' ? 'Form SCR-9.5 Medicine Register' : 'Master Catalog')}
                 </h3>
-                <p className="text-[11px] text-slate-400">Official Cor Jesu College Clinic Printable Format</p>
+                <p className="text-[11px] text-slate-400">Official Cor Jesu College Clinic Printable Format • Formatted in Landscape</p>
               </div>
             </div>
 
@@ -986,17 +1025,17 @@ const InventoryReport: React.FC = () => {
             </div>
           </div>
 
-          {/* Printable Document Paper */}
+          {/* Printable Document Paper (Landscape width max-w-[1240px]) */}
           <div
             id="inventory-report-document"
-            className="bg-white w-full max-w-4xl p-8 sm:p-10 rounded-b-2xl shadow-2xl border border-slate-200 space-y-5 text-slate-900 print:shadow-none print:border-none print:w-full print:max-w-none print:p-0"
+            className="bg-white w-full max-w-[1240px] p-8 sm:p-10 rounded-b-2xl shadow-2xl border border-slate-200 space-y-4 text-slate-900 print:shadow-none print:border-none print:w-full print:max-w-none print:p-0"
           >
             {/* 1. Official CJC Header Letterhead */}
-            <div className="border-b-2 border-slate-900 pb-3 text-center">
+            <div className="border-b-2 border-slate-900 pb-2 text-center">
               <img
                 src="/cjc_report_header.png"
                 alt="Cor Jesu College Header"
-                className="w-full h-auto max-h-28 object-contain mb-2 mx-auto"
+                className="w-full h-auto max-h-24 object-contain mb-1.5 mx-auto"
               />
               <div className="flex justify-between items-center px-1 text-[11px] font-semibold text-slate-600">
                 <span className="uppercase tracking-wider text-[#A5192D] font-bold">
@@ -1010,15 +1049,17 @@ const InventoryReport: React.FC = () => {
 
             {/* 2. Official Document Title & Metadata Box */}
             {reportMode === 'equipment' ? (
-              /* Equipment Register Title */
-              <div className="text-center space-y-1.5 py-2 border-b border-slate-300">
-                <h1 className="text-base sm:text-lg font-black tracking-wide uppercase text-slate-900">
-                  INVENTORY OF EQUIPMENT / APPARATUS, TOOLS AND MATERIALS
+              /* Equipment Register Title - Exactly Matching Physical Form */
+              <div className="text-center space-y-1 py-1.5 border-b border-slate-300">
+                <h1 className="text-base sm:text-lg font-black tracking-wider uppercase text-slate-900">
+                  INVENTORY OF EQUIPMENT/APPARATUS TOOLS AND MATERIALS
                 </h1>
-                <div className="flex justify-center items-center gap-6 text-xs text-slate-700 font-semibold">
+                <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 text-xs text-slate-800 font-semibold">
                   <span>S.Y. {schoolYear}</span>
                   <span>•</span>
-                  <span>Branch: {effectiveBranch === 'all' ? 'All Clinics' : effectiveBranch}</span>
+                  <span>
+                    Area: <span className="text-[#A5192D] font-bold uppercase">{effectiveBranch === 'all' ? 'ALL CLINIC BRANCHES' : effectiveBranch}</span>
+                  </span>
                   {startDate && endDate && (
                     <>
                       <span>•</span>
@@ -1027,9 +1068,9 @@ const InventoryReport: React.FC = () => {
                   )}
                 </div>
               </div>
-            ) : (
+            ) : reportMode === 'medicines' ? (
               /* SCR-9.5 Medicine & Supplies Register Title */
-              <div className="space-y-2 py-2 border-b border-slate-300">
+              <div className="space-y-2 py-1.5 border-b border-slate-300">
                 <div className="text-center">
                   <h1 className="text-base sm:text-lg font-black tracking-wide uppercase text-slate-900">
                     SCR-9.5 {effectiveBranch === 'all' ? 'ALL CLINIC BRANCHES' : effectiveBranch.toUpperCase()} MEDICINE/SUPPLIES INVENTORY REGISTER
@@ -1037,7 +1078,7 @@ const InventoryReport: React.FC = () => {
                 </div>
                 
                 {/* Semester & School Year Checkbox row matching physical form */}
-                <div className="flex flex-wrap items-center justify-between text-xs font-bold text-slate-800 px-2 pt-1">
+                <div className="flex flex-wrap items-center justify-between text-xs font-bold text-slate-800 px-2 pt-0.5">
                   <div className="flex items-center gap-4">
                     <label className="flex items-center gap-1.5 cursor-pointer">
                       <span className={`w-4 h-4 border border-slate-800 flex items-center justify-center text-[10px] font-black ${semester === '1st Semester' ? 'bg-slate-900 text-white' : ''}`}>
@@ -1063,29 +1104,43 @@ const InventoryReport: React.FC = () => {
 
                   <div className="flex items-center gap-4">
                     <span>S.Y. <u className="font-mono">{schoolYear}</u></span>
-                    <span>Branch: <u>{effectiveBranch === 'all' ? 'All Clinics' : effectiveBranch}</u></span>
+                    <span>Area: <span className="text-[#A5192D] font-bold uppercase">{effectiveBranch === 'all' ? 'ALL CLINIC BRANCHES' : effectiveBranch}</span></span>
                   </div>
+                </div>
+              </div>
+            ) : (
+              /* Master Inventory Catalog Title */
+              <div className="text-center space-y-1 py-1.5 border-b border-slate-300">
+                <h1 className="text-base sm:text-lg font-black tracking-wider uppercase text-slate-900">
+                  MASTER CLINIC INVENTORY CATALOG REGISTER
+                </h1>
+                <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 text-xs text-slate-800 font-semibold">
+                  <span>S.Y. {schoolYear}</span>
+                  <span>•</span>
+                  <span>
+                    Area: <span className="text-[#A5192D] font-bold uppercase">{effectiveBranch === 'all' ? 'ALL CLINIC BRANCHES' : effectiveBranch}</span>
+                  </span>
                 </div>
               </div>
             )}
 
-            {/* 3. Formal Grid Table (Exact Match to Physical Forms) */}
+            {/* 3. Formal Grid Table (Exact Match to Physical Forms in Landscape) */}
             <div className="overflow-x-auto">
               {reportMode === 'equipment' ? (
-                /* Equipment Grid */
-                <table className="w-full text-left border-collapse border-2 border-slate-900 text-[11px]">
+                /* Equipment Grid - Exact 10 columns matching physical photo */
+                <table className="w-full text-left border-collapse border border-slate-900 text-[11px]">
                   <thead>
-                    <tr className="bg-slate-100 text-slate-900 font-bold uppercase tracking-wider text-center border-b-2 border-slate-900">
-                      <th className="p-2 border border-slate-900 w-10">Item No.</th>
-                      <th className="p-2 border border-slate-900 text-left">Description</th>
-                      <th className="p-2 border border-slate-900 w-12">Qty.</th>
-                      <th className="p-2 border border-slate-900 w-12">Unit</th>
-                      <th className="p-2 border border-slate-900">Brand</th>
-                      <th className="p-2 border border-slate-900">Model No.</th>
-                      <th className="p-2 border border-slate-900">Serial No.</th>
-                      <th className="p-2 border border-slate-900">Supplier</th>
-                      <th className="p-2 border border-slate-900">Date Purchased / Fabricated</th>
-                      <th className="p-2 border border-slate-900">Remarks</th>
+                    <tr className="bg-slate-100 text-slate-900 font-bold uppercase tracking-wider text-center border-b border-slate-900">
+                      <th className="p-2 border border-slate-900 w-12 text-center">Item No.</th>
+                      <th className="p-2 border border-slate-900 text-left min-w-[170px]">Description</th>
+                      <th className="p-2 border border-slate-900 w-12 text-center">Qty.</th>
+                      <th className="p-2 border border-slate-900 w-12 text-center">Unit</th>
+                      <th className="p-2 border border-slate-900 min-w-[100px] text-center">Brand</th>
+                      <th className="p-2 border border-slate-900 min-w-[100px] text-center">Model No.</th>
+                      <th className="p-2 border border-slate-900 min-w-[100px] text-center">Serial No.</th>
+                      <th className="p-2 border border-slate-900 min-w-[110px] text-center">Supplier</th>
+                      <th className="p-2 border border-slate-900 min-w-[110px] text-center">Date Purchased/Fabricated</th>
+                      <th className="p-2 border border-slate-900 min-w-[140px] text-left">Remarks</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1094,13 +1149,13 @@ const InventoryReport: React.FC = () => {
                         <td className="p-2 border border-slate-900 text-center font-bold font-mono">{i + 1}</td>
                         <td className="p-2 border border-slate-900 font-bold">{eq.description}</td>
                         <td className="p-2 border border-slate-900 text-center font-bold font-mono">{eq.qty}</td>
-                        <td className="p-2 border border-slate-900 text-center">{eq.unit}</td>
-                        <td className="p-2 border border-slate-900">{eq.brand}</td>
-                        <td className="p-2 border border-slate-900 font-mono">{eq.model_no}</td>
-                        <td className="p-2 border border-slate-900 font-mono">{eq.serial_no}</td>
-                        <td className="p-2 border border-slate-900">{eq.supplier}</td>
-                        <td className="p-2 border border-slate-900 text-center">{eq.date_purchased}</td>
-                        <td className="p-2 border border-slate-900">{eq.remarks}</td>
+                        <td className="p-2 border border-slate-900 text-center">{eq.unit || 'Pc'}</td>
+                        <td className="p-2 border border-slate-900 text-center">{eq.brand || '----------'}</td>
+                        <td className="p-2 border border-slate-900 text-center font-mono">{eq.model_no || '----------'}</td>
+                        <td className="p-2 border border-slate-900 text-center font-mono">{eq.serial_no || '----------'}</td>
+                        <td className="p-2 border border-slate-900 text-center">{eq.supplier || '----------'}</td>
+                        <td className="p-2 border border-slate-900 text-center">{eq.date_purchased || '----------'}</td>
+                        <td className="p-2 border border-slate-900 text-left">{eq.remarks || 'Good Condition'}</td>
                       </tr>
                     ))}
                     {equipmentFlat.length === 0 && (
@@ -1112,17 +1167,19 @@ const InventoryReport: React.FC = () => {
                     )}
                   </tbody>
                 </table>
-              ) : (
+              ) : reportMode === 'medicines' ? (
                 /* SCR-9.5 Medicine / Supplies Grid */
-                <table className="w-full text-left border-collapse border-2 border-slate-900 text-[11px]">
+                <table className="w-full text-left border-collapse border border-slate-900 text-[11px]">
                   <thead>
-                    <tr className="bg-slate-100 text-slate-900 font-bold uppercase tracking-wider text-center border-b-2 border-slate-900">
-                      <th className="p-2 border border-slate-900 w-12">Item No.</th>
-                      <th className="p-2 border border-slate-900 text-left">Medicine Name / Supply Item</th>
-                      <th className="p-2 border border-slate-900">Dosage / Strength</th>
-                      <th className="p-2 border border-slate-900 text-center">Quantity (Drawer / Main)</th>
-                      <th className="p-2 border border-slate-900 text-center w-24">Expiry Date (MM/YYYY)</th>
-                      <th className="p-2 border border-slate-900 text-left">Remarks</th>
+                    <tr className="bg-slate-100 text-slate-900 font-bold uppercase tracking-wider text-center border-b border-slate-900">
+                      <th className="p-2 border border-slate-900 w-12 text-center">Item No.</th>
+                      <th className="p-2 border border-slate-900 text-left min-w-[180px]">Medicine Name / Item Description</th>
+                      <th className="p-2 border border-slate-900 text-center min-w-[80px]">Category</th>
+                      <th className="p-2 border border-slate-900 text-center min-w-[110px]">Dosage / Formulation</th>
+                      <th className="p-2 border border-slate-900 text-center min-w-[130px]">Quantity (Drawer / Main)</th>
+                      <th className="p-2 border border-slate-900 text-center w-24">Lot / Batch No.</th>
+                      <th className="p-2 border border-slate-900 text-center w-24">Expiry Date</th>
+                      <th className="p-2 border border-slate-900 text-left min-w-[140px]">Remarks</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1131,19 +1188,18 @@ const InventoryReport: React.FC = () => {
                         <td className="p-2 border border-slate-900 text-center font-bold font-mono">{i + 1}</td>
                         <td className="p-2 border border-slate-900 font-bold">
                           {b.medicine_name}
-                          {b.lot_number && b.lot_number !== 'N/A' && (
-                            <span className="block text-[10px] text-slate-600 font-normal font-mono">
-                              Lot/Batch: {b.lot_number}
-                            </span>
-                          )}
                         </td>
-                        <td className="p-2 border border-slate-900 text-center">{b.dosage || '—'}</td>
+                        <td className="p-2 border border-slate-900 text-center capitalize">{b.category}</td>
+                        <td className="p-2 border border-slate-900 text-center">
+                          {b.dosage ? b.dosage : (b.formulation ? b.formulation : '—')}
+                        </td>
                         <td className="p-2 border border-slate-900 text-center font-mono">
                           <strong className="text-slate-900">{b.quantity} {b.unit}</strong>
                           <span className="block text-[10px] text-slate-600">
                             (Drawer: {b.drawer_stock} | Main: {b.main_stock})
                           </span>
                         </td>
+                        <td className="p-2 border border-slate-900 text-center font-mono">{b.lot_number || '----------'}</td>
                         <td className="p-2 border border-slate-900 text-center font-bold font-mono">
                           {b.expiry_date}
                         </td>
@@ -1154,8 +1210,45 @@ const InventoryReport: React.FC = () => {
                     ))}
                     {batchesFlat.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="p-4 text-center text-slate-500 italic border border-slate-900">
+                        <td colSpan={8} className="p-4 text-center text-slate-500 italic border border-slate-900">
                           No medicine or supplies records registered for this period.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                /* Master Catalog Grid */
+                <table className="w-full text-left border-collapse border border-slate-900 text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-900 font-bold uppercase tracking-wider text-center border-b border-slate-900">
+                      <th className="p-2 border border-slate-900 w-12 text-center">Item No.</th>
+                      <th className="p-2 border border-slate-900 text-left min-w-[180px]">Item Description</th>
+                      <th className="p-2 border border-slate-900 text-center min-w-[90px]">Category</th>
+                      <th className="p-2 border border-slate-900 text-center min-w-[90px]">Total Stock</th>
+                      <th className="p-2 border border-slate-900 text-center min-w-[80px]">Unit</th>
+                      <th className="p-2 border border-slate-900 min-w-[110px] text-center">Brand / Model</th>
+                      <th className="p-2 border border-slate-900 min-w-[110px] text-center">Earliest Expiry</th>
+                      <th className="p-2 border border-slate-900 text-left min-w-[130px]">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item, i) => (
+                      <tr key={i} className="border-b border-slate-900">
+                        <td className="p-2 border border-slate-900 text-center font-bold font-mono">{i + 1}</td>
+                        <td className="p-2 border border-slate-900 font-bold">{item.generic_name}</td>
+                        <td className="p-2 border border-slate-900 text-center capitalize">{item.category}</td>
+                        <td className="p-2 border border-slate-900 text-center font-bold font-mono">{item.total_stock}</td>
+                        <td className="p-2 border border-slate-900 text-center">{item.unit}</td>
+                        <td className="p-2 border border-slate-900 text-center">{item.brand_name || item.model_no || '----------'}</td>
+                        <td className="p-2 border border-slate-900 text-center font-mono">{item.earliest_expiry ? new Date(item.earliest_expiry).toLocaleDateString('en-US', { month: '2-digit', year: 'numeric' }) : '----------'}</td>
+                        <td className="p-2 border border-slate-900 text-left">{item.status_label}</td>
+                      </tr>
+                    ))}
+                    {items.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="p-4 text-center text-slate-500 italic border border-slate-900">
+                          No items registered in catalog.
                         </td>
                       </tr>
                     )}

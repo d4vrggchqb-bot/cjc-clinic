@@ -1133,22 +1133,37 @@ class InventoryController extends BaseController {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
         cjcRequireAuth();
         $pdo = cjcDatabaseConnection();
-        $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : ($_GET['branch'] ?? $this->getUserBranch());
-        $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
-
-        $stmt = $pdo->prepare("
-            SELECT i.id, i.generic_name, i.brand_name, i.formulation, i.serial_no, i.model_no,
-                   i.supplier, i.unit, i.date_acquired, i.date_purchased, i.calibration_notes,
-                   COALESCE(SUM(CASE WHEN b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as qty,
-                   (SELECT ec.serial_no FROM equipment_calibrations ec WHERE ec.item_id = i.id AND ec.serial_no IS NOT NULL ORDER BY ec.id DESC LIMIT 1) as latest_calib_serial,
-                   i.last_calibrated, i.calibration_due
-            FROM inventory_items i
-            LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
-            WHERE i.category = 'equipment'
-            GROUP BY i.id
-            ORDER BY i.generic_name ASC
-        ");
-        $stmt->execute([$branch, $branchAlt]);
+        $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : ($_GET['branch'] ?? 'all');
+        if ($branch === 'all' || $branch === 'All Branches') {
+            $stmt = $pdo->prepare("
+                SELECT i.id, i.generic_name, i.brand_name, i.formulation, i.serial_no, i.model_no,
+                       i.supplier, i.unit, i.date_acquired, i.date_purchased, i.calibration_notes,
+                       COALESCE(SUM(CASE WHEN b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as qty,
+                       (SELECT ec.serial_no FROM equipment_calibrations ec WHERE ec.item_id = i.id AND ec.serial_no IS NOT NULL ORDER BY ec.id DESC LIMIT 1) as latest_calib_serial,
+                       i.last_calibrated, i.calibration_due
+                FROM inventory_items i
+                LEFT JOIN inventory_batches b ON i.id = b.item_id
+                WHERE i.category = 'equipment'
+                GROUP BY i.id
+                ORDER BY i.generic_name ASC
+            ");
+            $stmt->execute();
+        } else {
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            $stmt = $pdo->prepare("
+                SELECT i.id, i.generic_name, i.brand_name, i.formulation, i.serial_no, i.model_no,
+                       i.supplier, i.unit, i.date_acquired, i.date_purchased, i.calibration_notes,
+                       COALESCE(SUM(CASE WHEN b.status != 'depleted' THEN b.stock_remaining ELSE 0 END), 0) as qty,
+                       (SELECT ec.serial_no FROM equipment_calibrations ec WHERE ec.item_id = i.id AND ec.serial_no IS NOT NULL ORDER BY ec.id DESC LIMIT 1) as latest_calib_serial,
+                       i.last_calibrated, i.calibration_due
+                FROM inventory_items i
+                LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
+                WHERE i.category = 'equipment'
+                GROUP BY i.id
+                ORDER BY i.generic_name ASC
+            ");
+            $stmt->execute([$branch, $branchAlt]);
+        }
         $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $this->jsonResponse(['success' => true, 'items' => $items]);
     }
@@ -1157,20 +1172,33 @@ class InventoryController extends BaseController {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
         cjcRequireAuth();
         $pdo = cjcDatabaseConnection();
-        $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : ($_GET['branch'] ?? $this->getUserBranch());
-        $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
-
-        $stmt = $pdo->prepare("
-            SELECT i.id, i.generic_name, i.brand_name, i.dosage, i.formulation,
-                   COALESCE(SUM(CASE WHEN b.status = 'active' THEN b.stock_remaining ELSE 0 END), 0) as quantity,
-                   MIN(CASE WHEN b.status = 'active' AND b.stock_remaining > 0 THEN b.expired_on ELSE NULL END) as earliest_expiry
-            FROM inventory_items i
-            LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
-            WHERE i.category IN ('medicine', 'supply')
-            GROUP BY i.id
-            ORDER BY i.generic_name ASC
-        ");
-        $stmt->execute([$branch, $branchAlt]);
+        $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : ($_GET['branch'] ?? 'all');
+        if ($branch === 'all' || $branch === 'All Branches') {
+            $stmt = $pdo->prepare("
+                SELECT i.id, i.generic_name, i.brand_name, i.dosage, i.formulation,
+                       COALESCE(SUM(CASE WHEN b.status = 'active' THEN b.stock_remaining ELSE 0 END), 0) as quantity,
+                       MIN(CASE WHEN b.status = 'active' AND b.stock_remaining > 0 THEN b.expired_on ELSE NULL END) as earliest_expiry
+                FROM inventory_items i
+                LEFT JOIN inventory_batches b ON i.id = b.item_id
+                WHERE i.category IN ('medicine', 'supply')
+                GROUP BY i.id
+                ORDER BY i.generic_name ASC
+            ");
+            $stmt->execute();
+        } else {
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            $stmt = $pdo->prepare("
+                SELECT i.id, i.generic_name, i.brand_name, i.dosage, i.formulation,
+                       COALESCE(SUM(CASE WHEN b.status = 'active' THEN b.stock_remaining ELSE 0 END), 0) as quantity,
+                       MIN(CASE WHEN b.status = 'active' AND b.stock_remaining > 0 THEN b.expired_on ELSE NULL END) as earliest_expiry
+                FROM inventory_items i
+                LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
+                WHERE i.category IN ('medicine', 'supply')
+                GROUP BY i.id
+                ORDER BY i.generic_name ASC
+            ");
+            $stmt->execute([$branch, $branchAlt]);
+        }
         $rawItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $today = new DateTime();
@@ -1278,7 +1306,8 @@ class InventoryController extends BaseController {
         $itemWhereSql = implode(' AND ', $itemWhere);
 
         $itemStmt = $pdo->prepare("
-            SELECT i.*
+            SELECT i.*,
+                   (SELECT ec.serial_no FROM equipment_calibrations ec WHERE ec.item_id = i.id AND ec.serial_no IS NOT NULL AND ec.serial_no != '' ORDER BY ec.id DESC LIMIT 1) as latest_calib_serial
             FROM inventory_items i
             WHERE $itemWhereSql
             ORDER BY FIELD(i.category, 'medicine', 'supply', 'equipment'), i.generic_name ASC
@@ -1527,19 +1556,28 @@ class InventoryController extends BaseController {
                 }
             }
 
-            // Generate Equipment rows for Equipment Register
+            // Generate Equipment rows for Equipment Register (Matching Physical Inventory Form)
             if ($item['category'] === 'equipment') {
-                $desc = trim($item['generic_name'] . (!empty($item['brand_name']) ? " ({$item['brand_name']})" : ""));
-                if (!empty($item['formulation'])) $desc .= " - {$item['formulation']}";
+                $desc = !empty($item['generic_name']) ? trim($item['generic_name']) : (!empty($item['brand_name']) ? trim($item['brand_name']) : 'Clinic Equipment');
 
-                $equipRemarks = 'Functional / Active';
+                $equipRemarks = 'Excellent Condition';
                 if (!empty($item['calibration_notes'])) {
                     $equipRemarks = $item['calibration_notes'];
                 } elseif (!empty($item['last_calibrated'])) {
-                    $equipRemarks = 'Calibrated: ' . date('M d, Y', strtotime($item['last_calibrated']));
+                    $equipRemarks = 'Calibrated (' . date('F Y', strtotime($item['last_calibrated'])) . ')';
                     if (!empty($item['calibration_due'])) {
-                        $equipRemarks .= ' (Due: ' . date('M d, Y', strtotime($item['calibration_due'])) . ')';
+                        $equipRemarks .= ' [Due: ' . date('M Y', strtotime($item['calibration_due'])) . ']';
                     }
+                }
+
+                $serialVal = !empty($item['serial_no']) ? $item['serial_no'] : (!empty($item['latest_calib_serial']) ? $item['latest_calib_serial'] : '----------');
+                $rawUnit = !empty($item['unit']) ? strtolower(trim($item['unit'])) : 'pc';
+                $unitVal = ($rawUnit === 'pieces' || $rawUnit === 'pcs' || $rawUnit === 'piece' || $rawUnit === 'pc') ? 'Pc' : ucfirst($item['unit'] ?? 'Pc');
+                $datePurchasedVal = '----------';
+                if (!empty($item['date_purchased'])) {
+                    $datePurchasedVal = date('m/d/Y', strtotime($item['date_purchased']));
+                } elseif (!empty($item['date_acquired'])) {
+                    $datePurchasedVal = date('m/d/Y', strtotime($item['date_acquired']));
                 }
 
                 $equipmentFlat[] = [
@@ -1547,12 +1585,12 @@ class InventoryController extends BaseController {
                     'item_id' => $item['id'],
                     'description' => $desc,
                     'qty' => $totalStock > 0 ? $totalStock : 1,
-                    'unit' => $item['unit'] ?? 'units',
-                    'brand' => !empty($item['brand_name']) ? $item['brand_name'] : 'N/A',
-                    'model_no' => !empty($item['model_no']) ? $item['model_no'] : 'N/A',
-                    'serial_no' => !empty($item['serial_no']) ? $item['serial_no'] : 'N/A',
-                    'supplier' => !empty($item['supplier']) ? $item['supplier'] : 'N/A',
-                    'date_purchased' => !empty($item['date_purchased']) ? date('M d, Y', strtotime($item['date_purchased'])) : (!empty($item['date_acquired']) ? date('M d, Y', strtotime($item['date_acquired'])) : 'N/A'),
+                    'unit' => $unitVal,
+                    'brand' => !empty($item['brand_name']) ? $item['brand_name'] : '----------',
+                    'model_no' => !empty($item['model_no']) ? $item['model_no'] : '----------',
+                    'serial_no' => $serialVal,
+                    'supplier' => !empty($item['supplier']) ? $item['supplier'] : '----------',
+                    'date_purchased' => $datePurchasedVal,
                     'remarks' => $equipRemarks,
                     'last_calibrated' => $item['last_calibrated'],
                     'calibration_due' => $item['calibration_due'],
