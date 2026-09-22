@@ -22,7 +22,7 @@ interface PurchaseOrder {
 
 const PurchaseOrders: React.FC = () => {
   const { confirm } = useConfirm();
-  const { userBranch, isSuperAdmin } = useBranch();
+  const { userBranch, isSuperAdmin, selectedBranch } = useBranch();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showReceive, setShowReceive] = useState<PurchaseOrder | null>(null);
