@@ -30,6 +30,8 @@ interface BorrowedItemDetail {
   settlement_notes?: string | null;
   charge_amount?: number | null;
   settled_at?: string | null;
+  batch_id?: number | null;
+  batch_number?: string | null;
 }
 
 interface BorrowingDetail {
@@ -791,10 +793,15 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
                         {item.brand_name && item.generic_name && (
                           <p className="text-[11px] text-slate-500">{item.generic_name}</p>
                         )}
-                        <div className="flex items-center gap-1.5 mt-1">
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${isSupply ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
                             {isSupply ? 'Consumable Supply' : 'Equipment / Apparatus'}
                           </span>
+                          {item.batch_number && (
+                            <span className="text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                              Batch: {item.batch_number}
+                            </span>
+                          )}
                           {isSettled && <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">Settled</span>}
                         </div>
                       </div>
@@ -865,14 +872,14 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
                               (item.quantity_returned ?? 0) > 0 ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-teal-800 bg-teal-50 border border-teal-200 rounded-md">
                                   <FiInbox size={11} className="text-teal-600" />
-                                  Drawer ({item.quantity_returned})
+                                  Drawer ({item.quantity_returned}){item.batch_number ? ` • ${item.batch_number}` : ''}
                                 </span>
                               ) : null
                             ) : (
                               r.returned > 0 ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-teal-800 bg-teal-50 border border-teal-200 rounded-md">
                                   <FiInbox size={11} className="text-teal-600" />
-                                  Syncs to Drawer ({r.returned})
+                                  Syncs to Drawer ({r.returned}){item.batch_number ? ` • ${item.batch_number}` : ''}
                                 </span>
                               ) : (
                                 <span className="text-[10px] text-slate-400">All consumed</span>
