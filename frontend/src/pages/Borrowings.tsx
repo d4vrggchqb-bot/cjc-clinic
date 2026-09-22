@@ -90,11 +90,9 @@ function fmtDateShort(d: string | null) {
 function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
   if (!b) return;
 
-  const logoSrc = `${window.location.origin}/med_cert_header.png`;
+  // Header matching Inventory Report exactly
+  const logoSrc = `${window.location.origin}/cjc_report_header.png?v=3`;
   const isHistory = mode === 'history' || b.borrowing_status === 'returned' || Boolean(b.returned_at);
-
-  let tableHeaderHtml = '';
-  let itemRowsHtml = '';
 
   const hasUnsettled = (b.items || []).some((item: any) =>
     item.item_type === 'equipment' &&
@@ -102,16 +100,18 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
     (item.settlement_action === 'to_replace' || item.settlement_action === 'to_pay')
   );
 
+  let tableHeaderHtml = '';
+  let itemRowsHtml = '';
+
   if (isHistory) {
     tableHeaderHtml = `
       <tr>
-        <th style="padding:6px 8px;text-align:left">#</th>
-        <th style="padding:6px 8px;text-align:left">Item / Apparatus</th>
-        <th style="padding:6px 8px;text-align:center">Category</th>
-        <th style="padding:6px 8px;text-align:center">Borrowed</th>
-        <th style="padding:6px 8px;text-align:center">Returned</th>
-        <th style="padding:6px 8px;text-align:center">Condition</th>
-        <th style="padding:6px 8px;text-align:center">Settlement Status</th>
+        <th style="width:16px;text-align:center">#</th>
+        <th style="text-align:left">Item / Apparatus</th>
+        <th style="text-align:center;width:24px">Qty</th>
+        <th style="text-align:center;width:24px">Ret</th>
+        <th style="text-align:center;width:68px">Condition</th>
+        <th style="text-align:center;width:78px">Settlement</th>
       </tr>
     `;
 
@@ -121,42 +121,41 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
       const settle = item.settlement_action || 'none';
       const ret = item.quantity_returned !== null ? item.quantity_returned : (item.status === 'returned' ? item.quantity : 0);
 
-      let condBadge = `<span style="background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">GOOD / FUNCTIONAL</span>`;
+      let condBadge = `<span style="background:#dcfce7;color:#15803d;padding:1px 4px;border-radius:3px;font-size:7.5px;font-weight:700">GOOD</span>`;
       if (!isSupply) {
         if (cond === 'damaged') {
-          condBadge = `<span style="background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">DAMAGED (GUBA)</span>`;
+          condBadge = `<span style="background:#fee2e2;color:#b91c1c;padding:1px 4px;border-radius:3px;font-size:7.5px;font-weight:700">DAMAGED</span>`;
         } else if (cond === 'lost') {
-          condBadge = `<span style="background:#ffedd5;color:#c2410c;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">LOST (NAWALA)</span>`;
+          condBadge = `<span style="background:#ffedd5;color:#c2410c;padding:1px 4px;border-radius:3px;font-size:7.5px;font-weight:700">LOST</span>`;
         }
       } else {
-        condBadge = `<span style="color:#64748b;font-size:10px">Consumable</span>`;
+        condBadge = `<span style="color:#64748b;font-size:7.5px">Supply</span>`;
       }
 
       let settleText = `<span style="color:#15803d;font-weight:600">Cleared</span>`;
       if (!isSupply && (cond === 'damaged' || cond === 'lost')) {
         if (settle === 'to_replace') {
-          settleText = `<strong style="color:#dc2626">To Replace (Ilisan)</strong>`;
+          settleText = `<strong style="color:#dc2626">To Replace</strong>`;
         } else if (settle === 'to_pay') {
-          settleText = `<strong style="color:#dc2626">To Pay (Bayaran)${item.charge_amount > 0 ? ' &#8212; &#8369;' + Number(item.charge_amount).toFixed(2) : ''}</strong>`;
+          settleText = `<strong style="color:#dc2626">To Pay${item.charge_amount > 0 ? ' &#8369;' + Number(item.charge_amount).toFixed(0) : ''}</strong>`;
         } else if (settle === 'replaced') {
-          settleText = `<strong style="color:#16a34a">Replaced (Nailisan na)</strong>`;
+          settleText = `<strong style="color:#16a34a">Replaced</strong>`;
         } else if (settle === 'paid') {
-          settleText = `<strong style="color:#16a34a">Paid (Nabayran na)${item.charge_amount > 0 ? ' &#8212; &#8369;' + Number(item.charge_amount).toFixed(2) : ''}</strong>`;
+          settleText = `<strong style="color:#16a34a">Paid${item.charge_amount > 0 ? ' &#8369;' + Number(item.charge_amount).toFixed(0) : ''}</strong>`;
         }
         if (item.settlement_notes) {
-          settleText += `<br><span style="font-size:9px;color:#555">Note: ${item.settlement_notes}</span>`;
+          settleText += `<br><span style="font-size:7px;color:#555">(${item.settlement_notes})</span>`;
         }
       }
 
       return `
-        <tr style="background:${idx % 2 === 0 ? '#fff' : '#f9f9f9'};border-bottom:1px solid #eee">
-          <td style="padding:6px 8px">${idx + 1}</td>
-          <td style="padding:6px 8px;font-weight:600">${item.brand_name ? item.brand_name + (item.generic_name ? ' &#8212; ' + item.generic_name : '') : item.generic_name}</td>
-          <td style="padding:6px 8px;text-align:center;text-transform:capitalize">${item.category || item.item_type}</td>
-          <td style="padding:6px 8px;text-align:center;font-weight:700">${item.quantity}</td>
-          <td style="padding:6px 8px;text-align:center;font-weight:700;color:#15803d">${ret}</td>
-          <td style="padding:6px 8px;text-align:center">${condBadge}</td>
-          <td style="padding:6px 8px;text-align:center;font-size:11px">${settleText}</td>
+        <tr style="background:${idx % 2 === 0 ? '#fff' : '#f8fafc'};border-bottom:1px solid #e2e8f0">
+          <td style="padding:2.5px 3px;text-align:center">${idx + 1}</td>
+          <td style="padding:2.5px 4px;font-weight:600">${item.brand_name ? item.brand_name + (item.generic_name ? ' &#8212; ' + item.generic_name : '') : item.generic_name}</td>
+          <td style="padding:2.5px 3px;text-align:center;font-weight:700">${item.quantity}</td>
+          <td style="padding:2.5px 3px;text-align:center;font-weight:700;color:#15803d">${ret}</td>
+          <td style="padding:2.5px 3px;text-align:center">${condBadge}</td>
+          <td style="padding:2.5px 3px;text-align:center;font-size:7.5px">${settleText}</td>
         </tr>
       `;
     }).join('');
@@ -165,92 +164,289 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
     // Checkout mode
     tableHeaderHtml = `
       <tr>
-        <th style="padding:6px 10px;text-align:left">#</th>
-        <th style="padding:6px 10px;text-align:left">Item Name</th>
-        <th style="padding:6px 10px;text-align:center">Category</th>
-        <th style="padding:6px 10px;text-align:center">Type</th>
-        <th style="padding:6px 10px;text-align:center">Qty Borrowed</th>
+        <th style="width:20px;text-align:center">#</th>
+        <th style="text-align:left">Item / Apparatus</th>
+        <th style="text-align:center;width:60px">Category</th>
+        <th style="text-align:center;width:65px">Type</th>
+        <th style="text-align:center;width:35px">Qty</th>
       </tr>
     `;
 
     itemRowsHtml = (b.items || []).map((item: any, idx: number) => `
-      <tr style="background:${idx % 2 === 0 ? '#fff' : '#f9f9f9'};border-bottom:1px solid #eee">
-        <td style="padding:6px 10px">${idx + 1}</td>
-        <td style="padding:6px 10px;font-weight:600">${item.brand_name ? item.brand_name + (item.generic_name ? ' &#8212; ' + item.generic_name : '') : item.generic_name}</td>
-        <td style="padding:6px 10px;text-align:center;text-transform:capitalize">${item.category || item.item_type}</td>
-        <td style="padding:6px 10px;text-align:center">
-          <span style="background:${item.item_type === 'equipment' ? '#dbeafe' : '#dcfce7'};color:${item.item_type === 'equipment' ? '#1d4ed8' : '#15803d'};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">
+      <tr style="background:${idx % 2 === 0 ? '#fff' : '#f8fafc'};border-bottom:1px solid #e2e8f0">
+        <td style="padding:3px 4px;text-align:center">${idx + 1}</td>
+        <td style="padding:3px 5px;font-weight:600">${item.brand_name ? item.brand_name + (item.generic_name ? ' &#8212; ' + item.generic_name : '') : item.generic_name}</td>
+        <td style="padding:3px 4px;text-align:center;text-transform:capitalize">${item.category || item.item_type}</td>
+        <td style="padding:3px 4px;text-align:center">
+          <span style="background:${item.item_type === 'equipment' ? '#dbeafe' : '#dcfce7'};color:${item.item_type === 'equipment' ? '#1d4ed8' : '#15803d'};padding:1px 5px;border-radius:3px;font-size:7.5px;font-weight:700">
             ${item.item_type === 'equipment' ? 'To Return' : 'Consumable'}
           </span>
         </td>
-        <td style="padding:6px 10px;text-align:center;font-weight:700">${item.quantity}</td>
+        <td style="padding:3px 4px;text-align:center;font-weight:700">${item.quantity}</td>
       </tr>
     `).join('');
   }
 
   const docTitle = isHistory ? 'EQUIPMENT BORROWING & RETURN RECEIPT' : 'EQUIPMENT BORROWING SLIP';
 
+  // Format short date string
+  const fmtSlipDate = (d: string | null) => {
+    if (!d) return '—';
+    const dt = new Date(d);
+    return dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' +
+           dt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', hour12: true });
+  };
+
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>${docTitle} &#8212; ${b.booking_code}</title>
   <style>
-    body{font-family:Arial,sans-serif;margin:0;padding:0;color:#000;font-size:12px}
-    *{box-sizing:border-box}
-    @page{margin:10mm 12mm}
-    @media print{body{padding:0}}
-    .wrap{max-width:700px;margin:0 auto;padding:0}
-    .cjc-banner{width:100%;max-width:700px;height:auto;display:block;margin:0 auto 10px}
-    .doc-title{text-align:center;font-size:14px;font-weight:900;color:#A5192D;letter-spacing:1.5px;text-transform:uppercase;margin:6px 0;padding:4px 0;border-bottom:2px solid #A5192D}
-    .meta-row{display:flex;justify-content:space-between;gap:12px;margin:10px 0;font-size:12px}
-    .meta-block{flex:1}
-    .label{font-size:9px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
-    .section{border:1px solid #ddd;border-radius:5px;padding:10px;margin-bottom:10px}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
-    table{width:100%;border-collapse:collapse}
-    th{background:#A5192D;color:#fff;padding:6px 8px;font-weight:700;font-size:11px}
-    td{padding:6px 8px;font-size:12px}
-    .sigline{border-bottom:1.5px solid #333;min-height:22px;margin-bottom:3px}
-    .siglabel{font-size:10px;color:#555}
-    .footer{text-align:center;font-size:9px;color:#aaa;margin-top:10px;border-top:1px solid #eee;padding-top:6px}
+    @page {
+      size: 4.25in 6.5in portrait;
+      margin: 3.5mm 4.5mm 3mm 4.5mm;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #f1f5f9;
+      font-family: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 8.5px;
+      line-height: 1.25;
+      color: #0f172a;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    @media print {
+      html, body {
+        background: #fff;
+        width: 4.25in;
+        height: 6.5in;
+      }
+      .wrap {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+      }
+      .no-print { display: none !important; }
+    }
+    .wrap {
+      width: 100%;
+      max-width: 4.25in;
+      margin: 0 auto;
+      background: #fff;
+      padding: 6px 8px;
+      box-sizing: border-box;
+      page-break-inside: avoid;
+    }
+    .cjc-banner {
+      width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto 2px;
+    }
+    .branch-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1px 2px 3px;
+      border-bottom: 1.5px solid #0f172a;
+      margin-bottom: 3px;
+      font-size: 7.5px;
+      font-weight: 700;
+    }
+    .branch-tag {
+      color: #A5192D;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .slip-date {
+      color: #64748b;
+    }
+    .doc-title {
+      text-align: center;
+      font-size: 9.5px;
+      font-weight: 900;
+      color: #A5192D;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin: 2px 0 4px;
+      padding-bottom: 2px;
+      border-bottom: 1.5px solid #A5192D;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 4px;
+      font-size: 8px;
+      line-height: 1.2;
+    }
+    .meta-left {
+      flex: 1;
+    }
+    .meta-right {
+      text-align: right;
+      font-size: 7.5px;
+    }
+    .label {
+      font-size: 7px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ref-code {
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #A5192D;
+      font-family: monospace;
+    }
+    .section-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 3px 5px;
+      margin-bottom: 4px;
+      background: #f8fafc;
+    }
+    .section-title {
+      font-size: 7px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px 8px;
+      font-size: 8px;
+    }
+    .lbl {
+      color: #64748b;
+      font-weight: 600;
+    }
+    .full-col {
+      grid-column: 1 / -1;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1px;
+    }
+    th {
+      background: #A5192D;
+      color: #fff;
+      padding: 2.5px 3px;
+      font-weight: 700;
+      font-size: 7.5px;
+      text-transform: uppercase;
+    }
+    td {
+      font-size: 8px;
+      vertical-align: middle;
+    }
+    .alert-box {
+      margin: 3px 0;
+      padding: 3px 5px;
+      border: 1px solid #dc2626;
+      background: #fef2f2;
+      border-radius: 3px;
+      font-size: 7.5px;
+      color: #991b1b;
+      line-height: 1.2;
+    }
+    .alert-title {
+      font-weight: 800;
+      font-size: 8px;
+      color: #b91c1c;
+    }
+    .alert-list {
+      margin: 2px 0 0 12px;
+      padding: 0;
+    }
+    .sig-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 12px;
+      margin-top: 3px;
+    }
+    .sig-line {
+      font-weight: 700;
+      font-size: 8px;
+      color: #0f172a;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 1px;
+      min-height: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sig-label {
+      font-size: 7px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+    .terms {
+      font-size: 6.5px;
+      color: #64748b;
+      line-height: 1.15;
+      margin-top: 3px;
+      border-top: 1px dashed #cbd5e1;
+      padding-top: 2px;
+    }
+    .footer {
+      text-align: center;
+      font-size: 6.5px;
+      color: #94a3b8;
+      margin-top: 1px;
+    }
   </style>
   </head><body>
   <div class="wrap">
-    <!-- OFFICIAL MED CERT BANNER HEADER -->
-    <img class="cjc-banner" src="${logoSrc}" alt="Cor Jesu College Clinic Header" />
+    <!-- OFFICIAL INVENTORY REPORT HEADER LETTERHEAD (SCALED FOR 1/4 FOLIO) -->
+    <div class="cjc-header-container">
+      <img class="cjc-banner" src="${logoSrc}" alt="Cor Jesu College Header" />
+      <div class="branch-bar">
+        <span class="branch-tag">${b.clinic_branch ? b.clinic_branch.toUpperCase() : 'CLINIC SERVICES'}</span>
+        <span class="slip-date">Date: ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+      </div>
+    </div>
     
     <!-- DOCUMENT TITLE -->
     <div class="doc-title">${docTitle}</div>
     
     <!-- META -->
     <div class="meta-row">
-      <div class="meta-block">
+      <div class="meta-left">
         <div class="label">Booking Reference</div>
-        <div style="font-size:18px;font-weight:900;letter-spacing:2px;color:#A5192D;font-family:monospace">${b.booking_code}</div>
-        ${b.clinic_branch ? `<div style="font-size:11px;color:#666;font-weight:600;margin-top:2px">${b.clinic_branch}</div>` : ''}
+        <div class="ref-code">${b.booking_code}</div>
       </div>
-      <div style="text-align:right">
-        <div class="label">Date Borrowed</div>
-        <div style="font-weight:600">${fmtDate(b.created_at)}</div>
-        ${b.expected_return_date ? `<div class="label" style="margin-top:4px">Expected Return</div><div style="font-weight:600;color:${b.is_overdue ? '#c00' : '#000'}">${fmtDate(b.expected_return_date)}</div>` : ''}
-        ${b.returned_at ? `<div class="label" style="margin-top:4px">Actual Date Returned</div><div style="font-weight:700;color:#15803d">${fmtDate(b.returned_at)}</div>` : ''}
+      <div class="meta-right">
+        <div><span class="label">Date Borrowed:</span> <strong>${fmtSlipDate(b.created_at)}</strong></div>
+        ${b.expected_return_date ? `<div><span class="label">Expected Return:</span> <strong style="color:${b.is_overdue ? '#b91c1c' : '#0f172a'}">${fmtSlipDate(b.expected_return_date)}</strong></div>` : ''}
+        ${b.returned_at ? `<div><span class="label">Date Returned:</span> <strong style="color:#15803d">${fmtSlipDate(b.returned_at)}</strong></div>` : ''}
       </div>
     </div>
     
     <!-- BORROWER INFORMATION -->
-    <div class="section">
-      <div class="label">Borrower Information</div>
-      <div class="grid2" style="margin-top:6px">
-        <div><strong>Name:</strong> ${b.first_name} ${b.last_name}</div>
-        <div><strong>Type:</strong> ${b.profile_type ? b.profile_type.charAt(0).toUpperCase() + b.profile_type.slice(1) : ''}</div>
-        ${b.course ? `<div><strong>Course:</strong> ${b.course} ${b.year_level || ''}</div>` : ''}
-        ${b.department ? `<div><strong>Department:</strong> ${b.department}</div>` : ''}
-        <div style="grid-column:1/-1"><strong>Purpose:</strong> ${b.purpose}</div>
+    <div class="section-box">
+      <div class="section-title">Borrower Information</div>
+      <div class="grid2">
+        <div><span class="lbl">Borrower:</span> <strong>${b.first_name} ${b.last_name}</strong></div>
+        <div><span class="lbl">Type:</span> <strong>${b.profile_type ? b.profile_type.charAt(0).toUpperCase() + b.profile_type.slice(1) : 'Student'}</strong></div>
+        ${b.course ? `<div><span class="lbl">Course/Yr:</span> ${b.course} ${b.year_level || ''}</div>` : ''}
+        ${b.department ? `<div><span class="lbl">Dept:</span> ${b.department}</div>` : ''}
+        <div class="full-col"><span class="lbl">Purpose:</span> ${b.purpose}</div>
       </div>
     </div>
     
     <!-- ITEMS TABLE -->
-    <div style="margin-bottom:10px">
-      <div class="label">${isHistory ? 'Items, Condition & Reconciliation Status' : 'Items Borrowed'}</div>
-      <table style="margin-top:4px">
+    <div style="margin-bottom:3px">
+      <div class="section-title">${isHistory ? 'Items &amp; Condition Status' : 'Items Borrowed'}</div>
+      <table>
         <thead>${tableHeaderHtml}</thead>
         <tbody>${itemRowsHtml}</tbody>
       </table>
@@ -258,17 +454,17 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
 
     ${hasUnsettled ? `
     <!-- UNSETTLED EQUIPMENT ALERT -->
-    <div style="margin:10px 0;padding:10px 14px;border:1.5px solid #dc2626;background:#fef2f2;border-radius:6px;font-size:11px;color:#991b1b">
-      <strong style="font-size:12px;display:block;margin-bottom:4px">&#9888; NOTICE OF PENDING EQUIPMENT SETTLEMENT (ILISAN / BAYARAN):</strong>
-      The borrower returned equipment that is damaged or lost. Per CJC Clinic policy, the borrower is accountable to either replace (ilisan) or reimburse (bayaran) the item(s) listed below:
-      <ul style="margin:6px 0 0 16px;padding:0">
+    <div class="alert-box">
+      <div class="alert-title">&#9888; NOTICE OF SETTLEMENT (ILISAN / BAYARAN):</div>
+      Borrower returned equipment with damage/loss needing replacement or payment:
+      <ul class="alert-list">
         ${(b.items || []).filter((i: any) => i.item_type === 'equipment' && (i.condition_status === 'damaged' || i.condition_status === 'lost')).map((i: any) => `
-          <li style="margin-bottom:3px">
+          <li>
             <strong>${i.brand_name ? i.brand_name + ' &#8212; ' : ''}${i.generic_name}</strong>: 
-            Condition: <span style="font-weight:bold;text-transform:uppercase">${i.condition_status}</span> &bull; 
-            Action: <strong>${i.settlement_action === 'to_replace' ? 'To Replace (Ilisan)' : i.settlement_action === 'to_pay' ? 'To Pay / Reimburse (Bayaran)' : i.settlement_action}</strong>
-            ${i.charge_amount > 0 ? ` &bull; Amount: &#8369;${Number(i.charge_amount).toFixed(2)}` : ''}
-            ${i.settlement_notes ? ` &bull; <em>"${i.settlement_notes}"</em>` : ''}
+            <span style="font-weight:700;text-transform:uppercase">${i.condition_status}</span> &bull; 
+            <strong>${i.settlement_action === 'to_replace' ? 'To Replace (Ilisan)' : i.settlement_action === 'to_pay' ? 'To Pay (Bayaran)' : i.settlement_action}</strong>
+            ${i.charge_amount > 0 ? ` (&#8369;${Number(i.charge_amount).toFixed(2)})` : ''}
+            ${i.settlement_notes ? ` <em>"${i.settlement_notes}"</em>` : ''}
           </li>
         `).join('')}
       </ul>
@@ -276,41 +472,45 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
     ` : ''}
     
     <!-- ACKNOWLEDGMENT & AUTO-FILLED SIGNATURES -->
-    <div class="section">
-      <div class="label" style="margin-bottom:8px">Acknowledgment &amp; Signatures</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-top:4px">
+    <div class="section-box" style="margin-top:3px">
+      <div class="section-title">Acknowledgment &amp; Signatures</div>
+      <div class="sig-grid">
         <div>
-          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
-            ${b.released_by_name || 'Clinic Staff'} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.created_at)}</span>
+          <div class="sig-line">
+            ${b.released_by_name || 'Clinic Staff'} &bull; <span style="font-weight:normal;font-size:7px;color:#475569">${fmtSlipDate(b.created_at)}</span>
           </div>
-          <div class="siglabel" style="margin-top:3px">Released by / Date</div>
+          <div class="sig-label">Released by / Date</div>
         </div>
         <div>
-          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
-            ${b.first_name} ${b.last_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.created_at)}</span>
+          <div class="sig-line">
+            ${b.first_name} ${b.last_name} &bull; <span style="font-weight:normal;font-size:7px;color:#475569">${fmtSlipDate(b.created_at)}</span>
           </div>
-          <div class="siglabel" style="margin-top:3px">Received by / Date</div>
+          <div class="sig-label">Received by / Date</div>
+        </div>
+        ${isHistory ? `
+        <div>
+          <div class="sig-line">
+            ${b.returned_to_name ? `${b.returned_to_name} &bull; <span style="font-weight:normal;font-size:7px;color:#475569">${fmtSlipDate(b.returned_at)}</span>` : (b.returned_at ? `Clinic Staff &bull; <span style="font-weight:normal;font-size:7px;color:#475569">${fmtSlipDate(b.returned_at)}</span>` : '&nbsp;')}
+          </div>
+          <div class="sig-label">Returned to / Date</div>
         </div>
         <div>
-          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
-            ${b.returned_to_name ? `${b.returned_to_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.returned_at)}</span>` : (b.returned_at ? `Clinic Staff &bull; <span style="font-weight:normal;font-size:11px;color:#444">${fmtDate(b.returned_at)}</span>` : '&nbsp;')}
+          <div class="sig-line">
+            ${b.first_name} ${b.last_name} &bull; <span style="font-weight:normal;font-size:7px;color:#475569">${b.returned_at ? fmtSlipDate(b.returned_at) : fmtSlipDate(b.created_at)}</span>
           </div>
-          <div class="siglabel" style="margin-top:3px">Returned to / Date</div>
+          <div class="sig-label">Borrower's Signature / Date</div>
         </div>
-        <div>
-          <div style="font-weight:700;font-size:12px;color:#000;border-bottom:1.5px solid #333;padding-bottom:2px;min-height:18px">
-            ${b.first_name} ${b.last_name} &bull; <span style="font-weight:normal;font-size:11px;color:#444">${b.returned_at ? fmtDate(b.returned_at) : fmtDate(b.created_at)}</span>
-          </div>
-          <div class="siglabel" style="margin-top:3px">Borrower's Signature / Date</div>
-        </div>
+        ` : ''}
       </div>
     </div>
     
     <!-- TERMS -->
-    <div style="font-size:9.5px;color:#888;line-height:1.5;border-top:1px solid #eee;padding-top:8px">
-      <strong>Terms &amp; Conditions:</strong> The borrower is responsible for returning all equipment in the same condition as when borrowed. Equipment that is lost or damaged must be replaced or the cost reimbursed to the clinic. Consumable supplies are permanently dispensed upon use. Unused returned items are restocked to clinic inventory.
+    <div class="terms">
+      <strong>Terms:</strong> Borrower is accountable for equipment in good condition. Damaged/lost items must be replaced or paid. Supplies are dispensed upon use. Unused consumable supplies are restocked.
     </div>
-    <div class="footer">CJC Clinic Patient Records System &bull; Printed: ${new Date().toLocaleString()}</div>
+    <div class="footer">
+      Cor Jesu College Clinic Records &bull; 1/4 Folio Slip &bull; Ref: ${b.booking_code}
+    </div>
   </div>
   <script>
     window.onload = function() {
@@ -325,7 +525,7 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
   <\/script>
   </body></html>`;
 
-  const win = window.open('', '_blank', 'width=860,height=780');
+  const win = window.open('', '_blank', 'width=460,height=720');
   if (!win) { toast.error('Please allow popups to enable printing.'); return; }
   win.document.write(html);
   win.document.close();
