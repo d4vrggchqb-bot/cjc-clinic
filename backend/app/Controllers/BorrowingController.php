@@ -78,18 +78,19 @@ class BorrowingController extends BaseController {
                 // ALL items in a borrowing session start as 'borrowed' until returned/reconciled
                 $status = 'borrowed';
                 $stockReserved = ($type === 'equipment') ? 1 : 0;
+                $itemBranchDb = ($itemBranch === 'Basic Education Clinic') ? 'BED Clinic' : $itemBranch;
 
                 // FEFO stock deduction for BOTH equipment and supply
                 // Prefers current clinic branch first, then fallbacks to any active non-depleted batch
                 $batchStmt = $pdo->prepare("
-                    SELECT id, stock_remaining
+                    SELECT id, stock_remaining, main_stock, drawer_stock
                     FROM inventory_batches
                     WHERE item_id = :item_id AND stock_remaining > 0
                       AND (expired_on >= CURDATE() OR expired_on IS NULL)
-                    ORDER BY (clinic_branch = :branch) DESC, expired_on ASC, date_arrived ASC
+                    ORDER BY (clinic_branch = :branch OR clinic_branch = :branch_db) DESC, expired_on ASC, date_arrived ASC
                 ");
-                $batchStmt->execute(['item_id' => $itemId, 'branch' => $itemBranch]);
-                $batches = $batchStmt->fetchAll();
+                $batchStmt->execute(['item_id' => $itemId, 'branch' => $itemBranch, 'branch_db' => $itemBranchDb]);
+                $batches = $batchStmt->fetchAll(PDO::FETCH_ASSOC);
 
                 $remainingToDeduct = $quantity;
                 foreach ($batches as $batch) {
@@ -97,15 +98,50 @@ class BorrowingController extends BaseController {
 
                     $available = (int)$batch['stock_remaining'];
                     $consumed  = min($available, $remainingToDeduct);
-                    $newStock  = $available - $consumed;
 
-                    $pdo->prepare("UPDATE inventory_batches SET stock_remaining = :stock, status = IF(:stock2=0,'depleted','active') WHERE id = :id")
-                        ->execute(['stock' => $newStock, 'stock2' => $newStock, 'id' => $batch['id']]);
+                    $curMain   = (int)$batch['main_stock'];
+                    $curDrawer = (int)$batch['drawer_stock'];
+
+                    if ($type === 'supply' && $curDrawer > 0) {
+                        // For supplies/medicines: consume from Drawer first if available
+                        $fromDrawer = min($curDrawer, $consumed);
+                        $fromMain   = $consumed - $fromDrawer;
+                        $newDrawer  = $curDrawer - $fromDrawer;
+                        $newMain    = max(0, $curMain - $fromMain);
+                        $srcLoc     = ($fromDrawer > 0 && $fromMain > 0) ? 'drawer' : (($fromDrawer > 0) ? 'drawer' : 'main');
+                    } else {
+                        // Equipment or items with stock in main
+                        $fromMain   = min($curMain, $consumed);
+                        $fromDrawer = $consumed - $fromMain;
+                        $newMain    = $curMain - $fromMain;
+                        $newDrawer  = max(0, $curDrawer - $fromDrawer);
+                        $srcLoc     = ($fromMain > 0) ? 'main' : 'drawer';
+                    }
+                    $newStock = $newMain + $newDrawer;
+
+                    $pdo->prepare("
+                        UPDATE inventory_batches 
+                        SET main_stock = :main, drawer_stock = :drawer, stock_remaining = :stock, 
+                            status = IF(:stock2 = 0, 'depleted', 'active') 
+                        WHERE id = :id
+                    ")->execute([
+                        'main'   => $newMain,
+                        'drawer' => $newDrawer,
+                        'stock'  => $newStock,
+                        'stock2' => $newStock,
+                        'id'     => $batch['id']
+                    ]);
 
                     // Log the deduction
-                    $logNote = ($type === 'supply') ? 'Supply Checked Out for Borrowing' : 'Equipment Checked Out — Reserved';
-                    $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'dispense', ?, ?, ?, ?)")
-                        ->execute([$batch['id'], -$consumed, $logNote, $profileId, $_SESSION['cjc_user']['id']]);
+                    $logNote = ($type === 'supply') 
+                        ? "Supply Checked Out for Borrowing ({$bookingCode})" 
+                        : "Equipment Checked Out — Reserved ({$bookingCode})";
+
+                    $pdo->prepare("
+                        INSERT INTO inventory_logs 
+                        (batch_id, action_type, quantity_changed, source_location, disposed_to, profile_id, processed_by) 
+                        VALUES (?, 'dispense', ?, ?, ?, ?, ?)
+                    ")->execute([$batch['id'], -$consumed, $srcLoc, $logNote, $profileId, $_SESSION['cjc_user']['id']]);
 
                     $remainingToDeduct -= $consumed;
                 }
@@ -437,7 +473,7 @@ class BorrowingController extends BaseController {
 
                 // Fetch the borrowed item
                 $biStmt = $pdo->prepare("
-                    SELECT bi.*, b.profile_id, b.clinic_branch AS borrowing_branch, i.id AS inventory_item_id, i.generic_name, i.brand_name
+                    SELECT bi.*, b.profile_id, b.clinic_branch AS borrowing_branch, b.booking_code, i.id AS inventory_item_id, i.generic_name, i.brand_name, i.category
                     FROM borrowed_items bi
                     JOIN borrowings b ON bi.borrowing_id = b.id
                     JOIN inventory_items i ON bi.inventory_item_id = i.id
@@ -450,14 +486,19 @@ class BorrowingController extends BaseController {
                     continue; // Already processed
                 }
 
-                $itemType        = $bi['item_type'];
-                $inventoryId     = $bi['inventory_item_id'];
-                $profileId       = $bi['profile_id'];
-                $effectiveBranch = !empty($bi['borrowing_branch']) ? $bi['borrowing_branch'] : $branch;
+                $itemType           = $bi['item_type'];
+                $itemCategory       = $bi['category'] ?? ($itemType === 'equipment' ? 'equipment' : 'supply');
+                $isSupplyOrMedicine = ($itemType === 'supply') || in_array($itemCategory, ['supply', 'medicine']);
+                $bCode              = $bi['booking_code'] ?? ('EQ-' . $borrowingId);
+                $inventoryId        = $bi['inventory_item_id'];
+                $profileId          = $bi['profile_id'];
+                $effectiveBranch    = !empty($bi['borrowing_branch']) ? $bi['borrowing_branch'] : $branch;
+                $branchDb           = ($effectiveBranch === 'Basic Education Clinic') ? 'BED Clinic' : $effectiveBranch;
+                $branchAlt          = ($effectiveBranch === 'Basic Education Clinic') ? 'BED Clinic' : (($effectiveBranch === 'BED Clinic') ? 'Basic Education Clinic' : $effectiveBranch);
 
                 // Restock rule:
                 // Equipment: ONLY restock if condition is 'good' OR replaced on the spot
-                // Supplies: restock returned unused supplies
+                // Supplies/Medicines: restock returned unused items directly to Drawer Inventory
                 $shouldRestock = false;
                 $restockQty    = 0;
 
@@ -478,39 +519,73 @@ class BorrowingController extends BaseController {
 
                 if ($shouldRestock && $restockQty > 0) {
                     $batchStmt = $pdo->prepare("
-                        SELECT id FROM inventory_batches
-                        WHERE item_id = ? AND clinic_branch = ?
-                        ORDER BY status = 'active' DESC, date_arrived DESC, id DESC LIMIT 1
+                        SELECT id, main_stock, drawer_stock, stock_remaining FROM inventory_batches
+                        WHERE item_id = ? AND (clinic_branch = ? OR clinic_branch = ?)
+                        ORDER BY (status = 'active') DESC, date_arrived DESC, id DESC LIMIT 1
                     ");
-                    $batchStmt->execute([$inventoryId, $effectiveBranch]);
+                    $batchStmt->execute([$inventoryId, $effectiveBranch, $branchDb]);
                     $restoreBatch = $batchStmt->fetch(PDO::FETCH_ASSOC);
 
                     if (!$restoreBatch) {
                         $batchStmt = $pdo->prepare("
-                            SELECT id FROM inventory_batches
+                            SELECT id, main_stock, drawer_stock, stock_remaining FROM inventory_batches
                             WHERE item_id = ?
-                            ORDER BY (clinic_branch = ?) DESC, status = 'active' DESC, date_arrived DESC, id DESC LIMIT 1
+                            ORDER BY (clinic_branch = ? OR clinic_branch = ?) DESC, (status = 'active') DESC, date_arrived DESC, id DESC LIMIT 1
                         ");
-                        $batchStmt->execute([$inventoryId, $effectiveBranch]);
+                        $batchStmt->execute([$inventoryId, $effectiveBranch, $branchDb]);
                         $restoreBatch = $batchStmt->fetch(PDO::FETCH_ASSOC);
                     }
 
                     if (!$restoreBatch) {
-                        $createBatch = $pdo->prepare("INSERT INTO inventory_batches (item_id, clinic_branch, batch_number, stock_remaining, date_arrived, status) VALUES (?, ?, ?, 0, CURDATE(), 'active')");
-                        $createBatch->execute([$inventoryId, $effectiveBranch, 'RET-' . date('Ymd')]);
-                        $restoreBatch = ['id' => $pdo->lastInsertId()];
+                        $createBatch = $pdo->prepare("
+                            INSERT INTO inventory_batches 
+                            (item_id, clinic_branch, batch_number, stock_remaining, main_stock, drawer_stock, date_arrived, status) 
+                            VALUES (?, ?, ?, 0, 0, 0, CURDATE(), 'active')
+                        ");
+                        $createBatch->execute([$inventoryId, $branchDb, 'RET-' . date('Ymd')]);
+                        $restoreBatch = ['id' => $pdo->lastInsertId(), 'main_stock' => 0, 'drawer_stock' => 0, 'stock_remaining' => 0];
                     }
 
                     if ($restoreBatch) {
-                        $pdo->prepare("UPDATE inventory_batches SET stock_remaining = stock_remaining + ?, status = 'active' WHERE id = ?")
-                            ->execute([$restockQty, $restoreBatch['id']]);
+                        if ($isSupplyOrMedicine) {
+                            // SUPPLIES / MEDICINES:
+                            // Sync directly into DRAWER INVENTORY (drawer_stock). DO NOT return to Main Stockroom.
+                            $pdo->prepare("
+                                UPDATE inventory_batches 
+                                SET drawer_stock = drawer_stock + ?, 
+                                    stock_remaining = stock_remaining + ?, 
+                                    status = 'active' 
+                                WHERE id = ?
+                            ")->execute([$restockQty, $restockQty, $restoreBatch['id']]);
 
-                        $logMsg = ucfirst($itemType) . " Returned (Restocked: {$restockQty})";
-                        if ($settlementAction === 'replaced') {
-                            $logMsg .= " — Replacement unit accepted for {$conditionStatus} equipment";
+                            $itemLabel = ($itemCategory === 'medicine') ? 'Medicine' : 'Supply';
+                            $logMsg = "{$itemLabel} Returned from Borrowing ({$bCode}) — Restocked directly to Drawer Inventory ({$restockQty} units)";
+                            $pdo->prepare("
+                                INSERT INTO inventory_logs 
+                                (batch_id, action_type, quantity_changed, target_location, disposed_to, profile_id, processed_by) 
+                                VALUES (?, 'restock', ?, 'drawer', ?, ?, ?)
+                            ")->execute([$restoreBatch['id'], $restockQty, $logMsg, $profileId, $userId]);
+                        } else {
+                            // EQUIPMENT:
+                            // Functional equipment is returned to Equipment Inventory (Main)
+                            $pdo->prepare("
+                                UPDATE inventory_batches 
+                                SET main_stock = main_stock + ?, 
+                                    stock_remaining = stock_remaining + ?, 
+                                    status = 'active' 
+                                WHERE id = ?
+                            ")->execute([$restockQty, $restockQty, $restoreBatch['id']]);
+
+                            $logMsg = ucfirst($itemType) . " Returned ({$bCode}) — Restocked to Equipment Inventory ({$restockQty} units)";
+                            if ($settlementAction === 'replaced') {
+                                $logMsg = "Equipment Replacement Unit Accepted ({$bCode}) — Restocked ({$restockQty} units)";
+                            }
+                            $pdo->prepare("
+                                INSERT INTO inventory_logs 
+                                (batch_id, action_type, quantity_changed, target_location, disposed_to, profile_id, processed_by) 
+                                VALUES (?, 'restock', ?, 'main', ?, ?, ?)
+                            ")->execute([$restoreBatch['id'], $restockQty, $logMsg, $profileId, $userId]);
                         }
-                        $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'restock', ?, ?, ?, ?)")
-                            ->execute([$restoreBatch['id'], $restockQty, $logMsg, $profileId, $userId]);
                     }
                 } elseif ($itemType === 'equipment' && in_array($conditionStatus, ['damaged', 'lost'])) {
                     // Not restocked to usable inventory. Log damage or loss
@@ -636,27 +711,40 @@ class BorrowingController extends BaseController {
 
             // If replacement is confirmed and should be restocked into inventory
             if ($settlementAction === 'replaced' && $restockNow) {
+                $branchDb = ($effectiveBranch === 'Basic Education Clinic') ? 'BED Clinic' : $effectiveBranch;
                 $batchStmt = $pdo->prepare("
-                    SELECT id FROM inventory_batches
-                    WHERE item_id = ? AND clinic_branch = ?
-                    ORDER BY status = 'active' DESC, date_arrived DESC, id DESC LIMIT 1
+                    SELECT id, main_stock, drawer_stock, stock_remaining FROM inventory_batches
+                    WHERE item_id = ? AND (clinic_branch = ? OR clinic_branch = ?)
+                    ORDER BY (status = 'active') DESC, date_arrived DESC, id DESC LIMIT 1
                 ");
-                $batchStmt->execute([$inventoryId, $effectiveBranch]);
+                $batchStmt->execute([$inventoryId, $effectiveBranch, $branchDb]);
                 $batch = $batchStmt->fetch(PDO::FETCH_ASSOC);
 
                 if (!$batch) {
-                    $createBatch = $pdo->prepare("INSERT INTO inventory_batches (item_id, clinic_branch, batch_number, stock_remaining, date_arrived, status) VALUES (?, ?, ?, 0, CURDATE(), 'active')");
-                    $createBatch->execute([$inventoryId, $effectiveBranch, 'REP-' . date('Ymd')]);
-                    $batch = ['id' => $pdo->lastInsertId()];
+                    $createBatch = $pdo->prepare("
+                        INSERT INTO inventory_batches 
+                        (item_id, clinic_branch, batch_number, stock_remaining, main_stock, drawer_stock, date_arrived, status) 
+                        VALUES (?, ?, ?, 0, 0, 0, CURDATE(), 'active')
+                    ");
+                    $createBatch->execute([$inventoryId, $branchDb, 'REP-' . date('Ymd')]);
+                    $batch = ['id' => $pdo->lastInsertId(), 'main_stock' => 0, 'drawer_stock' => 0, 'stock_remaining' => 0];
                 }
 
                 $qtyToAdd = max(1, (int)$bi['quantity']);
-                $pdo->prepare("UPDATE inventory_batches SET stock_remaining = stock_remaining + ?, status = 'active' WHERE id = ?")
-                    ->execute([$qtyToAdd, $batch['id']]);
+                $pdo->prepare("
+                    UPDATE inventory_batches 
+                    SET main_stock = main_stock + ?, 
+                        stock_remaining = stock_remaining + ?, 
+                        status = 'active' 
+                    WHERE id = ?
+                ")->execute([$qtyToAdd, $qtyToAdd, $batch['id']]);
 
                 $logMsg = "Replacement Restock: {$qtyToAdd} unit(s) accepted for settled equipment ({$settlementNotes})";
-                $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'restock', ?, ?, ?, ?)")
-                    ->execute([$batch['id'], $qtyToAdd, $logMsg, $profileId, $userId]);
+                $pdo->prepare("
+                    INSERT INTO inventory_logs 
+                    (batch_id, action_type, quantity_changed, target_location, disposed_to, profile_id, processed_by) 
+                    VALUES (?, 'restock', ?, 'main', ?, ?, ?)
+                ")->execute([$batch['id'], $qtyToAdd, $logMsg, $profileId, $userId]);
             }
 
             // Update borrowed_items

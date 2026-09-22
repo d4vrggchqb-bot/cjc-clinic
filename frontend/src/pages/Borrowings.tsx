@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import {
   FiCheckCircle, FiPackage, FiUser, FiBox, FiBriefcase, FiSearch,
   FiPrinter, FiClock, FiAlertTriangle, FiChevronRight, FiX, FiRotateCcw,
-  FiCalendar, FiInfo, FiEye
+  FiCalendar, FiInfo, FiEye, FiInbox
 } from 'react-icons/fi';
 import { useConfirm } from '../context/ConfirmContext';
 import { useBranch } from '../context/BranchContext';
@@ -129,7 +129,9 @@ function printBorrowingSlip(b: any, mode: 'checkout' | 'history' = 'checkout') {
           condBadge = `<span style="background:#ffedd5;color:#c2410c;padding:1px 4px;border-radius:3px;font-size:7.5px;font-weight:700">LOST</span>`;
         }
       } else {
-        condBadge = `<span style="color:#64748b;font-size:7.5px">Supply</span>`;
+        condBadge = ret > 0 
+          ? `<span style="background:#ccfbf1;color:#0f766e;padding:1px 4px;border-radius:3px;font-size:7.5px;font-weight:700">TO DRAWER (${ret})</span>`
+          : `<span style="color:#64748b;font-size:7.5px">Consumed</span>`;
       }
 
       let settleText = `<span style="color:#15803d;font-weight:600">Cleared</span>`;
@@ -671,9 +673,9 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
         body: JSON.stringify({ borrowing_id: detail.borrowing_id, notes, items })
       });
       if (res.fully_returned) {
-        toast.success('Return processed and inventory synchronized successfully!');
+        toast.success('Return processed! Inventory updated and returned supplies/medicines synced to Drawer.');
       } else {
-        toast.success('Partial return processed successfully.');
+        toast.success('Partial return processed! Returned supplies/medicines synced to Drawer.');
       }
       onSuccess();
       onClose();
@@ -741,10 +743,14 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
               {/* Info Banner */}
               <div className="flex items-start gap-2.5 text-xs text-slate-700 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                 <FiInfo size={15} className="text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-emerald-900">Equipment Inspection &amp; Auto-Restock Verification</p>
-                  <p className="mt-0.5 text-emerald-800 leading-relaxed">
-                    Check the physical condition of returned equipment or apparatus. Functional equipment returned in good condition will be automatically restocked into active inventory. Any <strong>damaged</strong> or <strong>lost</strong> item will be held out of active inventory and flagged for borrower replacement (ilisan) or payment (bayaran).
+                <div className="space-y-1">
+                  <p className="font-bold text-emerald-900">Equipment Inspection &amp; Drawer Inventory Synchronization</p>
+                  <p className="text-emerald-800 leading-relaxed">
+                    Check the physical condition of returned equipment or apparatus. Functional equipment returned in good condition will be automatically restocked into active equipment inventory. Any <strong>damaged</strong> or <strong>lost</strong> item will be held out of active inventory and flagged for borrower replacement (ilisan) or payment (bayaran).
+                  </p>
+                  <p className="text-emerald-950 leading-relaxed font-medium bg-emerald-100/80 rounded p-1.5 border border-emerald-300/60 flex items-center gap-1.5">
+                    <FiInbox size={13} className="shrink-0 text-emerald-700" />
+                    <span><strong>Unused Supplies &amp; Medicines:</strong> Returned supplies or medicines will automatically sync directly into <strong>Drawer Inventory</strong> (dispensing cart/counter) and will not be mixed back into the Main Stockroom.</span>
                   </p>
                 </div>
               </div>
@@ -853,8 +859,25 @@ const ReconcileModal: React.FC<ReconcileModalProps> = ({ borrowingId, onClose, o
                             </select>
                           )
                         ) : (
-                          <div className="text-center text-xs text-slate-400 italic">
-                            Consumable Supply
+                          <div className="flex flex-col items-center justify-center gap-1 text-center">
+                            <span className="text-[11px] font-semibold text-slate-500">Consumable Supply</span>
+                            {isSettled ? (
+                              (item.quantity_returned ?? 0) > 0 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-teal-800 bg-teal-50 border border-teal-200 rounded-md">
+                                  <FiInbox size={11} className="text-teal-600" />
+                                  Drawer ({item.quantity_returned})
+                                </span>
+                              ) : null
+                            ) : (
+                              r.returned > 0 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-teal-800 bg-teal-50 border border-teal-200 rounded-md">
+                                  <FiInbox size={11} className="text-teal-600" />
+                                  Syncs to Drawer ({r.returned})
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400">All consumed</span>
+                              )
+                            )}
                           </div>
                         )}
                       </div>
