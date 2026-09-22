@@ -227,6 +227,8 @@ switch ($route) {
             $controller->getBorrowingDetail();
         } elseif ($action === 'return_borrowing') {
             $controller->returnBorrowing();
+        } elseif ($action === 'update_settlement') {
+            $controller->updateSettlement();
         }
         break;
 

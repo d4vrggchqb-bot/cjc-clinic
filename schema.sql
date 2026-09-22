@@ -223,12 +223,49 @@ CREATE TABLE IF NOT EXISTS `settings` (
 -- 10. Borrowings Table
 CREATE TABLE IF NOT EXISTS `borrowings` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `booking_code` VARCHAR(20) UNIQUE DEFAULT NULL,
   `profile_id` INT NOT NULL,
   `purpose` VARCHAR(255) NOT NULL,
+  `clinic_branch` ENUM('College Clinic', 'Basic Education Clinic', 'Power Campus Clinic', 'BED Clinic') NULL DEFAULT 'College Clinic',
+  `expected_return_date` DATETIME DEFAULT NULL,
+  `released_by` INT DEFAULT NULL,
   `status` ENUM('pending', 'active', 'returned') DEFAULT 'pending',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `returned_at` TIMESTAMP NULL DEFAULT NULL,
   FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `borrowed_items` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `borrowing_id` INT NOT NULL,
+  `inventory_item_id` INT NOT NULL,
+  `quantity` INT NOT NULL DEFAULT 1,
+  `item_type` ENUM('equipment', 'supply') NOT NULL,
+  `status` ENUM('borrowed', 'returned', 'dispensed') NOT NULL DEFAULT 'borrowed',
+  `stock_reserved` TINYINT(1) NOT NULL DEFAULT 0,
+  `condition_status` ENUM('good', 'damaged', 'lost') NOT NULL DEFAULT 'good',
+  `settlement_action` ENUM('none', 'to_replace', 'to_pay', 'replaced', 'paid') NOT NULL DEFAULT 'none',
+  `settlement_notes` TEXT DEFAULT NULL,
+  `charge_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `settled_at` DATETIME DEFAULT NULL,
+  `settled_by` INT DEFAULT NULL,
+  FOREIGN KEY (`borrowing_id`) REFERENCES `borrowings`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`inventory_item_id`) REFERENCES `inventory_items`(`id`) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `borrowed_item_returns` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `borrowed_item_id` INT NOT NULL,
+  `quantity_returned` INT NOT NULL DEFAULT 0,
+  `quantity_consumed` INT NOT NULL DEFAULT 0,
+  `notes` TEXT DEFAULT NULL,
+  `condition_status` ENUM('good', 'damaged', 'lost') NOT NULL DEFAULT 'good',
+  `settlement_action` ENUM('none', 'to_replace', 'to_pay', 'replaced', 'paid') NOT NULL DEFAULT 'none',
+  `settlement_notes` TEXT DEFAULT NULL,
+  `charge_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `processed_by` INT DEFAULT NULL,
+  `returned_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`borrowed_item_id`) REFERENCES `borrowed_items`(`id`) ON DELETE CASCADE
 );
 
 -- 11. Equipment Calibrations Table
