@@ -31,13 +31,25 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Never intercept or cache API requests or non-GET methods
-  if (event.request.method !== 'GET' || url.pathname.includes('/api/')) {
+  // Never intercept or cache API requests, Vite dev modules, or non-GET methods
+  if (
+    event.request.method !== 'GET' || 
+    url.pathname.includes('/api/') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.port === '5173'
+  ) {
     return;
   }
 
-  // For localhost or HTML navigation, always try network first so dev & updates are instant
-  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || event.request.mode === 'navigate') {
+  // For localhost, tunnels or HTML navigation, always try network first so dev & updates are instant
+  if (
+    url.hostname === 'localhost' || 
+    url.hostname === '127.0.0.1' || 
+    url.hostname.includes('trycloudflare.com') || 
+    event.request.mode === 'navigate'
+  ) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {

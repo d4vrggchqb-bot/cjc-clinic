@@ -19,6 +19,16 @@ export default defineConfig({
       }
     }
   },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react-router-dom',
+      'react-hot-toast',
+      'react-icons/fi',
+    ],
+  },
   server: {
     host: true,
     allowedHosts: true, // <-- KINI ANG IDUGANG ARON DILI NA MA-BLOCK ANG CLOUDFLARE LINKS

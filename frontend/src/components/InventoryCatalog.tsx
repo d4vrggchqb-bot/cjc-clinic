@@ -2598,7 +2598,7 @@ const InventoryCatalog: React.FC = () => {
         <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 p-4">
           <style dangerouslySetInnerHTML={{ __html: `
             @page {
-              size: landscape;
+              size: 13in 8.5in; /* Folio / Long Bond (PH) Landscape */
               margin: 8mm 10mm;
             }
           ` }} />
@@ -2611,9 +2611,9 @@ const InventoryCatalog: React.FC = () => {
               </div>
             </div>
             <div className="p-8 overflow-y-auto font-sans text-sm print:p-0">
-              {/* Official CJC Header */}
+              {/* Official CJC Header - Full Landscape/Folio Width */}
               <div className="text-center mb-3 border-b-2 border-slate-900 pb-2">
-                <img src="/cjc_report_header.png" alt="Cor Jesu College Header" className="w-full h-auto max-h-24 object-contain mb-1.5 mx-auto" />
+                <img src="/cjc_report_header.png?v=3" alt="Cor Jesu College Header" className="w-full h-auto mb-1.5 block" />
                 <div className="font-black text-base mt-2 uppercase tracking-wide text-slate-900">
                   INVENTORY OF EQUIPMENT/APPARATUS TOOLS AND MATERIALS
                 </div>
@@ -2690,12 +2690,12 @@ const InventoryCatalog: React.FC = () => {
         <div className="hidden print:block font-sans text-sm p-8">
           <style dangerouslySetInnerHTML={{ __html: `
             @page {
-              size: landscape;
+              size: 13in 8.5in; /* Folio / Long Bond (PH) Landscape */
               margin: 8mm 10mm;
             }
           ` }} />
           <div className="text-center mb-4 border-b-2 border-slate-900 pb-2">
-            <img src="/cjc_report_header.png" alt="Cor Jesu College Header" className="w-full h-auto max-h-24 object-contain mb-1.5 mx-auto" />
+            <img src="/cjc_report_header.png?v=3" alt="Cor Jesu College Header" className="w-full h-auto mb-1.5 block" />
             <div className="font-bold text-base mt-2 uppercase tracking-wider text-slate-900">
               SCR-9.5 {(selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')).toUpperCase()} MEDICINE/SUPPLIES INVENTORY REGISTER
             </div>

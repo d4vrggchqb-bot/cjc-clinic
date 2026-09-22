@@ -56,10 +56,10 @@ class PatientController extends BaseController {
         $userBranch = $this->getUserBranch();
 
         if ($userRole !== 'Superadmin') {
-            if ($userBranch === 'Basic Education Clinic') {
-                $conditions[] = "((profile_type = 'student' AND sub_type = 'BED') OR (profile_type = 'employee' AND college_dept = 'Basic Education') OR (profile_type = 'guest' AND sub_type = 'BED'))";
+            if ($userBranch === 'Basic Education Clinic' || $userBranch === 'BED Clinic') {
+                $conditions[] = "((profile_type = 'student' AND (sub_type = 'BED' OR college_dept = 'Basic Education' OR college_dept LIKE '%BED%')) OR (profile_type = 'employee' AND (college_dept = 'Basic Education' OR college_dept LIKE '%BED%')) OR (profile_type = 'guest' AND (sub_type = 'BED' OR college_dept = 'Basic Education' OR college_dept LIKE '%BED%')))";
             } else if (in_array($userBranch, ['College Clinic', 'Power Campus Clinic'])) {
-                $conditions[] = "((profile_type = 'student' AND (sub_type != 'BED' OR sub_type IS NULL)) OR (profile_type = 'employee' AND (college_dept != 'Basic Education' OR college_dept IS NULL)) OR (profile_type = 'guest' AND (sub_type != 'BED' OR sub_type IS NULL)))";
+                $conditions[] = "((profile_type = 'student' AND (sub_type != 'BED' OR sub_type IS NULL)) OR (profile_type = 'employee' AND (college_dept != 'Basic Education' OR college_dept IS NULL) AND (college_dept NOT LIKE '%BED%' OR college_dept IS NULL)) OR (profile_type = 'guest' AND (sub_type != 'BED' OR sub_type IS NULL)))";
             }
         }
 
@@ -697,10 +697,10 @@ class PatientController extends BaseController {
         $userRole = $currentUser['role'] ?? '';
         $userBranch = $this->getUserBranch();
         if ($userRole !== 'Superadmin') {
-            if ($userBranch === 'Basic Education Clinic') {
-                $conditions[] = "((profile_type = 'student' AND sub_type = 'BED') OR (profile_type = 'employee' AND college_dept = 'Basic Education') OR (profile_type = 'guest' AND sub_type = 'BED'))";
+            if ($userBranch === 'Basic Education Clinic' || $userBranch === 'BED Clinic') {
+                $conditions[] = "((profile_type = 'student' AND (sub_type = 'BED' OR college_dept = 'Basic Education' OR college_dept LIKE '%BED%')) OR (profile_type = 'employee' AND (college_dept = 'Basic Education' OR college_dept LIKE '%BED%')) OR (profile_type = 'guest' AND (sub_type = 'BED' OR college_dept = 'Basic Education' OR college_dept LIKE '%BED%')))";
             } else if (in_array($userBranch, ['College Clinic', 'Power Campus Clinic'])) {
-                $conditions[] = "((profile_type = 'student' AND (sub_type != 'BED' OR sub_type IS NULL)) OR (profile_type = 'employee' AND (college_dept != 'Basic Education' OR college_dept IS NULL)) OR (profile_type = 'guest' AND (sub_type != 'BED' OR sub_type IS NULL)))";
+                $conditions[] = "((profile_type = 'student' AND (sub_type != 'BED' OR sub_type IS NULL)) OR (profile_type = 'employee' AND (college_dept != 'Basic Education' OR college_dept IS NULL) AND (college_dept NOT LIKE '%BED%' OR college_dept IS NULL)) OR (profile_type = 'guest' AND (sub_type != 'BED' OR sub_type IS NULL)))";
             }
         }
 

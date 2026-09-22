@@ -18,20 +18,50 @@ class BorrowingController extends BaseController {
         $purpose            = $input['purpose'] ?? '';
         $expectedReturnDate = !empty($input['expected_return_date']) ? $input['expected_return_date'] : null;
         $items              = $input['items'] ?? [];
-        $branch             = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+        $branch             = $this->getUserBranch();
 
         if (!$profileId || empty($items)) {
             $this->jsonResponse(['success' => false, 'error' => 'Profile ID and Items are required.'], 400);
         }
 
         $pdo = cjcDatabaseConnection();
+
+        // Enforce branch-patient isolation for Basic Education Clinic
+        if (!$this->isSuperAdmin()) {
+            if ($branch === 'Basic Education Clinic' || $branch === 'BED Clinic') {
+                $pStmt = $pdo->prepare("SELECT id, profile_type, sub_type, college_dept FROM profiles WHERE id = ?");
+                $pStmt->execute([$profileId]);
+                $prof = $pStmt->fetch(PDO::FETCH_ASSOC);
+                if ($prof) {
+                    $isBed = ($prof['profile_type'] === 'student' && ($prof['sub_type'] === 'BED' || $prof['college_dept'] === 'Basic Education' || stripos($prof['college_dept'] ?? '', 'BED') !== false))
+                          || ($prof['profile_type'] === 'employee' && ($prof['college_dept'] === 'Basic Education' || stripos($prof['college_dept'] ?? '', 'BED') !== false))
+                          || ($prof['profile_type'] === 'guest' && ($prof['sub_type'] === 'BED' || $prof['college_dept'] === 'Basic Education'));
+                    if (!$isBed) {
+                        $this->jsonResponse(['success' => false, 'error' => 'Only Basic Education students and employees can borrow in Basic Education Clinic.'], 403);
+                    }
+                }
+            } else if (in_array($branch, ['College Clinic', 'Power Campus Clinic'])) {
+                $pStmt = $pdo->prepare("SELECT id, profile_type, sub_type, college_dept FROM profiles WHERE id = ?");
+                $pStmt->execute([$profileId]);
+                $prof = $pStmt->fetch(PDO::FETCH_ASSOC);
+                if ($prof) {
+                    $isBed = ($prof['profile_type'] === 'student' && ($prof['sub_type'] === 'BED' || $prof['college_dept'] === 'Basic Education' || stripos($prof['college_dept'] ?? '', 'BED') !== false))
+                          || ($prof['profile_type'] === 'employee' && ($prof['college_dept'] === 'Basic Education' || stripos($prof['college_dept'] ?? '', 'BED') !== false))
+                          || ($prof['profile_type'] === 'guest' && ($prof['sub_type'] === 'BED' || $prof['college_dept'] === 'Basic Education'));
+                    if ($isBed) {
+                        $this->jsonResponse(['success' => false, 'error' => 'Basic Education students and employees must borrow through Basic Education Clinic.'], 403);
+                    }
+                }
+            }
+        }
+
         try {
             $pdo->beginTransaction();
 
             // 1. Create the main borrowing record
             $releasedBy = $_SESSION['cjc_user']['id'] ?? null;
-            $stmt = $pdo->prepare("INSERT INTO borrowings (profile_id, purpose, expected_return_date, released_by, status) VALUES (?, ?, ?, ?, 'active')");
-            $stmt->execute([$profileId, $purpose, $expectedReturnDate, $releasedBy]);
+            $stmt = $pdo->prepare("INSERT INTO borrowings (profile_id, purpose, expected_return_date, released_by, status, clinic_branch) VALUES (?, ?, ?, ?, 'active', ?)");
+            $stmt->execute([$profileId, $purpose, $expectedReturnDate, $releasedBy, $branch]);
             $borrowingId = $pdo->lastInsertId();
 
             // Auto-generate booking reference code (e.g. EQ-2026-00042)
@@ -48,35 +78,77 @@ class BorrowingController extends BaseController {
                 // ALL items in a borrowing session start as 'borrowed' until returned/reconciled
                 $status = 'borrowed';
                 $stockReserved = ($type === 'equipment') ? 1 : 0;
+                $itemBranchDb = ($itemBranch === 'Basic Education Clinic') ? 'BED Clinic' : $itemBranch;
 
                 // FEFO stock deduction for BOTH equipment and supply
                 // Prefers current clinic branch first, then fallbacks to any active non-depleted batch
                 $batchStmt = $pdo->prepare("
-                    SELECT id, stock_remaining
+                    SELECT id, stock_remaining, main_stock, drawer_stock
                     FROM inventory_batches
                     WHERE item_id = :item_id AND stock_remaining > 0
                       AND (expired_on >= CURDATE() OR expired_on IS NULL)
-                    ORDER BY (clinic_branch = :branch) DESC, expired_on ASC, date_arrived ASC
+                    ORDER BY (clinic_branch = :branch OR clinic_branch = :branch_db) DESC, expired_on ASC, date_arrived ASC
                 ");
-                $batchStmt->execute(['item_id' => $itemId, 'branch' => $itemBranch]);
-                $batches = $batchStmt->fetchAll();
+                $batchStmt->execute(['item_id' => $itemId, 'branch' => $itemBranch, 'branch_db' => $itemBranchDb]);
+                $batches = $batchStmt->fetchAll(PDO::FETCH_ASSOC);
 
                 $remainingToDeduct = $quantity;
+                $deductions = [];
                 foreach ($batches as $batch) {
                     if ($remainingToDeduct <= 0) break;
 
                     $available = (int)$batch['stock_remaining'];
                     $consumed  = min($available, $remainingToDeduct);
-                    $newStock  = $available - $consumed;
 
-                    $pdo->prepare("UPDATE inventory_batches SET stock_remaining = :stock, status = IF(:stock2=0,'depleted','active') WHERE id = :id")
-                        ->execute(['stock' => $newStock, 'stock2' => $newStock, 'id' => $batch['id']]);
+                    $curMain   = (int)$batch['main_stock'];
+                    $curDrawer = (int)$batch['drawer_stock'];
 
-                    // Log the deduction
-                    $logNote = ($type === 'supply') ? 'Supply Checked Out for Borrowing' : 'Equipment Checked Out — Reserved';
-                    $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'dispense', ?, ?, ?, ?)")
-                        ->execute([$batch['id'], -$consumed, $logNote, $profileId, $_SESSION['cjc_user']['id']]);
+                    if ($type === 'supply' && $curDrawer > 0) {
+                        // For supplies/medicines: consume from Drawer first if available
+                        $fromDrawer = min($curDrawer, $consumed);
+                        $fromMain   = $consumed - $fromDrawer;
+                        $newDrawer  = $curDrawer - $fromDrawer;
+                        $newMain    = max(0, $curMain - $fromMain);
+                        $srcLoc     = ($fromDrawer > 0 && $fromMain > 0) ? 'drawer' : (($fromDrawer > 0) ? 'drawer' : 'main');
+                    } else {
+                        // Equipment or items with stock in main
+                        $fromMain   = min($curMain, $consumed);
+                        $fromDrawer = $consumed - $fromMain;
+                        $newMain    = $curMain - $fromMain;
+                        $newDrawer  = max(0, $curDrawer - $fromDrawer);
+                        $srcLoc     = ($fromMain > 0) ? 'main' : 'drawer';
+                    }
+                    $newStock = $newMain + $newDrawer;
 
+                    $pdo->prepare("
+                        UPDATE inventory_batches 
+                        SET main_stock = :main, drawer_stock = :drawer, stock_remaining = :stock, 
+                            status = IF(:stock2 = 0, 'depleted', 'active') 
+                        WHERE id = :id
+                    ")->execute([
+                        'main'   => $newMain,
+                        'drawer' => $newDrawer,
+                        'stock'  => $newStock,
+                        'stock2' => $newStock,
+                        'id'     => $batch['id']
+                    ]);
+
+                    // Log the deduction with batch code if present
+                    $batchNum = !empty($batch['batch_number']) ? " [{$batch['batch_number']}]" : "";
+                    $logNote = ($type === 'supply') 
+                        ? "Supply Checked Out for Borrowing ({$bookingCode}){$batchNum}" 
+                        : "Equipment Checked Out — Reserved ({$bookingCode}){$batchNum}";
+
+                    $pdo->prepare("
+                        INSERT INTO inventory_logs 
+                        (batch_id, action_type, quantity_changed, source_location, disposed_to, profile_id, processed_by) 
+                        VALUES (?, 'dispense', ?, ?, ?, ?, ?)
+                    ")->execute([$batch['id'], -$consumed, $srcLoc, $logNote, $profileId, $_SESSION['cjc_user']['id']]);
+
+                    $deductions[] = [
+                        'batch_id' => $batch['id'],
+                        'quantity' => $consumed
+                    ];
                     $remainingToDeduct -= $consumed;
                 }
 
@@ -84,9 +156,22 @@ class BorrowingController extends BaseController {
                     throw new Exception("Insufficient stock available for this item.");
                 }
 
-                // Insert into borrowed_items as 'borrowed'
-                $pdo->prepare("INSERT INTO borrowed_items (borrowing_id, inventory_item_id, quantity, item_type, status, stock_reserved) VALUES (?, ?, ?, ?, ?, ?)")
-                    ->execute([$borrowingId, $itemId, $quantity, $type, $status, $stockReserved]);
+                // Insert into borrowed_items as 'borrowed' with exact batch_id
+                if (!empty($deductions)) {
+                    foreach ($deductions as $d) {
+                        $pdo->prepare("
+                            INSERT INTO borrowed_items 
+                            (borrowing_id, inventory_item_id, batch_id, quantity, item_type, status, stock_reserved) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ")->execute([$borrowingId, $itemId, $d['batch_id'], $d['quantity'], $type, $status, $stockReserved]);
+                    }
+                } else {
+                    $pdo->prepare("
+                        INSERT INTO borrowed_items 
+                        (borrowing_id, inventory_item_id, quantity, item_type, status, stock_reserved) 
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ")->execute([$borrowingId, $itemId, $quantity, $type, $status, $stockReserved]);
+                }
             }
 
             $pdo->commit();
@@ -102,6 +187,45 @@ class BorrowingController extends BaseController {
     }
 
     /**
+     * Get SQL condition to scope borrowings and borrowers by clinic branch domain.
+     */
+    private function getBranchFilter(): string {
+        $branch = $this->getUserBranch();
+
+        if ($this->isSuperAdmin()) {
+            $requestedBranch = trim($_GET['branch'] ?? '');
+            if (!empty($requestedBranch) && $requestedBranch !== 'All Branches') {
+                $branch = $requestedBranch;
+            } else {
+                return "";
+            }
+        }
+
+        if ($branch === 'Basic Education Clinic' || $branch === 'BED Clinic') {
+            return " AND (
+                (
+                    (p.profile_type = 'student' AND (p.sub_type = 'BED' OR p.college_dept = 'Basic Education' OR p.college_dept LIKE '%BED%'))
+                    OR (p.profile_type = 'employee' AND (p.college_dept = 'Basic Education' OR p.college_dept LIKE '%BED%'))
+                    OR (p.profile_type = 'guest' AND (p.sub_type = 'BED' OR p.college_dept = 'Basic Education' OR p.college_dept LIKE '%BED%'))
+                )
+                AND (b.clinic_branch IN ('Basic Education Clinic', 'BED Clinic') OR b.clinic_branch IS NULL)
+            )";
+        } else if ($branch === 'Power Campus Clinic') {
+            return " AND (b.clinic_branch = 'Power Campus Clinic')";
+        } else {
+            // College Clinic (default)
+            return " AND (
+                (
+                    (p.profile_type = 'student' AND (p.sub_type != 'BED' OR p.sub_type IS NULL))
+                    OR (p.profile_type = 'employee' AND (p.college_dept != 'Basic Education' OR p.college_dept IS NULL) AND (p.college_dept NOT LIKE '%BED%' OR p.college_dept IS NULL))
+                    OR (p.profile_type = 'guest' AND (p.sub_type != 'BED' OR p.sub_type IS NULL))
+                )
+                AND (b.clinic_branch NOT IN ('Basic Education Clinic', 'BED Clinic') OR b.clinic_branch IS NULL)
+            )";
+        }
+    }
+
+    /**
      * Get all currently checked-out borrowings (grouped by borrowing session).
      * Includes overdue flag.
      */
@@ -110,6 +234,7 @@ class BorrowingController extends BaseController {
         cjcRequireAuth();
 
         $pdo = cjcDatabaseConnection();
+        $branchFilter = $this->getBranchFilter();
 
         // Get all active borrowings that still have at least one 'borrowed' item
         $stmt = $pdo->query("
@@ -117,6 +242,7 @@ class BorrowingController extends BaseController {
                 b.id AS borrowing_id,
                 b.booking_code,
                 b.purpose,
+                b.clinic_branch,
                 b.expected_return_date,
                 b.created_at,
                 p.id AS profile_id,
@@ -131,6 +257,12 @@ class BorrowingController extends BaseController {
                 bi.quantity,
                 bi.item_type,
                 bi.status AS item_status,
+                bi.condition_status,
+                bi.settlement_action,
+                bi.settlement_notes,
+                bi.charge_amount,
+                bi.batch_id,
+                ib.batch_number,
                 i.id AS inventory_item_id,
                 i.generic_name,
                 i.brand_name,
@@ -139,9 +271,11 @@ class BorrowingController extends BaseController {
             JOIN profiles p ON b.profile_id = p.id
             JOIN borrowed_items bi ON bi.borrowing_id = b.id
             JOIN inventory_items i ON bi.inventory_item_id = i.id
+            LEFT JOIN inventory_batches ib ON bi.batch_id = ib.id
             LEFT JOIN users u_rel ON b.released_by = u_rel.id
             WHERE b.status = 'active'
               AND bi.status = 'borrowed'
+              {$branchFilter}
             ORDER BY b.created_at DESC
         ");
 
@@ -159,6 +293,7 @@ class BorrowingController extends BaseController {
                     'borrowing_id'         => $bId,
                     'booking_code'         => $row['booking_code'] ?: ('EQ-' . date('Y') . '-' . str_pad($bId, 5, '0', STR_PAD_LEFT)),
                     'purpose'              => $row['purpose'],
+                    'clinic_branch'        => $row['clinic_branch'],
                     'expected_return_date' => $row['expected_return_date'],
                     'created_at'           => $row['created_at'],
                     'is_overdue'           => $isOverdue,
@@ -183,6 +318,12 @@ class BorrowingController extends BaseController {
                 'quantity'           => $row['quantity'],
                 'item_type'          => $row['item_type'],
                 'status'             => $row['item_status'],
+                'condition_status'   => $row['condition_status'] ?? 'good',
+                'settlement_action'  => $row['settlement_action'] ?? 'none',
+                'settlement_notes'   => $row['settlement_notes'],
+                'charge_amount'      => (float)($row['charge_amount'] ?? 0),
+                'batch_id'           => $row['batch_id'] ? (int)$row['batch_id'] : null,
+                'batch_number'       => $row['batch_number'] ?? null,
             ];
         }
 
@@ -205,6 +346,7 @@ class BorrowingController extends BaseController {
                 b.id AS borrowing_id,
                 b.booking_code,
                 b.purpose,
+                b.clinic_branch,
                 b.status AS borrowing_status,
                 b.expected_return_date,
                 b.created_at,
@@ -222,17 +364,30 @@ class BorrowingController extends BaseController {
                 bi.item_type,
                 bi.status AS item_status,
                 bi.stock_reserved,
+                bi.condition_status,
+                bi.settlement_action,
+                bi.settlement_notes,
+                bi.charge_amount,
+                bi.settled_at,
+                bi.batch_id,
+                ib.batch_number,
                 i.id AS inventory_item_id,
                 i.generic_name,
                 i.brand_name,
                 i.category,
                 bir.quantity_returned,
                 bir.quantity_consumed,
+                bir.notes AS return_notes,
+                bir.condition_status AS return_condition_status,
+                bir.settlement_action AS return_settlement_action,
+                bir.settlement_notes AS return_settlement_notes,
+                bir.charge_amount AS return_charge_amount,
                 bir.returned_at AS item_returned_at
             FROM borrowings b
             JOIN profiles p ON b.profile_id = p.id
             JOIN borrowed_items bi ON bi.borrowing_id = b.id
             JOIN inventory_items i ON bi.inventory_item_id = i.id
+            LEFT JOIN inventory_batches ib ON bi.batch_id = ib.id
             LEFT JOIN users u_rel ON b.released_by = u_rel.id
             LEFT JOIN borrowed_item_returns bir ON bir.borrowed_item_id = bi.id
             LEFT JOIN users u_ret ON bir.processed_by = u_ret.id
@@ -254,6 +409,7 @@ class BorrowingController extends BaseController {
             'borrowing_id'         => $first['borrowing_id'],
             'booking_code'         => $first['booking_code'] ?: ('EQ-' . date('Y') . '-' . str_pad($first['borrowing_id'], 5, '0', STR_PAD_LEFT)),
             'purpose'              => $first['purpose'],
+            'clinic_branch'        => $first['clinic_branch'],
             'borrowing_status'     => $first['borrowing_status'],
             'expected_return_date' => $first['expected_return_date'],
             'created_at'           => $first['created_at'],
@@ -272,18 +428,26 @@ class BorrowingController extends BaseController {
 
         foreach ($rows as $row) {
             $detail['items'][] = [
-                'borrowed_item_id'  => $row['borrowed_item_id'],
-                'inventory_item_id' => $row['inventory_item_id'],
-                'generic_name'      => $row['generic_name'],
-                'brand_name'        => $row['brand_name'],
-                'category'          => $row['category'],
-                'quantity'          => (int)$row['quantity'],
-                'item_type'         => $row['item_type'],
-                'status'            => $row['item_status'],
-                'stock_reserved'    => (bool)$row['stock_reserved'],
-                'quantity_returned' => $row['quantity_returned'] !== null ? (int)$row['quantity_returned'] : null,
-                'quantity_consumed' => $row['quantity_consumed'] !== null ? (int)$row['quantity_consumed'] : null,
-                'item_returned_at'  => $row['item_returned_at'],
+                'borrowed_item_id'   => $row['borrowed_item_id'],
+                'inventory_item_id'  => $row['inventory_item_id'],
+                'generic_name'       => $row['generic_name'],
+                'brand_name'         => $row['brand_name'],
+                'category'           => $row['category'],
+                'quantity'           => (int)$row['quantity'],
+                'item_type'          => $row['item_type'],
+                'status'             => $row['item_status'],
+                'stock_reserved'     => (bool)$row['stock_reserved'],
+                'quantity_returned'  => $row['quantity_returned'] !== null ? (int)$row['quantity_returned'] : null,
+                'quantity_consumed'  => $row['quantity_consumed'] !== null ? (int)$row['quantity_consumed'] : null,
+                'condition_status'   => $row['return_condition_status'] ?: ($row['condition_status'] ?? 'good'),
+                'settlement_action'  => $row['return_settlement_action'] ?: ($row['settlement_action'] ?? 'none'),
+                'settlement_notes'   => $row['return_settlement_notes'] ?: $row['settlement_notes'],
+                'charge_amount'      => (float)($row['return_charge_amount'] !== null ? $row['return_charge_amount'] : ($row['charge_amount'] ?? 0)),
+                'settled_at'         => $row['settled_at'],
+                'return_notes'       => $row['return_notes'],
+                'item_returned_at'   => $row['item_returned_at'],
+                'batch_id'           => $row['batch_id'] ? (int)$row['batch_id'] : null,
+                'batch_number'       => $row['batch_number'] ?? null,
             ];
         }
 
@@ -291,25 +455,19 @@ class BorrowingController extends BaseController {
     }
 
     /**
-     * Process return with per-item reconciliation.
-     * Accepts: { borrowing_id, notes, items: [{ borrowed_item_id, quantity_returned, quantity_consumed }] }
-     *
-     * For equipment items:
-     *   - quantity_returned → add back stock (restock log)
-     *   - quantity_consumed → permanently consumed/lost, log as dispense (already deducted, so no extra action needed)
-     * For supply items:
-     *   - Already permanently deducted — just record the reconciliation entry
+     * Process return with per-item reconciliation and condition/damage check.
+     * Accepts: { borrowing_id, notes, items: [{ borrowed_item_id, quantity_returned, quantity_consumed, condition_status, settlement_action, settlement_notes, charge_amount }] }
      */
     public function returnBorrowing() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
         cjcRequireAuth(); cjcCsrfValidate();
 
-        $input      = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $input       = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         $borrowingId = $input['borrowing_id'] ?? null;
-        $items      = $input['items'] ?? [];
+        $items       = $input['items'] ?? [];
         $globalNotes = $input['notes'] ?? null;
-        $branch     = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
-        $userId     = $_SESSION['cjc_user']['id'] ?? null;
+        $branch      = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+        $userId      = $_SESSION['cjc_user']['id'] ?? null;
 
         if (!$borrowingId || empty($items)) {
             $this->jsonResponse(['success' => false, 'error' => 'borrowing_id and items are required'], 400);
@@ -320,14 +478,31 @@ class BorrowingController extends BaseController {
             $pdo->beginTransaction();
 
             foreach ($items as $item) {
-                $biId            = $item['borrowed_item_id'];
-                $qtyReturned     = max(0, (int)($item['quantity_returned'] ?? 0));
-                $qtyConsumed     = max(0, (int)($item['quantity_consumed'] ?? 0));
-                $itemNotes       = $item['notes'] ?? $globalNotes;
+                $biId             = $item['borrowed_item_id'];
+                $qtyReturned      = max(0, (int)($item['quantity_returned'] ?? 0));
+                $qtyConsumed      = max(0, (int)($item['quantity_consumed'] ?? 0));
+                $conditionStatus  = $item['condition_status'] ?? 'good';
+                $settlementAction = $item['settlement_action'] ?? 'none';
+                $settlementNotes  = !empty($item['settlement_notes']) ? trim($item['settlement_notes']) : null;
+                $chargeAmount     = !empty($item['charge_amount']) ? (float)$item['charge_amount'] : 0.00;
+                $itemNotes        = $item['notes'] ?? $globalNotes;
+
+                if (!in_array($conditionStatus, ['good', 'damaged', 'lost'])) {
+                    $conditionStatus = 'good';
+                }
+                if (!in_array($settlementAction, ['none', 'to_replace', 'to_pay', 'replaced', 'paid'])) {
+                    $settlementAction = 'none';
+                }
+
+                if ($conditionStatus === 'good') {
+                    $settlementAction = 'none';
+                } elseif ($settlementAction === 'none') {
+                    $settlementAction = 'to_replace';
+                }
 
                 // Fetch the borrowed item
                 $biStmt = $pdo->prepare("
-                    SELECT bi.*, b.profile_id, i.id AS inventory_item_id
+                    SELECT bi.*, b.profile_id, b.clinic_branch AS borrowing_branch, b.booking_code, i.id AS inventory_item_id, i.generic_name, i.brand_name, i.category
                     FROM borrowed_items bi
                     JOIN borrowings b ON bi.borrowing_id = b.id
                     JOIN inventory_items i ON bi.inventory_item_id = i.id
@@ -340,56 +515,193 @@ class BorrowingController extends BaseController {
                     continue; // Already processed
                 }
 
-                $itemType     = $bi['item_type'];
-                $inventoryId  = $bi['inventory_item_id'];
-                $profileId    = $bi['profile_id'];
+                $itemType           = $bi['item_type'];
+                $itemCategory       = $bi['category'] ?? ($itemType === 'equipment' ? 'equipment' : 'supply');
+                $isSupplyOrMedicine = ($itemType === 'supply') || in_array($itemCategory, ['supply', 'medicine']);
+                $bCode              = $bi['booking_code'] ?? ('EQ-' . $borrowingId);
+                $inventoryId        = $bi['inventory_item_id'];
+                $profileId          = $bi['profile_id'];
+                $effectiveBranch    = !empty($bi['borrowing_branch']) ? $bi['borrowing_branch'] : $branch;
+                $branchDb           = ($effectiveBranch === 'Basic Education Clinic') ? 'BED Clinic' : $effectiveBranch;
+                $branchAlt          = ($effectiveBranch === 'Basic Education Clinic') ? 'BED Clinic' : (($effectiveBranch === 'BED Clinic') ? 'Basic Education Clinic' : $effectiveBranch);
 
-                // Restore ANY returned quantity (equipment or supply) to inventory batch
-                if ($qtyReturned > 0) {
-                    // Find best batch to restore to in current branch
-                    $batchStmt = $pdo->prepare("
-                        SELECT id FROM inventory_batches
-                        WHERE item_id = ? AND clinic_branch = ?
-                        ORDER BY status = 'active' DESC, date_arrived DESC, id DESC LIMIT 1
-                    ");
-                    $batchStmt->execute([$inventoryId, $branch]);
-                    $restoreBatch = $batchStmt->fetch(PDO::FETCH_ASSOC);
+                // Restock rule:
+                // Equipment: ONLY restock if condition is 'good' OR replaced on the spot
+                // Supplies/Medicines: restock returned unused items directly to Drawer Inventory
+                $shouldRestock = false;
+                $restockQty    = 0;
 
-                    if (!$restoreBatch) {
-                        // Fallback: try any batch for this item regardless of branch
-                        $batchStmt = $pdo->prepare("
-                            SELECT id FROM inventory_batches
-                            WHERE item_id = ?
-                            ORDER BY (clinic_branch = ?) DESC, status = 'active' DESC, date_arrived DESC, id DESC LIMIT 1
+                if ($itemType === 'equipment') {
+                    if ($conditionStatus === 'good' && $qtyReturned > 0) {
+                        $shouldRestock = true;
+                        $restockQty = $qtyReturned;
+                    } elseif (($conditionStatus === 'damaged' || $conditionStatus === 'lost') && $settlementAction === 'replaced') {
+                        $shouldRestock = true;
+                        $restockQty = max(1, (int)$bi['quantity']);
+                    }
+                } else {
+                    if ($qtyReturned > 0) {
+                        $shouldRestock = true;
+                        $restockQty = $qtyReturned;
+                    }
+                }
+
+                if ($shouldRestock && $restockQty > 0) {
+                    $restoreBatch = null;
+
+                    // 1. PRIMARY: Restock to the EXACT batch the item was dispensed from
+                    if (!empty($bi['batch_id'])) {
+                        $origBatchStmt = $pdo->prepare("
+                            SELECT id, main_stock, drawer_stock, stock_remaining, batch_number 
+                            FROM inventory_batches 
+                            WHERE id = ?
                         ");
-                        $batchStmt->execute([$inventoryId, $branch]);
+                        $origBatchStmt->execute([$bi['batch_id']]);
+                        $restoreBatch = $origBatchStmt->fetch(PDO::FETCH_ASSOC);
+                    }
+
+                    // 2. SECONDARY: Look up the checkout/dispense log for this booking code and item
+                    if (!$restoreBatch && !empty($bCode)) {
+                        $dispenseLogStmt = $pdo->prepare("
+                            SELECT b.id, b.main_stock, b.drawer_stock, b.stock_remaining, b.batch_number
+                            FROM inventory_logs l
+                            JOIN inventory_batches b ON l.batch_id = b.id
+                            WHERE b.item_id = ? AND l.action_type = 'dispense' AND l.disposed_to LIKE ?
+                            ORDER BY l.id ASC LIMIT 1
+                        ");
+                        $dispenseLogStmt->execute([$inventoryId, "%({$bCode})%"]);
+                        $restoreBatch = $dispenseLogStmt->fetch(PDO::FETCH_ASSOC);
+                    }
+
+                    // 3. FALLBACK: Match active batch in the clinic branch
+                    if (!$restoreBatch) {
+                        $batchStmt = $pdo->prepare("
+                            SELECT id, main_stock, drawer_stock, stock_remaining, batch_number FROM inventory_batches
+                            WHERE item_id = ? AND (clinic_branch = ? OR clinic_branch = ?)
+                            ORDER BY (status = 'active') DESC, date_arrived DESC, id DESC LIMIT 1
+                        ");
+                        $batchStmt->execute([$inventoryId, $effectiveBranch, $branchDb]);
                         $restoreBatch = $batchStmt->fetch(PDO::FETCH_ASSOC);
                     }
 
                     if (!$restoreBatch) {
-                        // If still no batch exists at all, auto-create a return batch for this branch
-                        $createBatch = $pdo->prepare("INSERT INTO inventory_batches (item_id, clinic_branch, batch_number, stock_remaining, date_arrived, status) VALUES (?, ?, ?, 0, CURDATE(), 'active')");
-                        $createBatch->execute([$inventoryId, $branch, 'RET-' . date('Ymd')]);
-                        $restoreBatch = ['id' => $pdo->lastInsertId()];
+                        $batchStmt = $pdo->prepare("
+                            SELECT id, main_stock, drawer_stock, stock_remaining, batch_number FROM inventory_batches
+                            WHERE item_id = ?
+                            ORDER BY (clinic_branch = ? OR clinic_branch = ?) DESC, (status = 'active') DESC, date_arrived DESC, id DESC LIMIT 1
+                        ");
+                        $batchStmt->execute([$inventoryId, $effectiveBranch, $branchDb]);
+                        $restoreBatch = $batchStmt->fetch(PDO::FETCH_ASSOC);
+                    }
+
+                    if (!$restoreBatch) {
+                        $createBatch = $pdo->prepare("
+                            INSERT INTO inventory_batches 
+                            (item_id, clinic_branch, batch_number, stock_remaining, main_stock, drawer_stock, date_arrived, status) 
+                            VALUES (?, ?, ?, 0, 0, 0, CURDATE(), 'active')
+                        ");
+                        $createBatch->execute([$inventoryId, $branchDb, 'RET-' . date('Ymd')]);
+                        $restoreBatch = ['id' => $pdo->lastInsertId(), 'main_stock' => 0, 'drawer_stock' => 0, 'stock_remaining' => 0, 'batch_number' => 'RET-' . date('Ymd')];
                     }
 
                     if ($restoreBatch) {
-                        $pdo->prepare("UPDATE inventory_batches SET stock_remaining = stock_remaining + ?, status = 'active' WHERE id = ?")
-                            ->execute([$qtyReturned, $restoreBatch['id']]);
+                        $batchNum = !empty($restoreBatch['batch_number']) ? " [{$restoreBatch['batch_number']}]" : "";
+                        if ($isSupplyOrMedicine) {
+                            // SUPPLIES / MEDICINES:
+                            // Sync directly into DRAWER INVENTORY (drawer_stock) of the exact dispensing batch.
+                            $pdo->prepare("
+                                UPDATE inventory_batches 
+                                SET drawer_stock = drawer_stock + ?, 
+                                    stock_remaining = stock_remaining + ?, 
+                                    status = 'active' 
+                                WHERE id = ?
+                            ")->execute([$restockQty, $restockQty, $restoreBatch['id']]);
 
-                        $logMsg = ucfirst($itemType) . " Returned from Borrowing (Returned: {$qtyReturned}, Consumed: {$qtyConsumed})";
-                        $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'restock', ?, ?, ?, ?)")
-                            ->execute([$restoreBatch['id'], $qtyReturned, $logMsg, $profileId, $userId]);
+                            $itemLabel = ($itemCategory === 'medicine') ? 'Medicine' : 'Supply';
+                            $logMsg = "{$itemLabel} Returned from Borrowing ({$bCode}){$batchNum} — Restocked directly to Drawer Inventory ({$restockQty} units)";
+                            $pdo->prepare("
+                                INSERT INTO inventory_logs 
+                                (batch_id, action_type, quantity_changed, target_location, disposed_to, profile_id, processed_by) 
+                                VALUES (?, 'restock', ?, 'drawer', ?, ?, ?)
+                            ")->execute([$restoreBatch['id'], $restockQty, $logMsg, $profileId, $userId]);
+                        } else {
+                            // EQUIPMENT:
+                            // Functional equipment is returned to Equipment Inventory (Main) of the exact batch
+                            $pdo->prepare("
+                                UPDATE inventory_batches 
+                                SET main_stock = main_stock + ?, 
+                                    stock_remaining = stock_remaining + ?, 
+                                    status = 'active' 
+                                WHERE id = ?
+                            ")->execute([$restockQty, $restockQty, $restoreBatch['id']]);
+
+                            $logMsg = ucfirst($itemType) . " Returned ({$bCode}){$batchNum} — Restocked to Equipment Inventory ({$restockQty} units)";
+                            if ($settlementAction === 'replaced') {
+                                $logMsg = "Equipment Replacement Unit Accepted ({$bCode}){$batchNum} — Restocked ({$restockQty} units)";
+                            }
+                            $pdo->prepare("
+                                INSERT INTO inventory_logs 
+                                (batch_id, action_type, quantity_changed, target_location, disposed_to, profile_id, processed_by) 
+                                VALUES (?, 'restock', ?, 'main', ?, ?, ?)
+                            ")->execute([$restoreBatch['id'], $restockQty, $logMsg, $profileId, $userId]);
+                        }
+                    }
+                } elseif ($itemType === 'equipment' && in_array($conditionStatus, ['damaged', 'lost'])) {
+                    // Not restocked to usable inventory. Log damage or loss
+                    $bStmt = $pdo->prepare("SELECT id FROM inventory_batches WHERE item_id = ? ORDER BY id DESC LIMIT 1");
+                    $bStmt->execute([$inventoryId]);
+                    $anyBatch = $bStmt->fetch(PDO::FETCH_ASSOC);
+                    $bId = $anyBatch ? $anyBatch['id'] : null;
+
+                    if ($bId) {
+                        $actionLabel = strtoupper($conditionStatus);
+                        $settleDesc = match($settlementAction) {
+                            'to_replace' => 'To Replace (Ilisan)',
+                            'to_pay'     => 'To Pay (Bayaran)',
+                            'paid'       => 'Paid / Reimbursed on the Spot',
+                            default      => $settlementAction
+                        };
+                        $auditDesc = "Equipment {$actionLabel} from Borrowing. Settlement: {$settleDesc}. Notes: " . ($settlementNotes ?: ($itemNotes ?: 'None'));
+                        if ($chargeAmount > 0) {
+                            $auditDesc .= " (Amount: ₱" . number_format($chargeAmount, 2) . ")";
+                        }
+                        $pdo->prepare("INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, disposed_to, profile_id, processed_by) VALUES (?, 'dispose', 0, ?, ?, ?)")
+                            ->execute([$bId, $auditDesc, $profileId, $userId]);
                     }
                 }
 
                 // Record reconciliation entry
-                $pdo->prepare("INSERT INTO borrowed_item_returns (borrowed_item_id, quantity_returned, quantity_consumed, notes, processed_by) VALUES (?, ?, ?, ?, ?)")
-                    ->execute([$biId, $qtyReturned, $qtyConsumed, $itemNotes, $userId]);
+                $pdo->prepare("
+                    INSERT INTO borrowed_item_returns 
+                    (borrowed_item_id, quantity_returned, quantity_consumed, notes, condition_status, settlement_action, settlement_notes, charge_amount, processed_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ")->execute([
+                    $biId, $qtyReturned, $qtyConsumed, $itemNotes, 
+                    $conditionStatus, $settlementAction, $settlementNotes, $chargeAmount, $userId
+                ]);
 
-                // Mark this item as returned
-                $pdo->prepare("UPDATE borrowed_items SET status = 'returned' WHERE id = ?")
-                    ->execute([$biId]);
+                // Update borrowed_items status and condition/settlement tracking
+                $isSettledOnSpot = in_array($settlementAction, ['none', 'replaced', 'paid']);
+                $pdo->prepare("
+                    UPDATE borrowed_items 
+                    SET status = 'returned',
+                        condition_status = ?,
+                        settlement_action = ?,
+                        settlement_notes = ?,
+                        charge_amount = ?,
+                        settled_at = IF(?, CURRENT_TIMESTAMP, NULL),
+                        settled_by = IF(?, ?, NULL)
+                    WHERE id = ?
+                ")->execute([
+                    $conditionStatus,
+                    $settlementAction,
+                    $settlementNotes,
+                    $chargeAmount,
+                    $isSettledOnSpot ? 1 : 0,
+                    $isSettledOnSpot ? 1 : 0,
+                    $userId,
+                    $biId
+                ]);
             }
 
             // Check if ALL items in this borrowing are now settled (returned or dispensed)
@@ -414,6 +726,139 @@ class BorrowingController extends BaseController {
     }
 
     /**
+     * Resolve pending settlement (e.g. mark item as replaced or paid).
+     * Accepts: { borrowed_item_id, settlement_action: 'replaced'|'paid', settlement_notes, charge_amount, restock_now: boolean }
+     */
+    public function updateSettlement() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth(); cjcCsrfValidate();
+
+        $input            = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $biId             = $input['borrowed_item_id'] ?? null;
+        $settlementAction = $input['settlement_action'] ?? null;
+        $settlementNotes  = trim($input['settlement_notes'] ?? '');
+        $chargeAmount     = isset($input['charge_amount']) ? (float)$input['charge_amount'] : null;
+        $restockNow       = !empty($input['restock_now']);
+        $branch           = $_SESSION['cjc_user']['clinic_branch'] ?? 'College Clinic';
+        $userId           = $_SESSION['cjc_user']['id'] ?? null;
+
+        if (!$biId || !in_array($settlementAction, ['replaced', 'paid', 'to_replace', 'to_pay'])) {
+            $this->jsonResponse(['success' => false, 'error' => 'Invalid parameters'], 400);
+        }
+
+        $pdo = cjcDatabaseConnection();
+        try {
+            $pdo->beginTransaction();
+
+            $biStmt = $pdo->prepare("
+                SELECT bi.*, b.profile_id, b.clinic_branch AS borrowing_branch, i.id AS inventory_item_id, i.generic_name, i.brand_name
+                FROM borrowed_items bi
+                JOIN borrowings b ON bi.borrowing_id = b.id
+                JOIN inventory_items i ON bi.inventory_item_id = i.id
+                WHERE bi.id = ?
+            ");
+            $biStmt->execute([$biId]);
+            $bi = $biStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$bi) {
+                throw new Exception("Borrowed item record not found.");
+            }
+
+            $effectiveBranch = !empty($bi['borrowing_branch']) ? $bi['borrowing_branch'] : $branch;
+            $inventoryId     = $bi['inventory_item_id'];
+            $profileId       = $bi['profile_id'];
+
+            // If replacement is confirmed and should be restocked into inventory
+            if ($settlementAction === 'replaced' && $restockNow) {
+                $batch = null;
+                if (!empty($bi['batch_id'])) {
+                    $origStmt = $pdo->prepare("SELECT id, main_stock, drawer_stock, stock_remaining, batch_number FROM inventory_batches WHERE id = ?");
+                    $origStmt->execute([$bi['batch_id']]);
+                    $batch = $origStmt->fetch(PDO::FETCH_ASSOC);
+                }
+
+                if (!$batch) {
+                    $branchDb = ($effectiveBranch === 'Basic Education Clinic') ? 'BED Clinic' : $effectiveBranch;
+                    $batchStmt = $pdo->prepare("
+                        SELECT id, main_stock, drawer_stock, stock_remaining, batch_number FROM inventory_batches
+                        WHERE item_id = ? AND (clinic_branch = ? OR clinic_branch = ?)
+                        ORDER BY (status = 'active') DESC, date_arrived DESC, id DESC LIMIT 1
+                    ");
+                    $batchStmt->execute([$inventoryId, $effectiveBranch, $branchDb]);
+                    $batch = $batchStmt->fetch(PDO::FETCH_ASSOC);
+                }
+
+                if (!$batch) {
+                    $createBatch = $pdo->prepare("
+                        INSERT INTO inventory_batches 
+                        (item_id, clinic_branch, batch_number, stock_remaining, main_stock, drawer_stock, date_arrived, status) 
+                        VALUES (?, ?, ?, 0, 0, 0, CURDATE(), 'active')
+                    ");
+                    $createBatch->execute([$inventoryId, $branchDb, 'REP-' . date('Ymd')]);
+                    $batch = ['id' => $pdo->lastInsertId(), 'main_stock' => 0, 'drawer_stock' => 0, 'stock_remaining' => 0, 'batch_number' => 'REP-' . date('Ymd')];
+                }
+
+                $qtyToAdd = max(1, (int)$bi['quantity']);
+                $pdo->prepare("
+                    UPDATE inventory_batches 
+                    SET main_stock = main_stock + ?, 
+                        stock_remaining = stock_remaining + ?, 
+                        status = 'active' 
+                    WHERE id = ?
+                ")->execute([$qtyToAdd, $qtyToAdd, $batch['id']]);
+
+                $batchNum = !empty($batch['batch_number']) ? " [{$batch['batch_number']}]" : "";
+                $logMsg = "Replacement Restock{$batchNum}: {$qtyToAdd} unit(s) accepted for settled equipment ({$settlementNotes})";
+                $pdo->prepare("
+                    INSERT INTO inventory_logs 
+                    (batch_id, action_type, quantity_changed, target_location, disposed_to, profile_id, processed_by) 
+                    VALUES (?, 'restock', ?, 'main', ?, ?, ?)
+                ")->execute([$batch['id'], $qtyToAdd, $logMsg, $profileId, $userId]);
+            }
+
+            // Update borrowed_items
+            $pdo->prepare("
+                UPDATE borrowed_items
+                SET settlement_action = ?,
+                    settlement_notes = COALESCE(NULLIF(?, ''), settlement_notes),
+                    charge_amount = COALESCE(?, charge_amount),
+                    settled_at = IF(? IN ('replaced', 'paid'), CURRENT_TIMESTAMP, NULL),
+                    settled_by = IF(? IN ('replaced', 'paid'), ?, NULL)
+                WHERE id = ?
+            ")->execute([
+                $settlementAction,
+                $settlementNotes,
+                $chargeAmount,
+                $settlementAction,
+                $settlementAction,
+                $userId,
+                $biId
+            ]);
+
+            // Also update borrowed_item_returns if exists
+            $pdo->prepare("
+                UPDATE borrowed_item_returns
+                SET settlement_action = ?,
+                    settlement_notes = COALESCE(NULLIF(?, ''), settlement_notes),
+                    charge_amount = COALESCE(?, charge_amount)
+                WHERE borrowed_item_id = ?
+                ORDER BY id DESC LIMIT 1
+            ")->execute([
+                $settlementAction,
+                $settlementNotes,
+                $chargeAmount,
+                $biId
+            ]);
+
+            $pdo->commit();
+            $this->jsonResponse(['success' => true, 'message' => 'Settlement updated successfully.']);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Get recent booking history (all borrowings, grouped by session).
      */
     public function getRecentHistory() {
@@ -421,22 +866,33 @@ class BorrowingController extends BaseController {
         cjcRequireAuth();
 
         $pdo  = cjcDatabaseConnection();
+        $branchFilter = $this->getBranchFilter();
+
         $stmt = $pdo->query("
             SELECT b.id AS borrowing_id, b.booking_code, b.purpose, b.created_at, b.status AS borrowing_status,
-                   b.expected_return_date, b.returned_at,
+                   b.expected_return_date, b.returned_at, b.clinic_branch,
                    p.first_name, p.last_name, p.course, p.year_level, p.profile_type, p.college_dept AS department,
                    COALESCE(u_rel.name, u_rel.username) AS released_by_name,
                    COALESCE(u_ret.name, u_ret.username) AS returned_to_name,
                    bi.id AS borrowed_item_id, bi.item_type, bi.status AS item_status, bi.quantity,
+                   bi.condition_status, bi.settlement_action, bi.settlement_notes, bi.charge_amount, bi.settled_at,
+                   bi.batch_id, ib.batch_number,
                    i.generic_name, i.brand_name, i.category,
-                   bir.quantity_returned, bir.quantity_consumed, bir.returned_at AS item_returned_at
+                   bir.quantity_returned, bir.quantity_consumed, bir.notes AS return_notes,
+                   bir.condition_status AS return_condition_status,
+                   bir.settlement_action AS return_settlement_action,
+                   bir.settlement_notes AS return_settlement_notes,
+                   bir.charge_amount AS return_charge_amount,
+                   bir.returned_at AS item_returned_at
             FROM borrowings b
             JOIN profiles p ON b.profile_id = p.id
             JOIN borrowed_items bi ON bi.borrowing_id = b.id
             JOIN inventory_items i ON bi.inventory_item_id = i.id
+            LEFT JOIN inventory_batches ib ON bi.batch_id = ib.id
             LEFT JOIN users u_rel ON b.released_by = u_rel.id
             LEFT JOIN borrowed_item_returns bir ON bir.borrowed_item_id = bi.id
             LEFT JOIN users u_ret ON bir.processed_by = u_ret.id
+            WHERE 1=1 {$branchFilter}
             ORDER BY b.created_at DESC
             LIMIT 200
         ");
@@ -450,6 +906,7 @@ class BorrowingController extends BaseController {
                     'borrowing_id'         => $bId,
                     'booking_code'         => $row['booking_code'] ?: ('EQ-' . date('Y') . '-' . str_pad($bId, 5, '0', STR_PAD_LEFT)),
                     'purpose'              => $row['purpose'],
+                    'clinic_branch'        => $row['clinic_branch'],
                     'created_at'           => $row['created_at'],
                     'borrowing_status'     => $row['borrowing_status'],
                     'expected_return_date' => $row['expected_return_date'],
@@ -466,16 +923,23 @@ class BorrowingController extends BaseController {
                 ];
             }
             $history[$bId]['items'][] = [
-                'borrowed_item_id'  => $row['borrowed_item_id'],
-                'generic_name'      => $row['generic_name'],
-                'brand_name'        => $row['brand_name'],
-                'category'          => $row['category'],
-                'quantity'          => (int)$row['quantity'],
-                'item_type'         => $row['item_type'],
-                'status'            => $row['item_status'],
-                'quantity_returned' => $row['quantity_returned'] !== null ? (int)$row['quantity_returned'] : null,
-                'quantity_consumed' => $row['quantity_consumed'] !== null ? (int)$row['quantity_consumed'] : null,
-                'item_returned_at'  => $row['item_returned_at']
+                'borrowed_item_id'   => $row['borrowed_item_id'],
+                'generic_name'       => $row['generic_name'],
+                'brand_name'         => $row['brand_name'],
+                'category'           => $row['category'],
+                'quantity'           => (int)$row['quantity'],
+                'item_type'          => $row['item_type'],
+                'status'             => $row['item_status'],
+                'condition_status'   => $row['return_condition_status'] ?: ($row['condition_status'] ?? 'good'),
+                'settlement_action'  => $row['return_settlement_action'] ?: ($row['settlement_action'] ?? 'none'),
+                'settlement_notes'   => $row['return_settlement_notes'] ?: $row['settlement_notes'],
+                'charge_amount'      => (float)($row['return_charge_amount'] !== null ? $row['return_charge_amount'] : ($row['charge_amount'] ?? 0)),
+                'settled_at'         => $row['settled_at'],
+                'quantity_returned'  => $row['quantity_returned'] !== null ? (int)$row['quantity_returned'] : null,
+                'quantity_consumed'  => $row['quantity_consumed'] !== null ? (int)$row['quantity_consumed'] : null,
+                'item_returned_at'   => $row['item_returned_at'],
+                'batch_id'           => $row['batch_id'] ? (int)$row['batch_id'] : null,
+                'batch_number'       => $row['batch_number'] ?? null,
             ];
         }
 

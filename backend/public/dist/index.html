@@ -18,16 +18,24 @@
     <link rel="stylesheet" crossorigin href="/css/app.css">
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div style="display:flex;height:100vh;align-items:center;justify-content:center;font-family:sans-serif;color:#A5192D;">
+        <div style="text-align:center;">
+          <div style="width:36px;height:36px;border:3px solid #f1f5f9;border-top:3px solid #A5192D;border-radius:50%;animation:cjcspin 0.8s linear infinite;margin:0 auto 12px;"></div>
+          <p style="font-size:13px;font-weight:600;color:#64748b;margin:0;">Loading CJC Clinic...</p>
+        </div>
+      </div>
+      <style>
+        @keyframes cjcspin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+    </div>
     <script>
+      // Automatically unregister service worker in dev mode so Cloudflare tunnels don't lag or cache modules
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((reg) => {
-              // Automatically check for updates on reload
-              reg.update();
-            })
-            .catch((err) => console.warn('ServiceWorker registration skipped/failed:', err));
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const registration of registrations) {
+            registration.unregister();
+          }
         });
       }
     </script>
