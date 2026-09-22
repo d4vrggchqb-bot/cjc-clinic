@@ -174,6 +174,10 @@ try {
 
     try {
         $pdo->exec("ALTER TABLE `inventory_items` 
+            ADD COLUMN `serial_no` VARCHAR(100) DEFAULT NULL AFTER `formulation`,
+            ADD COLUMN `model_no` VARCHAR(100) DEFAULT NULL AFTER `serial_no`,
+            ADD COLUMN `supplier` VARCHAR(150) DEFAULT NULL AFTER `model_no`,
+            ADD COLUMN `unit` VARCHAR(50) DEFAULT NULL AFTER `supplier`,
             ADD COLUMN `date_acquired` DATE DEFAULT NULL,
             ADD COLUMN `date_purchased` DATE DEFAULT NULL,
             ADD COLUMN `last_calibrated` DATE DEFAULT NULL,
@@ -193,6 +197,7 @@ try {
       `cert_type` ENUM('external_upload', 'internal_generated') NOT NULL DEFAULT 'external_upload',
       `calibrated_by` VARCHAR(150) DEFAULT NULL,
       `cert_number` VARCHAR(100) DEFAULT NULL,
+      `serial_no` VARCHAR(100) DEFAULT NULL,
       `calibration_date` DATE DEFAULT NULL,
       `due_date` DATE DEFAULT NULL,
       `file_url` VARCHAR(500) DEFAULT NULL,
@@ -205,6 +210,7 @@ try {
     ");
 
     try { $pdo->exec("ALTER TABLE `equipment_calibrations` ADD COLUMN `batch_id` INT DEFAULT NULL AFTER `item_id`;"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `equipment_calibrations` ADD COLUMN `serial_no` VARCHAR(100) DEFAULT NULL AFTER `cert_number`;"); } catch (Exception $e) {}
     try {
         $pdo->exec("ALTER TABLE `inventory_batches` 
             ADD COLUMN `last_calibrated` DATE DEFAULT NULL,
