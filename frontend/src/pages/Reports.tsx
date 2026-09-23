@@ -362,191 +362,188 @@ const Reports: React.FC = () => {
       </div>
 
       {/* Toolbar (Filters & Actions) */}
-      <div className="mb-6 sm:mb-8 bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4">
-          
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-              <span className="px-2.5 text-slate-400 flex items-center">
-                <FiCalendar className="w-3.5 h-3.5" />
-              </span>
-              <input 
-                type="date" 
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent w-[105px]"
-              />
-              <span className="px-1 text-slate-400 font-medium text-[11px]">to</span>
-              <input 
-                type="date" 
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="px-1 py-1.5 text-xs outline-none text-slate-700 pr-2 bg-transparent w-[105px]"
-              />
-            </div>
-
-            {(userRole === 'Superadmin') && (
-              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-                <select 
-                  value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
-                  className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent pr-3 cursor-pointer"
-                >
-                  <option value="All Branches">All Branches</option>
-                  <option value="College Clinic">College Clinic</option>
-                  <option value="Basic Education Clinic">Basic Education Clinic</option>
-                  <option value="Power Campus Clinic">Power Campus Clinic</option>
-                </select>
-              </div>
-            )}
-
-            {/* Department Filter */}
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-              <span className="pl-2.5 pr-1 text-slate-400 flex items-center">
-                <FiFilter className="w-3.5 h-3.5" />
-              </span>
-              <select 
-                value={department}
-                onChange={(e) => { setDepartment(e.target.value); setProgram('All Programs'); setYearLevel('All Year Levels'); }}
-                className={`px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[150px] truncate pr-2 font-semibold ${isBedBranch ? 'cursor-default text-[#A5192D]' : 'cursor-pointer'}`}
-                disabled={isBedBranch}
-                title={isBedBranch ? 'Locked to Basic Education for Basic Education Clinic' : 'Filter by Department'}
-              >
-                {isBedBranch ? (
-                  <option value="Basic Education">Basic Education</option>
-                ) : (
-                  <>
-                    <option value="All Departments">All Departments</option>
-                    {allDepartments.map((dept: string, idx: number) => (
-                      <option key={idx} value={dept}>{dept}</option>
-                    ))}
-                  </>
-                )}
-              </select>
-            </div>
-
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-              <select 
-                value={program}
-                onChange={(e) => { setProgram(e.target.value); setYearLevel('All Year Levels'); }}
-                className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[120px] truncate cursor-pointer pr-2"
-              >
-                <option value="All Programs">All Programs</option>
-                {dynamicPrograms.map((prog: string, idx: number) => (
-                  <option key={idx} value={prog}>{prog}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-              <select 
-                value={yearLevel}
-                onChange={(e) => setYearLevel(e.target.value)}
-                className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[130px] truncate cursor-pointer pr-2"
-              >
-                <option value="All Year Levels">All Year Levels</option>
-                {dynamicYearLevels.map((yr: string, idx: number) => (
-                  <option key={idx} value={yr}>{yr}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Semester Filter */}
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-              <select 
-                value={semester}
-                onChange={(e) => setSemester(e.target.value)}
-                className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[130px] truncate cursor-pointer pr-2 font-semibold"
-              >
-                <option value="All Semesters">All Semesters</option>
-                <option value="1st Semester">1st Semester</option>
-                <option value="2nd Semester">2nd Semester</option>
-                <option value="Summer Term">Summer Term</option>
-              </select>
-            </div>
-
-            {/* Purpose Filter (Pre-saved Cues) */}
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
-              <select 
-                value={purpose}
-                onChange={(e) => setPurpose(e.target.value)}
-                className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[160px] truncate cursor-pointer pr-2 font-semibold"
-              >
-                <option value="All Purposes">All Visit Purposes</option>
-                {globalSettings.cues?.map((cue: string, idx: number) => (
-                  <option key={idx} value={cue}>{cue}</option>
-                ))}
-              </select>
-            </div>
+      <div className="mb-6 sm:mb-8 bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-3.5">
+        {/* Top Row: Filters */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full pb-3.5 border-b border-slate-100">
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <span className="px-2.5 text-slate-400 flex items-center">
+              <FiCalendar className="w-3.5 h-3.5" />
+            </span>
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent w-[105px]"
+            />
+            <span className="px-1 text-slate-400 font-medium text-[11px]">to</span>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-1 py-1.5 text-xs outline-none text-slate-700 pr-2 bg-transparent w-[105px]"
+            />
           </div>
 
-          {/* Action Export Buttons */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0 w-full 2xl:w-auto">
-            {/* Consultations Export Options */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-700 px-1.5 uppercase tracking-wider">Consultations:</span>
-              <button 
-                type="button"
-                onClick={() => handleExportExcel('consultations')}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Export Consultations to Excel (.xlsx/.csv)"
+          {(userRole === 'Superadmin') && (
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+              <select 
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent pr-3 cursor-pointer"
               >
-                <FiDownload className="w-3.5 h-3.5" /> Excel
-              </button>
-              <button 
-                type="button"
-                onClick={() => handleOpenPdfPreview('consultations')}
-                className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Preview & Export Consultations PDF"
-              >
-                <FiEye className="w-3.5 h-3.5 text-amber-400" /> PDF Preview
-              </button>
+                <option value="All Branches">All Branches</option>
+                <option value="College Clinic">College Clinic</option>
+                <option value="Basic Education Clinic">Basic Education Clinic</option>
+                <option value="Power Campus Clinic">Power Campus Clinic</option>
+              </select>
             </div>
+          )}
 
-            {/* Borrowings Export Options */}
-            <div className="flex items-center gap-1 bg-red-50 p-1.5 rounded-xl border border-red-200 shadow-2xs">
-              <span className="text-[11px] font-bold text-[#A5192D] px-1.5 uppercase tracking-wider">Borrowings:</span>
-              <button 
-                type="button"
-                onClick={() => handleExportExcel('borrowings')}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Export Borrowings to Excel (.xlsx/.csv)"
-              >
-                <FiDownload className="w-3.5 h-3.5" /> Excel
-              </button>
-              <button 
-                type="button"
-                onClick={() => handleOpenPdfPreview('borrowings')}
-                className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Preview & Export Borrowings PDF"
-              >
-                <FiEye className="w-3.5 h-3.5 text-amber-300" /> PDF Preview
-              </button>
-            </div>
+          {/* Department Filter */}
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <span className="pl-2.5 pr-1 text-slate-400 flex items-center">
+              <FiFilter className="w-3.5 h-3.5" />
+            </span>
+            <select 
+              value={department}
+              onChange={(e) => { setDepartment(e.target.value); setProgram('All Programs'); setYearLevel('All Year Levels'); }}
+              className={`px-1 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[150px] truncate pr-2 font-semibold ${isBedBranch ? 'cursor-default text-[#A5192D]' : 'cursor-pointer'}`}
+              disabled={isBedBranch}
+              title={isBedBranch ? 'Locked to Basic Education for Basic Education Clinic' : 'Filter by Department'}
+            >
+              {isBedBranch ? (
+                <option value="Basic Education">Basic Education</option>
+              ) : (
+                <>
+                  <option value="All Departments">All Departments</option>
+                  {allDepartments.map((dept: string, idx: number) => (
+                    <option key={idx} value={dept}>{dept}</option>
+                  ))}
+                </>
+              )}
+            </select>
+          </div>
 
-            {/* College Visitations Export Options */}
-            <div className="flex items-center gap-1 bg-purple-50 p-1.5 rounded-xl border border-purple-200 shadow-2xs">
-              <span className="text-[11px] font-bold text-purple-900 px-1.5 uppercase tracking-wider">
-                {isBedBranch ? 'Visitations per BED Program:' : 'Visitations per College:'}
-              </span>
-              <button 
-                type="button"
-                onClick={() => handleExportExcel('college_attendance')}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Export College Visitations to Excel (.csv)"
-              >
-                <FiDownload className="w-3.5 h-3.5" /> Excel
-              </button>
-              <button 
-                type="button"
-                onClick={() => handleOpenPdfPreview('college_attendance')}
-                className="bg-purple-800 hover:bg-purple-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Preview & Export Visitations per College PDF"
-              >
-                <FiEye className="w-3.5 h-3.5 text-amber-300" /> PDF Preview
-              </button>
-            </div>
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <select 
+              value={program}
+              onChange={(e) => { setProgram(e.target.value); setYearLevel('All Year Levels'); }}
+              className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[120px] truncate cursor-pointer pr-2"
+            >
+              <option value="All Programs">All Programs</option>
+              {dynamicPrograms.map((prog: string, idx: number) => (
+                <option key={idx} value={prog}>{prog}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <select 
+              value={yearLevel}
+              onChange={(e) => setYearLevel(e.target.value)}
+              className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[130px] truncate cursor-pointer pr-2"
+            >
+              <option value="All Year Levels">All Year Levels</option>
+              {dynamicYearLevels.map((yr: string, idx: number) => (
+                <option key={idx} value={yr}>{yr}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Semester Filter */}
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <select 
+              value={semester}
+              onChange={(e) => setSemester(e.target.value)}
+              className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[130px] truncate cursor-pointer pr-2 font-semibold"
+            >
+              <option value="All Semesters">All Semesters</option>
+              <option value="1st Semester">1st Semester</option>
+              <option value="2nd Semester">2nd Semester</option>
+              <option value="Summer Term">Summer Term</option>
+            </select>
+          </div>
+
+          {/* Purpose Filter (Pre-saved Cues) */}
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-9 focus-within:border-[#A5192D] focus-within:ring-1 focus-within:ring-[#A5192D] transition-all">
+            <select 
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value)}
+              className="px-2.5 py-1.5 text-xs outline-none text-slate-700 bg-transparent max-w-[160px] truncate cursor-pointer pr-2 font-semibold"
+            >
+              <option value="All Purposes">All Visit Purposes</option>
+              {globalSettings.cues?.map((cue: string, idx: number) => (
+                <option key={idx} value={cue}>{cue}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Bottom Row: Export Actions */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full">
+          {/* Consultations Export Options */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-700 px-1.5 uppercase tracking-wider">Consultations:</span>
+            <button 
+              type="button"
+              onClick={() => handleExportExcel('consultations')}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Export Consultations to Excel (.xlsx/.csv)"
+            >
+              <FiDownload className="w-3.5 h-3.5" /> Excel
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleOpenPdfPreview('consultations')}
+              className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Preview & Export Consultations PDF"
+            >
+              <FiEye className="w-3.5 h-3.5 text-amber-400" /> PDF Preview
+            </button>
+          </div>
+
+          {/* Borrowings Export Options */}
+          <div className="flex items-center gap-1 bg-red-50 p-1.5 rounded-xl border border-red-200 shadow-2xs">
+            <span className="text-[11px] font-bold text-[#A5192D] px-1.5 uppercase tracking-wider">Borrowings:</span>
+            <button 
+              type="button"
+              onClick={() => handleExportExcel('borrowings')}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Export Borrowings to Excel (.xlsx/.csv)"
+            >
+              <FiDownload className="w-3.5 h-3.5" /> Excel
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleOpenPdfPreview('borrowings')}
+              className="bg-[#A5192D] hover:bg-[#8B1424] text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Preview & Export Borrowings PDF"
+            >
+              <FiEye className="w-3.5 h-3.5 text-amber-300" /> PDF Preview
+            </button>
+          </div>
+
+          {/* College Visitations Export Options */}
+          <div className="flex items-center gap-1 bg-purple-50 p-1.5 rounded-xl border border-purple-200 shadow-2xs">
+            <span className="text-[11px] font-bold text-purple-900 px-1.5 uppercase tracking-wider">
+              {isBedBranch ? 'Visitations per BED Program:' : 'Visitations per College:'}
+            </span>
+            <button 
+              type="button"
+              onClick={() => handleExportExcel('college_attendance')}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Export College Visitations to Excel (.csv)"
+            >
+              <FiDownload className="w-3.5 h-3.5" /> Excel
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleOpenPdfPreview('college_attendance')}
+              className="bg-purple-800 hover:bg-purple-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Preview & Export Visitations per College PDF"
+            >
+              <FiEye className="w-3.5 h-3.5 text-amber-300" /> PDF Preview
+            </button>
           </div>
         </div>
       </div>
