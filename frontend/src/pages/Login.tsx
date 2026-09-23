@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
 import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
+import norbertBg from '../assets/Norbert.jpg';
 import {
   FiUser, FiLock, FiEye, FiEyeOff, FiShield,
   FiArrowRight,
@@ -318,7 +319,7 @@ const Login: React.FC = () => {
         ══════════════════════════════════════════════════════ */}
         <div style={{
           position: 'absolute', inset: 0,
-          backgroundImage: `url('${import.meta.env.DEV ? '/Norbert.jpg' : '/dist/Norbert.jpg'}')`,
+          backgroundImage: `url(${norbertBg})`,
           backgroundSize: 'cover', backgroundPosition: 'center top', backgroundRepeat: 'no-repeat',
           zIndex: 0,
         }} />
