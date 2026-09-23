@@ -90,17 +90,30 @@ class InventoryController extends BaseController {
         $this->forbidSuperAdminTransactions();
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $category = trim($input['category'] ?? 'medicine');
+        $brandName = trim($input['brand_name'] ?? '');
+        $genericName = trim($input['generic_name'] ?? '');
         
-        if (empty(trim($input['generic_name'] ?? ''))) {
-            $this->jsonResponse(['success' => false, 'error' => 'Generic name is required.'], 400);
+        if ($category === 'medicine') {
+            if (empty($brandName)) {
+                $this->jsonResponse(['success' => false, 'error' => 'Brand name is required.'], 400);
+            }
+            // If generic name is not provided, fallback to brand name for display compatibility
+            if (empty($genericName)) {
+                $genericName = $brandName;
+            }
+        } else {
+            if (empty($genericName)) {
+                $this->jsonResponse(['success' => false, 'error' => 'Item name is required.'], 400);
+            }
         }
 
         $pdo = cjcDatabaseConnection();
         $stmt = $pdo->prepare("INSERT INTO inventory_items (category, brand_name, generic_name, dosage, formulation, serial_no, model_no, supplier, unit, alert_threshold, date_acquired, date_purchased, last_calibrated, calibration_due, calibration_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
-            $input['category'] ?? 'medicine',
-            $input['brand_name'] ?? null,
-            $input['generic_name'] ?? '',
+            $category,
+            !empty($brandName) ? $brandName : null,
+            $genericName,
             $input['dosage'] ?? null,
             $input['formulation'] ?? null,
             $input['serial_no'] ?? null,
@@ -126,6 +139,23 @@ class InventoryController extends BaseController {
         $id = (int)($input['id'] ?? 0);
         if ($id <= 0) $this->jsonResponse(['success' => false, 'error' => 'Invalid item ID'], 400);
 
+        $category = trim($input['category'] ?? 'medicine');
+        $brandName = trim($input['brand_name'] ?? '');
+        $genericName = trim($input['generic_name'] ?? '');
+
+        if ($category === 'medicine') {
+            if (empty($brandName)) {
+                $this->jsonResponse(['success' => false, 'error' => 'Brand name is required.'], 400);
+            }
+            if (empty($genericName)) {
+                $genericName = $brandName;
+            }
+        } else {
+            if (empty($genericName)) {
+                $this->jsonResponse(['success' => false, 'error' => 'Item name is required.'], 400);
+            }
+        }
+
         $pdo = cjcDatabaseConnection();
         $stmt = $pdo->prepare("
             UPDATE inventory_items 
@@ -136,9 +166,9 @@ class InventoryController extends BaseController {
             WHERE id = ?
         ");
         $stmt->execute([
-            $input['category'] ?? 'medicine',
-            $input['brand_name'] ?? null,
-            $input['generic_name'] ?? '',
+            $category,
+            !empty($brandName) ? $brandName : null,
+            $genericName,
             $input['dosage'] ?? null,
             $input['formulation'] ?? null,
             $input['serial_no'] ?? null,
@@ -1667,8 +1697,8 @@ class InventoryController extends BaseController {
         $this->forbidSuperAdminTransactions();
         
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-        $name = trim($input['medicine_name'] ?? ($input['generic_name'] ?? ''));
         $brand = trim($input['brand_name'] ?? '');
+        $name = trim($input['medicine_name'] ?? ($input['generic_name'] ?? ''));
         $dosage = trim($input['dosage'] ?? '');
         $lotNo = trim($input['lot_number'] ?? ($input['batch_number'] ?? ''));
         $quantity = (int)($input['quantity'] ?? 0);
@@ -1677,8 +1707,15 @@ class InventoryController extends BaseController {
         $schoolYear = trim($input['school_year'] ?? '2025-2026');
         $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : trim($input['clinic_branch'] ?? $this->getUserBranch());
 
-        if (empty($name) || $quantity <= 0 || empty($expiredOn)) {
-            $this->jsonResponse(['success' => false, 'error' => 'Medicine name, quantity greater than 0, and expiration date are required.'], 400);
+        if (empty($brand)) {
+            $this->jsonResponse(['success' => false, 'error' => 'Brand name is required.'], 400);
+        }
+        if ($quantity <= 0 || empty($expiredOn)) {
+            $this->jsonResponse(['success' => false, 'error' => 'Quantity greater than 0 and expiration date are required.'], 400);
+        }
+
+        if (empty($name)) {
+            $name = $brand;
         }
 
         $pdo = cjcDatabaseConnection();
@@ -1686,19 +1723,17 @@ class InventoryController extends BaseController {
         try {
             $pdo->beginTransaction();
 
-            // 1. Find or create item in inventory_items
-            $itemStmt = $pdo->prepare("SELECT id FROM inventory_items WHERE generic_name = ? AND category = 'medicine' AND (dosage = ? OR dosage IS NULL) LIMIT 1");
-            $itemStmt->execute([$name, $dosage ?: null]);
+            // 1. Find or create item in inventory_items by brand_name or generic_name
+            $itemStmt = $pdo->prepare("SELECT id FROM inventory_items WHERE (brand_name = ? OR generic_name = ?) AND category = 'medicine' AND (dosage = ? OR dosage IS NULL) LIMIT 1");
+            $itemStmt->execute([$brand, $name, $dosage ?: null]);
             $item = $itemStmt->fetch();
 
             if ($item) {
                 $itemId = (int)$item['id'];
-                if (!empty($brand)) {
-                    $pdo->prepare("UPDATE inventory_items SET brand_name = COALESCE(brand_name, ?) WHERE id = ?")->execute([$brand, $itemId]);
-                }
+                $pdo->prepare("UPDATE inventory_items SET brand_name = ?, generic_name = COALESCE(generic_name, ?) WHERE id = ?")->execute([$brand, $name, $itemId]);
             } else {
                 $insItem = $pdo->prepare("INSERT INTO inventory_items (category, brand_name, generic_name, dosage, unit, alert_threshold) VALUES ('medicine', ?, ?, ?, 'pieces', 20)");
-                $insItem->execute([$brand ?: null, $name, $dosage ?: null]);
+                $insItem->execute([$brand, $name, $dosage ?: null]);
                 $itemId = (int)$pdo->lastInsertId();
             }
 
@@ -2010,6 +2045,7 @@ class InventoryController extends BaseController {
                 $pdo->exec("ALTER TABLE inventory_items ADD COLUMN model_no VARCHAR(100) NULL AFTER serial_no");
                 $pdo->exec("ALTER TABLE inventory_items ADD COLUMN supplier VARCHAR(150) NULL AFTER model_no");
             }
+            $pdo->exec("ALTER TABLE inventory_items MODIFY COLUMN generic_name VARCHAR(100) NULL DEFAULT NULL");
             $bCols = $pdo->query("SHOW COLUMNS FROM inventory_batches LIKE 'main_stock'")->fetch();
             if (!$bCols) {
                 $pdo->exec("ALTER TABLE inventory_batches ADD COLUMN main_stock INT NOT NULL DEFAULT 0 AFTER stock_remaining");

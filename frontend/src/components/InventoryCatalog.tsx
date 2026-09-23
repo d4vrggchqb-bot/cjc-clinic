@@ -661,8 +661,14 @@ const InventoryCatalog: React.FC = () => {
       finalCategory = newItem.customCategory.trim();
     }
 
+    if (newItem.category === 'medicine' && !newItem.brand_name.trim()) {
+      alert('Brand name is required for medicines.');
+      return;
+    }
+
     const payload = {
       ...newItem,
+      generic_name: newItem.generic_name.trim() || (newItem.category === 'medicine' ? newItem.brand_name.trim() : ''),
       category: finalCategory
     };
 
@@ -676,15 +682,20 @@ const InventoryCatalog: React.FC = () => {
       await apiFetch('/api/index.php?route=inventory&action=add_item', { method: 'POST', body: JSON.stringify(payload) });
       setShowAddItem(false);
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('Failed to save item. An error occurred.');
+      alert(error.message || 'Failed to save item. An error occurred.');
     }
   };
 
   const handleUpdateItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editItemForm) return;
+
+    if (editItemForm.category === 'medicine' && !editItemForm.brand_name?.trim()) {
+      alert('Brand name is required for medicines.');
+      return;
+    }
 
     const confirmed = await confirm({
       title: 'Update Catalog Item',
@@ -694,9 +705,13 @@ const InventoryCatalog: React.FC = () => {
     if (!confirmed) return;
 
     try {
+      const payload = {
+        ...editItemForm,
+        generic_name: editItemForm.generic_name?.trim() || (editItemForm.category === 'medicine' ? editItemForm.brand_name?.trim() : '')
+      };
       await apiFetch('/api/index.php?route=inventory&action=update_item', {
         method: 'POST',
-        body: JSON.stringify(editItemForm)
+        body: JSON.stringify(payload)
       });
       setShowEditItem(null);
       setEditItemForm(null);
@@ -1092,9 +1107,11 @@ const InventoryCatalog: React.FC = () => {
                   <React.Fragment key={item.id}>
                     <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => toggleExpand(item.id)}>
                       <td className="p-3">
-                        <div className="font-semibold text-slate-800">{item.generic_name}</div>
+                        <div className="font-semibold text-slate-800">
+                          {item.brand_name ? item.brand_name : item.generic_name}
+                        </div>
                         <div className="text-xs text-slate-500">
-                          {item.brand_name || 'No Brand'} 
+                          {item.brand_name ? (item.generic_name && item.generic_name !== item.brand_name ? item.generic_name : 'Brand-only Medicine') : 'No Brand'} 
                           {item.dosage ? ` - ${item.dosage}` : ''}
                           {item.formulation ? ` (${item.formulation})` : ''}
                         </div>
@@ -1705,12 +1722,12 @@ const InventoryCatalog: React.FC = () => {
               {newItem.category === 'medicine' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Generic Name <span className="text-red-500">*</span></label>
-                    <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} />
+                    <label className="block text-sm font-medium mb-1">Brand Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} placeholder="e.g. Biogesic" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Brand Name (Optional)</label>
-                    <input type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} placeholder="e.g. Biogesic (Optional)" />
+                    <label className="block text-sm font-medium mb-1">Generic Name <span className="text-slate-400 font-normal">(Optional)</span></label>
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} placeholder="e.g. Paracetamol (Optional)" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Dosage (e.g. 500mg)</label>
@@ -1824,14 +1841,29 @@ const InventoryCatalog: React.FC = () => {
           <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-4">Edit Item Details & Calibration</h3>
             <form onSubmit={handleUpdateItem} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Generic / Item Name <span className="text-red-500">*</span></label>
-                <input required type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.generic_name} onChange={e => setEditItemForm({...editItemForm, generic_name: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Brand Name</label>
-                <input type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.brand_name || ''} onChange={e => setEditItemForm({...editItemForm, brand_name: e.target.value})} />
-              </div>
+              {editItemForm.category === 'medicine' ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Brand Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.brand_name || ''} onChange={e => setEditItemForm({...editItemForm, brand_name: e.target.value})} placeholder="e.g. Biogesic" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Generic Name <span className="text-slate-400 font-normal">(Optional)</span></label>
+                    <input type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.generic_name || ''} onChange={e => setEditItemForm({...editItemForm, generic_name: e.target.value})} placeholder="e.g. Paracetamol" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Item Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.generic_name || ''} onChange={e => setEditItemForm({...editItemForm, generic_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Brand Name <span className="text-slate-400 font-normal">(Optional)</span></label>
+                    <input type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.brand_name || ''} onChange={e => setEditItemForm({...editItemForm, brand_name: e.target.value})} />
+                  </div>
+                </>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-semibold mb-1">Dosage</label>
