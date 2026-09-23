@@ -27,11 +27,27 @@ export default defineConfig({
       'react-router-dom',
       'react-hot-toast',
       'react-icons/fi',
+      'chart.js',
+      'react-chartjs-2',
+      'recharts',
+      '@react-oauth/google',
     ],
   },
   server: {
     host: true,
-    allowedHosts: true, // <-- KINI ANG IDUGANG ARON DILI NA MA-BLOCK ANG CLOUDFLARE LINKS
+    allowedHosts: true, // Allow Cloudflare tunnel hosts
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
+  preview: {
+    host: true,
+    port: 5173,
+    allowedHosts: true,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
