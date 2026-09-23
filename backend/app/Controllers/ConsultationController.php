@@ -50,12 +50,20 @@ class ConsultationController extends BaseController {
         $requestBranch = $_GET['branch'] ?? 'All Branches';
         if ($userRole !== 'Superadmin') {
             $branch = $this->getUserBranch();
-            $whereClause .= " AND c.clinic_branch = :branch";
-            $params['branch'] = $branch;
+            if ($branch === 'Basic Education Clinic' || $branch === 'BED Clinic') {
+                $whereClause .= " AND c.clinic_branch IN ('Basic Education Clinic', 'BED Clinic')";
+            } else {
+                $whereClause .= " AND c.clinic_branch = :branch";
+                $params['branch'] = $branch;
+            }
         } else {
             if ($requestBranch !== 'All Branches') {
-                $whereClause .= " AND c.clinic_branch = :branch";
-                $params['branch'] = $requestBranch;
+                if ($requestBranch === 'Basic Education Clinic' || $requestBranch === 'BED Clinic') {
+                    $whereClause .= " AND c.clinic_branch IN ('Basic Education Clinic', 'BED Clinic')";
+                } else {
+                    $whereClause .= " AND c.clinic_branch = :branch";
+                    $params['branch'] = $requestBranch;
+                }
             }
         }
 
@@ -441,62 +449,84 @@ class ConsultationController extends BaseController {
         }
 
         try {
-            // Retrieve existing prescriptions if any to prevent overwriting with null
-            $existStmt = $pdo->prepare("SELECT prescriptions FROM consultations WHERE id = ?");
-            $existStmt->execute([$id]);
-            $currentPrescriptions = $existStmt->fetchColumn();
+            $pdo->beginTransaction();
 
-            if (!empty($dispensedItems)) {
-                $existingArr = json_decode($currentPrescriptions ?: '[]', true) ?: [];
-                $merged = array_merge($existingArr, $dispensedItems);
-                $prescriptionsJson = json_encode($merged);
-            } else {
-                $prescriptionsJson = $currentPrescriptions;
+            // Retrieve consultation record, branch, and patient info
+            $cStmt = $pdo->prepare("SELECT c.clinic_branch, p.id as profile_id, p.first_name, p.last_name, c.prescriptions 
+                                    FROM consultations c 
+                                    LEFT JOIN profiles p ON c.profile_id = p.id 
+                                    WHERE c.id = ?");
+            $cStmt->execute([$id]);
+            $consultation = $cStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$consultation) {
+                $pdo->rollBack();
+                $this->jsonResponse(['success' => false, 'message' => 'Consultation not found.'], 404);
             }
-            $stmt = $pdo->prepare("UPDATE consultations 
-                                   SET blood_pressure = :bp, 
-                                       temperature = :temp, 
-                                       weight = :weight, 
-                                       diagnosis = :diag, 
-                                       treatment = :treatment,
-                                       prescriptions = :prescriptions 
-                                   WHERE id = :id");
-            $stmt->execute([
-                'bp' => $bp,
-                'temp' => $temp,
-                'weight' => $weight,
-                'diag' => $diagnosis,
-                'treatment' => $treatment,
-                'prescriptions' => $prescriptionsJson,
-                'id' => $id
-            ]);
 
-            // Handle Inventory Dispensing
-            $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : (!empty($data['clinic_branch']) ? $data['clinic_branch'] : $this->getUserBranch());
-            if (!empty($dispensedItems)) {
-                // Get patient name for disposed_to
-                $pStmt = $pdo->prepare("SELECT p.id, p.first_name, p.last_name FROM profiles p JOIN consultations c ON p.id = c.profile_id WHERE c.id = ?");
-                $pStmt->execute([$id]);
-                $patient = $pStmt->fetch();
-                $disposedTo = $patient ? ($patient['first_name'] . ' ' . $patient['last_name']) : 'Patient';
-                $profileId = $patient ? $patient['id'] : null;
+            $currentPrescriptions = $consultation['prescriptions'];
+            $disposedTo = trim(($consultation['first_name'] ?? '') . ' ' . ($consultation['last_name'] ?? '')) ?: 'Patient';
+            $profileId = $consultation['profile_id'] ?? null;
 
+            // Determine branch with alias support (BED Clinic <-> Basic Education Clinic)
+            $branch = !empty($consultation['clinic_branch']) 
+                ? $consultation['clinic_branch'] 
+                : (!$this->isSuperAdmin() ? $this->getUserBranch() : (!empty($input['clinic_branch']) ? $input['clinic_branch'] : $this->getUserBranch()));
+
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+
+            // Handle Inventory Dispensing: STRICT DRAWER-ONLY DISPENSING
+            if (!empty($dispensedItems) && is_array($dispensedItems)) {
+                // Pass 0: Pre-validate that all requested items have sufficient unexpired stock in the DRAWER
                 foreach ($dispensedItems as $dItem) {
-                    $itemId = (int)$dItem['item_id'];
-                    $qty = (int)$dItem['quantity'];
+                    $itemId = (int)($dItem['item_id'] ?? 0);
+                    $qty = (int)($dItem['quantity'] ?? 0);
+                    if ($itemId <= 0 || $qty <= 0) continue;
+
+                    $checkStmt = $pdo->prepare("
+                        SELECT i.generic_name, i.brand_name,
+                               COALESCE(SUM(CASE WHEN (b.clinic_branch = ? OR b.clinic_branch = ?) AND (b.expired_on >= CURDATE() OR b.expired_on IS NULL) AND b.status != 'depleted' THEN b.drawer_stock ELSE 0 END), 0) as total_drawer,
+                               COALESCE(SUM(CASE WHEN (b.clinic_branch = ? OR b.clinic_branch = ?) AND (b.expired_on >= CURDATE() OR b.expired_on IS NULL) AND b.status != 'depleted' THEN b.main_stock ELSE 0 END), 0) as total_main
+                        FROM inventory_items i
+                        LEFT JOIN inventory_batches b ON i.id = b.item_id
+                        WHERE i.id = ?
+                        GROUP BY i.id
+                    ");
+                    $checkStmt->execute([$branch, $branchAlt, $branch, $branchAlt, $itemId]);
+                    $itemInfo = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+                    $itemName = $itemInfo ? ($itemInfo['generic_name'] . ($itemInfo['brand_name'] ? " ({$itemInfo['brand_name']})" : '')) : "Item #$itemId";
+                    $totalDrawer = (int)($itemInfo['total_drawer'] ?? 0);
+                    $totalMain = (int)($itemInfo['total_main'] ?? 0);
+
+                    if ($totalDrawer < $qty) {
+                        $pdo->rollBack();
+                        $msg = "Cannot dispense '{$itemName}': Insufficient stock in Drawer Inventory. Available in Drawer: {$totalDrawer}, Requested: {$qty}.";
+                        if ($totalMain > 0) {
+                            $msg .= " Main Stockroom has {$totalMain} units available. Please transfer stock from Main to Drawer first before dispensing.";
+                        } else {
+                            $msg .= " Please transfer stock to Drawer or restock first.";
+                        }
+                        $this->jsonResponse(['success' => false, 'message' => $msg], 400);
+                    }
+                }
+
+                // Pass 1: Deduct from Drawer Inventory using FEFO / FIFO (unexpired only, earliest expiry first)
+                foreach ($dispensedItems as $dItem) {
+                    $itemId = (int)($dItem['item_id'] ?? 0);
+                    $qty = (int)($dItem['quantity'] ?? 0);
                     if ($itemId <= 0 || $qty <= 0) continue;
 
                     $remQty = $qty;
 
-                    // Pass 1: Deduct from Drawer Inventory first (FEFO: earliest expiration, unexpired only)
                     $drawerStmt = $pdo->prepare("
                         SELECT id, stock_remaining, COALESCE(drawer_stock, 0) as drawer_stock, COALESCE(main_stock, 0) as main_stock 
                         FROM inventory_batches 
-                        WHERE item_id = ? AND clinic_branch = ? AND drawer_stock > 0 
+                        WHERE item_id = ? AND (clinic_branch = ? OR clinic_branch = ?) AND drawer_stock > 0 
                           AND (expired_on >= CURDATE() OR expired_on IS NULL)
                         ORDER BY expired_on ASC, date_arrived ASC
                     ");
-                    $drawerStmt->execute([$itemId, $branch]);
+                    $drawerStmt->execute([$itemId, $branch, $branchAlt]);
                     $drawerBatches = $drawerStmt->fetchAll(PDO::FETCH_ASSOC);
 
                     foreach ($drawerBatches as $batch) {
@@ -520,46 +550,49 @@ class ConsultationController extends BaseController {
                         $remQty -= $deduct;
                     }
 
-                    // Pass 2: If drawer is depleted/insufficient, overflow to Main Inventory (FEFO)
                     if ($remQty > 0) {
-                        $mainStmt = $pdo->prepare("
-                            SELECT id, stock_remaining, COALESCE(drawer_stock, 0) as drawer_stock, COALESCE(main_stock, 0) as main_stock 
-                            FROM inventory_batches 
-                            WHERE item_id = ? AND clinic_branch = ? AND main_stock > 0 
-                          AND (expired_on >= CURDATE() OR expired_on IS NULL)
-                        ORDER BY expired_on ASC, date_arrived ASC
-                        ");
-                        $mainStmt->execute([$itemId, $branch]);
-                        $mainBatches = $mainStmt->fetchAll(PDO::FETCH_ASSOC);
-
-                        foreach ($mainBatches as $batch) {
-                            if ($remQty <= 0) break;
-                            $curDrawer = (int)$batch['drawer_stock'];
-                            $curMain = (int)$batch['main_stock'];
-                            $deduct = min($curMain, $remQty);
-
-                            $newMain = $curMain - $deduct;
-                            $newStock = $curDrawer + $newMain;
-
-                            $uStmt = $pdo->prepare("UPDATE inventory_batches SET main_stock = ?, stock_remaining = ?, status = IF(?=0, 'depleted', 'active') WHERE id = ?");
-                            $uStmt->execute([$newMain, $newStock, $newStock, $batch['id']]);
-
-                            $lStmt = $pdo->prepare("
-                                INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, source_location, disposed_to, profile_id, processed_by) 
-                                VALUES (?, 'dispense', ?, 'main', ?, ?, ?)
-                            ");
-                            $lStmt->execute([$batch['id'], -$deduct, $disposedTo . ' (Main Stock Overflow - Drawer Depleted)', $profileId, $_SESSION['cjc_user']['id']]);
-
-                            $remQty -= $deduct;
-                        }
+                        $pdo->rollBack();
+                        $this->jsonResponse(['success' => false, 'message' => "Drawer stock depleted during dispense transaction. Please transfer stock from Main to Drawer first."], 400);
                     }
                 }
             }
 
+            // Update prescriptions JSON
+            if (!empty($dispensedItems)) {
+                $existingArr = json_decode($currentPrescriptions ?: '[]', true) ?: [];
+                $merged = array_merge($existingArr, $dispensedItems);
+                $prescriptionsJson = json_encode($merged);
+            } else {
+                $prescriptionsJson = $currentPrescriptions;
+            }
+
+            // Update consultation record
+            $stmt = $pdo->prepare("UPDATE consultations 
+                                   SET blood_pressure = :bp, 
+                                       temperature = :temp, 
+                                       weight = :weight, 
+                                       diagnosis = :diag, 
+                                       treatment = :treatment,
+                                       prescriptions = :prescriptions 
+                                   WHERE id = :id");
+            $stmt->execute([
+                'bp' => $bp,
+                'temp' => $temp,
+                'weight' => $weight,
+                'diag' => $diagnosis,
+                'treatment' => $treatment,
+                'prescriptions' => $prescriptionsJson,
+                'id' => $id
+            ]);
+
+            $pdo->commit();
             $this->jsonResponse(['success' => true, 'message' => 'Notes saved successfully.']);
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
+            if (isset($pdo) && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log('[CJC-CLINIC] Save notes error: ' . $e->getMessage());
-            $this->jsonResponse(['success' => false, 'message' => 'Unable to save notes.'], 500);
+            $this->jsonResponse(['success' => false, 'message' => 'Unable to save notes: ' . $e->getMessage()], 500);
         }
     }
 
@@ -581,8 +614,13 @@ class ConsultationController extends BaseController {
                 $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE status IN ('active', 'waiting', 'in-progress') AND DATE(created_at) = CURDATE()");
                 $stmt->execute();
             } else {
-                $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE status IN ('active', 'waiting', 'in-progress') AND DATE(created_at) = CURDATE() AND clinic_branch = :branch");
-                $stmt->execute(['branch' => $branch]);
+                if ($branch === 'Basic Education Clinic' || $branch === 'BED Clinic') {
+                    $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE status IN ('active', 'waiting', 'in-progress') AND DATE(created_at) = CURDATE() AND clinic_branch IN ('Basic Education Clinic', 'BED Clinic')");
+                    $stmt->execute();
+                } else {
+                    $stmt = $pdo->prepare("UPDATE consultations SET time_out = CURRENT_TIMESTAMP, status = 'completed' WHERE status IN ('active', 'waiting', 'in-progress') AND DATE(created_at) = CURDATE() AND clinic_branch = :branch");
+                    $stmt->execute(['branch' => $branch]);
+                }
             }
 
             // Auto-complete any linked appointments
@@ -735,8 +773,12 @@ class ConsultationController extends BaseController {
         $branchSql = "";
         $params = [];
         if ($userRole !== 'Superadmin') {
-            $branchSql = "AND clinic_branch = :branch";
-            $params['branch'] = $branch;
+            if ($branch === 'Basic Education Clinic' || $branch === 'BED Clinic') {
+                $branchSql = "AND clinic_branch IN ('Basic Education Clinic', 'BED Clinic')";
+            } else {
+                $branchSql = "AND clinic_branch = :branch";
+                $params['branch'] = $branch;
+            }
         }
 
         try {

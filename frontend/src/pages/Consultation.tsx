@@ -674,7 +674,7 @@ const Consultation: React.FC = () => {
           diagnosis: diagnosis,
           treatment: treatment,
           dispensed_items: dispensedItems,
-          clinic_branch: 'College Clinic' // TODO: dynamic based on logged in user's assigned clinic
+          clinic_branch: activeNoteEntry.clinic_branch || 'College Clinic'
         })
       });
       if (res.success) {
@@ -683,9 +683,9 @@ const Consultation: React.FC = () => {
       } else {
         alert(res.message || 'Failed to save notes.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('An error occurred while saving notes.');
+      alert(err.message || 'An error occurred while saving notes.');
     } finally {
       setIsSavingNotes(false);
     }
@@ -1775,6 +1775,8 @@ const Consultation: React.FC = () => {
                               )
                               .map(item => {
                                 const displayName = `${item.generic_name} ${item.brand_name ? `(${item.brand_name})` : ''} - ${item.category}`;
+                                const drawerStock = Number(item.drawer_stock) || 0;
+                                const mainStock = Number(item.main_stock) || 0;
                                 return (
                                   <li 
                                     key={item.id} 
@@ -1784,8 +1786,21 @@ const Consultation: React.FC = () => {
                                       setShowDispenseDropdown(false);
                                     }}
                                   >
-                                    <div className="font-bold text-slate-800">{item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''}</div>
-                                    <div className="text-xs text-slate-500">Category: {item.category} • Stock: <span className="font-bold text-emerald-600">{item.total_stock || 'Available'}</span></div>
+                                    <div className="flex justify-between items-center">
+                                      <div className="font-bold text-slate-800">{item.generic_name} {item.brand_name ? `(${item.brand_name})` : ''}</div>
+                                      {drawerStock > 0 ? (
+                                        <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800">
+                                          Drawer: {drawerStock}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800">
+                                          Drawer: 0 (Transfer Needed)
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-0.5">
+                                      Category: {item.category} • Main Storage: <span className="font-semibold text-slate-700">{mainStock}</span>
+                                    </div>
                                   </li>
                                 );
                               })
@@ -1811,6 +1826,23 @@ const Consultation: React.FC = () => {
                           if (!selectedInventoryItem) return;
                           const item = inventoryItems.find(i => `${i.generic_name} ${i.brand_name ? `(${i.brand_name})` : ''} - ${i.category}` === selectedInventoryItem);
                           if (item) {
+                            const drawerStock = Number(item.drawer_stock) || 0;
+                            const mainStock = Number(item.main_stock) || 0;
+
+                            if (drawerStock <= 0) {
+                              toast.error(`Cannot dispense "${item.generic_name}": Drawer inventory has 0 units.${mainStock > 0 ? ` Please transfer stock from Main Inventory (${mainStock} units available) to Drawer first.` : ' Please restock item.'}`);
+                              return;
+                            }
+
+                            const alreadyQueued = dispensedItems
+                              .filter(di => di.item_id === item.id)
+                              .reduce((sum, di) => sum + di.quantity, 0);
+
+                            if (alreadyQueued + dispenseQty > drawerStock) {
+                              toast.error(`Cannot dispense ${dispenseQty} unit(s): Only ${drawerStock} unit(s) available in Drawer (${alreadyQueued} already added to this consultation). Please transfer more stock from Main Inventory first.`);
+                              return;
+                            }
+
                             setDispensedItems(prev => [...prev, { item_id: item.id, quantity: dispenseQty, name: item.generic_name }]);
                             const itemNote = `Administered ${item.generic_name}${item.brand_name ? ` (${item.brand_name})` : ''} (${dispenseQty} unit/s PO)`;
                             setTreatment(prev => {

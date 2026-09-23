@@ -602,6 +602,8 @@ async function handleOfflineMutation(endpoint: string, options: RequestInit): Pr
       patient_name: patientName,
       purpose: bodyData.purpose || 'General Consultation',
       complaint: bodyData.complaint || '',
+      clinic_process: bodyData.clinic_process || null,
+      emergency_disposition: bodyData.emergency_disposition || null,
       status: 'waiting',
       time_in: new Date().toISOString(),
       time_out: null,
@@ -645,12 +647,13 @@ async function handleOfflineMutation(endpoint: string, options: RequestInit): Pr
 
     await offlineDb.put('consultations', updatedCons);
 
-    // Deduct stock from local offline inventory cache
+    // Deduct stock from local offline inventory cache (strictly from drawer_stock)
     if (Array.isArray(bodyData.dispensed_items) && bodyData.dispensed_items.length > 0) {
       const currentInventory = await offlineDb.getAll<any>('inventory');
       for (const di of bodyData.dispensed_items) {
         const inv = currentInventory.find(i => i.id === di.item_id);
         if (inv) {
+          inv.drawer_stock = Math.max(0, (inv.drawer_stock || 0) - (di.quantity || 0));
           inv.remaining_stock = Math.max(0, (inv.remaining_stock || 0) - (di.quantity || 0));
           inv.total_stock = Math.max(0, (inv.total_stock || 0) - (di.quantity || 0));
           await offlineDb.put('inventory', inv);

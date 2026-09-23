@@ -461,21 +461,51 @@ class InventoryController extends BaseController {
             $this->jsonResponse(['success' => false, 'message' => 'Invalid parameters.'], 400);
         }
         
+        $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+        
         $pdo = cjcDatabaseConnection();
         $this->ensureSchema($pdo);
         try {
             $pdo->beginTransaction();
             $remainingToDispense = $quantity;
 
-            // Pass 1: Deduct from Drawer Inventory first (FEFO: earliest expiration, unexpired only)
+            // Pre-check drawer stock for this item in this clinic branch
+            $checkStmt = $pdo->prepare("
+                SELECT i.generic_name, i.brand_name,
+                       COALESCE(SUM(CASE WHEN (b.clinic_branch = ? OR b.clinic_branch = ?) AND (b.expired_on >= CURDATE() OR b.expired_on IS NULL) AND b.status != 'depleted' THEN b.drawer_stock ELSE 0 END), 0) as total_drawer,
+                       COALESCE(SUM(CASE WHEN (b.clinic_branch = ? OR b.clinic_branch = ?) AND (b.expired_on >= CURDATE() OR b.expired_on IS NULL) AND b.status != 'depleted' THEN b.main_stock ELSE 0 END), 0) as total_main
+                FROM inventory_items i
+                LEFT JOIN inventory_batches b ON i.id = b.item_id
+                WHERE i.id = ?
+                GROUP BY i.id
+            ");
+            $checkStmt->execute([$branch, $branchAlt, $branch, $branchAlt, $itemId]);
+            $itemInfo = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+            $itemName = $itemInfo ? ($itemInfo['generic_name'] . ($itemInfo['brand_name'] ? " ({$itemInfo['brand_name']})" : '')) : "Item #$itemId";
+            $totalDrawer = (int)($itemInfo['total_drawer'] ?? 0);
+            $totalMain = (int)($itemInfo['total_main'] ?? 0);
+
+            if ($totalDrawer < $quantity) {
+                $pdo->rollBack();
+                $msg = "Cannot dispense '{$itemName}': Insufficient stock in Drawer Inventory. Available in Drawer: {$totalDrawer}, Requested: {$quantity}.";
+                if ($totalMain > 0) {
+                    $msg .= " Main Stockroom has {$totalMain} units available. Please transfer stock from Main to Drawer first before dispensing.";
+                } else {
+                    $msg .= " Please transfer stock to Drawer or restock first.";
+                }
+                $this->jsonResponse(['success' => false, 'message' => $msg], 400);
+            }
+
+            // Deduct STRICTLY from Drawer Inventory (FEFO: earliest expiration first, unexpired only)
             $dStmt = $pdo->prepare("
                 SELECT id, stock_remaining, COALESCE(drawer_stock, 0) as drawer_stock, COALESCE(main_stock, 0) as main_stock 
                 FROM inventory_batches 
-                WHERE item_id = :item_id AND clinic_branch = :branch AND drawer_stock > 0 
+                WHERE item_id = :item_id AND (clinic_branch = :branch OR clinic_branch = :branch_alt) AND drawer_stock > 0 
                   AND (expired_on >= CURDATE() OR expired_on IS NULL)
                 ORDER BY expired_on ASC, date_arrived ASC
             ");
-            $dStmt->execute(['item_id' => $itemId, 'branch' => $branch]);
+            $dStmt->execute(['item_id' => $itemId, 'branch' => $branch, 'branch_alt' => $branchAlt]);
             $drawerBatches = $dStmt->fetchAll();
 
             foreach ($drawerBatches as $batch) {
@@ -500,48 +530,13 @@ class InventoryController extends BaseController {
                 $remainingToDispense -= $consumed;
             }
 
-            // Pass 2: Overflow to Main Stockroom (FEFO) if drawer depleted / not enough
-            if ($remainingToDispense > 0) {
-                $mStmt = $pdo->prepare("
-                    SELECT id, stock_remaining, COALESCE(drawer_stock, 0) as drawer_stock, COALESCE(main_stock, 0) as main_stock 
-                    FROM inventory_batches 
-                    WHERE item_id = :item_id AND clinic_branch = :branch AND main_stock > 0 
-                      AND (expired_on >= CURDATE() OR expired_on IS NULL)
-                    ORDER BY expired_on ASC, date_arrived ASC
-                ");
-                $mStmt->execute(['item_id' => $itemId, 'branch' => $branch]);
-                $mainBatches = $mStmt->fetchAll();
-
-                foreach ($mainBatches as $batch) {
-                    if ($remainingToDispense <= 0) break;
-
-                    $curDrawer = (int)$batch['drawer_stock'];
-                    $curMain = (int)$batch['main_stock'];
-                    $consumed = min($curMain, $remainingToDispense);
-
-                    $newMain = $curMain - $consumed;
-                    $newStock = $curDrawer + $newMain;
-
-                    $uStmt = $pdo->prepare("UPDATE inventory_batches SET main_stock = :mstock, stock_remaining = :stock, status = IF(:stock2=0, 'depleted', 'active') WHERE id = :id");
-                    $uStmt->execute(['mstock' => $newMain, 'stock' => $newStock, 'stock2' => $newStock, 'id' => $batch['id']]);
-
-                    $lStmt = $pdo->prepare("
-                        INSERT INTO inventory_logs (batch_id, action_type, quantity_changed, source_location, disposed_to, profile_id, processed_by) 
-                        VALUES (?, 'dispense', ?, 'main', ?, NULL, ?)
-                    ");
-                    $lStmt->execute([$batch['id'], -$consumed, $disposedTo . ' (Main Stock Overflow - Drawer Depleted)', $_SESSION['cjc_user']['id']]);
-
-                    $remainingToDispense -= $consumed;
-                }
-            }
-            
             if ($remainingToDispense > 0) {
                 $pdo->rollBack();
-                $this->jsonResponse(['success' => false, 'message' => "Insufficient unexpired stock in $branch. Short by $remainingToDispense units."], 400);
+                $this->jsonResponse(['success' => false, 'message' => "Insufficient unexpired stock in Drawer Inventory for $branch. Short by $remainingToDispense units. Please transfer stock from Main to Drawer first."], 400);
             }
             
             $pdo->commit();
-            $this->jsonResponse(['success' => true, 'message' => "Successfully dispensed {$quantity} units using Drawer-first FEFO logic."]);
+            $this->jsonResponse(['success' => true, 'message' => "Successfully dispensed {$quantity} unit(s) from Drawer Inventory (FEFO applied)."]);
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             $this->jsonResponse(['success' => false, 'message' => 'Database error: ' . $e->getMessage()], 500);
