@@ -111,6 +111,21 @@ const PatientList: React.FC = () => {
   const [customCue, setCustomCue] = useState('');
   const [complaintNote, setComplaintNote] = useState('');
   const [isAdmitting, setIsAdmitting] = useState(false);
+  const [selectedProcess, setSelectedProcess] = useState('');
+  const [emergencyDisposition, setEmergencyDisposition] = useState('');
+
+  const clinicProcesses = React.useMemo(() => {
+    if (Array.isArray(globalSettings?.clinic_processes) && globalSettings.clinic_processes.length > 0) {
+      return globalSettings.clinic_processes.filter((p: any) => p.is_active !== false);
+    }
+    return [
+      { id: 'cp_gen', name: 'General Health Services', requires_disposition: false, is_active: true },
+      { id: 'cp_med', name: 'Medical check-up', requires_disposition: false, is_active: true },
+      { id: 'cp_den', name: 'Dental Check-up', requires_disposition: false, is_active: true },
+      { id: 'cp_otc', name: 'OTC Medicine', requires_disposition: false, is_active: true },
+      { id: 'cp_emg', name: 'Emergency Cases', requires_disposition: true, is_active: true }
+    ];
+  }, [globalSettings]);
 
   useEffect(() => {
     apiFetch('/api/index.php?action=check_session')
@@ -203,12 +218,19 @@ const PatientList: React.FC = () => {
     setSelectedCue(availableCues[0] || 'General Consultation');
     setCustomCue('');
     setComplaintNote('');
+    setSelectedProcess('');
+    setEmergencyDisposition('');
     setIsAdmitModalOpen(true);
   };
 
   const handleAdmitSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!admittingPatient) return;
+
+    if (selectedProcess === 'Emergency Cases' && !emergencyDisposition) {
+      alert('Please select an outcome for Emergency Cases disposition.');
+      return;
+    }
 
     const finalCue = selectedCue === 'Other Custom Cue' ? (customCue.trim() || 'General Consultation') : selectedCue;
 
@@ -221,7 +243,9 @@ const PatientList: React.FC = () => {
           patient_id_number: admittingPatient.patient_id_number || '',
           patient_name: admittingPatient.name,
           purpose: finalCue,
-          complaint: complaintNote
+          complaint: complaintNote,
+          clinic_process: selectedProcess || null,
+          emergency_disposition: selectedProcess === 'Emergency Cases' ? emergencyDisposition : null
         })
       });
       if (res.success && res.id) {
@@ -621,6 +645,56 @@ const PatientList: React.FC = () => {
                   <div className="text-xs font-semibold text-slate-500">ID: {admittingPatient.patient_id_number}</div>
                 )}
               </div>
+
+              {/* School Clinic Process Dropdown (Only for Students & Employees, excluding Guests) */}
+              {(!admittingPatient || (admittingPatient.profile_type?.toLowerCase() !== 'guest' && admittingPatient.profile_type?.toLowerCase() !== 'visitor')) && (
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <FiActivity className="text-[#C01D38]" /> Clinic Process
+                    </label>
+                    <span className="text-[11px] text-slate-400 font-normal">Select type</span>
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={selectedProcess}
+                      onChange={(e) => {
+                        setSelectedProcess(e.target.value);
+                        if (e.target.value !== 'Emergency Cases') {
+                          setEmergencyDisposition('');
+                        }
+                      }}
+                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white focus:outline-none focus:border-[#C01D38] focus:ring-2 focus:ring-red-100 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <option value="">-- Select Process --</option>
+                      {clinicProcesses.map((proc: any, idx: number) => (
+                        <option key={proc.id || idx} value={proc.name}>
+                          {proc.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Emergency Cases Disposition Selector (Conditional) */}
+              {selectedProcess === 'Emergency Cases' && (
+                <div className="animate-in fade-in duration-200 bg-amber-50/70 p-3 rounded-2xl border border-amber-200 space-y-1">
+                  <label className="text-xs font-bold text-amber-800 block uppercase tracking-wider">
+                    Emergency Disposition <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={emergencyDisposition}
+                    onChange={(e) => setEmergencyDisposition(e.target.value)}
+                    required
+                    className="w-full px-3.5 py-2.5 border border-amber-300 rounded-xl text-sm font-bold text-amber-900 bg-white focus:outline-none focus:border-amber-600 shadow-2xs cursor-pointer"
+                  >
+                    <option value="">-- Select Outcome --</option>
+                    <option value="Managed in the Clinic">Managed in the Clinic</option>
+                    <option value="Referred to ER">Referred to ER</option>
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1.5 uppercase tracking-wider flex items-center gap-1.5">

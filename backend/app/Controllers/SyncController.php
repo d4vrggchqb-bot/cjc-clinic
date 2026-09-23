@@ -224,12 +224,15 @@ class SyncController extends BaseController {
 
                     $attendedBy = $currentUser['name'] ?? 'Clinic Staff';
                     $stmt = $pdo->prepare(
-                        'INSERT INTO consultations (profile_id, purpose, status, attended_by, clinic_branch, created_at)
-                         VALUES (?, ?, ?, ?, ?, ?)'
+                        'INSERT INTO consultations (profile_id, purpose, clinic_process, emergency_disposition, complaint, status, attended_by, clinic_branch, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
                     );
                     $stmt->execute([
                         $profileId,
                         $purpose,
+                        !empty($payload['clinic_process']) ? trim($payload['clinic_process']) : null,
+                        !empty($payload['emergency_disposition']) ? trim($payload['emergency_disposition']) : null,
+                        !empty($payload['complaint']) ? trim($payload['complaint']) : '',
                         $payload['status'] ?? 'waiting',
                         $attendedBy,
                         $branch,

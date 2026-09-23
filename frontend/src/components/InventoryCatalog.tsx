@@ -661,8 +661,14 @@ const InventoryCatalog: React.FC = () => {
       finalCategory = newItem.customCategory.trim();
     }
 
+    if (newItem.category === 'medicine' && !newItem.brand_name.trim()) {
+      alert('Brand name is required for medicines.');
+      return;
+    }
+
     const payload = {
       ...newItem,
+      generic_name: newItem.generic_name.trim() || (newItem.category === 'medicine' ? newItem.brand_name.trim() : ''),
       category: finalCategory
     };
 
@@ -676,15 +682,20 @@ const InventoryCatalog: React.FC = () => {
       await apiFetch('/api/index.php?route=inventory&action=add_item', { method: 'POST', body: JSON.stringify(payload) });
       setShowAddItem(false);
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('Failed to save item. An error occurred.');
+      alert(error.message || 'Failed to save item. An error occurred.');
     }
   };
 
   const handleUpdateItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editItemForm) return;
+
+    if (editItemForm.category === 'medicine' && !editItemForm.brand_name?.trim()) {
+      alert('Brand name is required for medicines.');
+      return;
+    }
 
     const confirmed = await confirm({
       title: 'Update Catalog Item',
@@ -694,9 +705,13 @@ const InventoryCatalog: React.FC = () => {
     if (!confirmed) return;
 
     try {
+      const payload = {
+        ...editItemForm,
+        generic_name: editItemForm.generic_name?.trim() || (editItemForm.category === 'medicine' ? editItemForm.brand_name?.trim() : '')
+      };
       await apiFetch('/api/index.php?route=inventory&action=update_item', {
         method: 'POST',
-        body: JSON.stringify(editItemForm)
+        body: JSON.stringify(payload)
       });
       setShowEditItem(null);
       setEditItemForm(null);
@@ -746,9 +761,24 @@ const InventoryCatalog: React.FC = () => {
   const handleDispense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!showDispense) return;
+
+    const selItem = items.find(i => i.id === showDispense);
+    const drawerStock = Number(selItem?.drawer_stock) || 0;
+    const mainStock = Number(selItem?.main_stock) || 0;
+
+    if (drawerStock <= 0) {
+      alert(`Cannot dispense: "${selItem?.generic_name || 'This item'}" has 0 units in Drawer Inventory.${mainStock > 0 ? ` Please transfer stock from Main Storage (${mainStock} units available) to Drawer first.` : ''}`);
+      return;
+    }
+
+    if (dispenseData.quantity > drawerStock) {
+      alert(`Cannot dispense ${dispenseData.quantity} unit(s): Only ${drawerStock} unit(s) available in Drawer Inventory. Please transfer more stock from Main Storage to Drawer first.`);
+      return;
+    }
+
     const confirmed = await confirm({
       title: 'Dispense Item',
-      message: 'Are you sure you want to dispense this item?',
+      message: `Are you sure you want to dispense ${dispenseData.quantity} unit(s) from Drawer Inventory?`,
       type: 'warning'
     });
     if (!confirmed) return;
@@ -758,7 +788,7 @@ const InventoryCatalog: React.FC = () => {
         method: 'POST', 
         body: JSON.stringify({ ...dispenseData, disposed_to: finalDisposedTo, item_id: showDispense }) 
       });
-      alert('Dispensed successfully (FEFO logic applied)!');
+      alert('Dispensed successfully from Drawer Inventory (FEFO applied)!');
       setShowDispense(null);
       fetchData();
     } catch (err: any) {
@@ -1077,9 +1107,11 @@ const InventoryCatalog: React.FC = () => {
                   <React.Fragment key={item.id}>
                     <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => toggleExpand(item.id)}>
                       <td className="p-3">
-                        <div className="font-semibold text-slate-800">{item.generic_name}</div>
+                        <div className="font-semibold text-slate-800">
+                          {item.brand_name ? item.brand_name : item.generic_name}
+                        </div>
                         <div className="text-xs text-slate-500">
-                          {item.brand_name || 'No Brand'} 
+                          {item.brand_name ? (item.generic_name && item.generic_name !== item.brand_name ? item.generic_name : 'Brand-only Medicine') : 'No Brand'} 
                           {item.dosage ? ` - ${item.dosage}` : ''}
                           {item.formulation ? ` (${item.formulation})` : ''}
                         </div>
@@ -1690,12 +1722,12 @@ const InventoryCatalog: React.FC = () => {
               {newItem.category === 'medicine' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Generic Name <span className="text-red-500">*</span></label>
-                    <input required type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} />
+                    <label className="block text-sm font-medium mb-1">Brand Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} placeholder="e.g. Biogesic" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Brand Name (Optional)</label>
-                    <input type="text" className="w-full border p-2 rounded" value={newItem.brand_name} onChange={e => setNewItem({...newItem, brand_name: e.target.value})} placeholder="e.g. Biogesic (Optional)" />
+                    <label className="block text-sm font-medium mb-1">Generic Name <span className="text-slate-400 font-normal">(Optional)</span></label>
+                    <input type="text" className="w-full border p-2 rounded" value={newItem.generic_name} onChange={e => setNewItem({...newItem, generic_name: e.target.value})} placeholder="e.g. Paracetamol (Optional)" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Dosage (e.g. 500mg)</label>
@@ -1809,14 +1841,29 @@ const InventoryCatalog: React.FC = () => {
           <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-4">Edit Item Details & Calibration</h3>
             <form onSubmit={handleUpdateItem} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Generic / Item Name <span className="text-red-500">*</span></label>
-                <input required type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.generic_name} onChange={e => setEditItemForm({...editItemForm, generic_name: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Brand Name</label>
-                <input type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.brand_name || ''} onChange={e => setEditItemForm({...editItemForm, brand_name: e.target.value})} />
-              </div>
+              {editItemForm.category === 'medicine' ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Brand Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.brand_name || ''} onChange={e => setEditItemForm({...editItemForm, brand_name: e.target.value})} placeholder="e.g. Biogesic" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Generic Name <span className="text-slate-400 font-normal">(Optional)</span></label>
+                    <input type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.generic_name || ''} onChange={e => setEditItemForm({...editItemForm, generic_name: e.target.value})} placeholder="e.g. Paracetamol" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Item Name <span className="text-red-500">*</span></label>
+                    <input required type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.generic_name || ''} onChange={e => setEditItemForm({...editItemForm, generic_name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Brand Name <span className="text-slate-400 font-normal">(Optional)</span></label>
+                    <input type="text" className="w-full border p-2 rounded text-sm" value={editItemForm.brand_name || ''} onChange={e => setEditItemForm({...editItemForm, brand_name: e.target.value})} />
+                  </div>
+                </>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-semibold mb-1">Dosage</label>
@@ -1946,51 +1993,81 @@ const InventoryCatalog: React.FC = () => {
       )}
 
       {/* Dispense Modal */}
-      {showDispense && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-xl">
-            <h3 className="text-lg font-bold mb-4">Dispense Item (FEFO)</h3>
-            <p className="text-xs text-slate-500 mb-4">The system will automatically deduct from the batch that expires first in the selected clinic.</p>
-            <form onSubmit={handleDispense} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">From Clinic Branch</label>
-                <select 
-                  className="w-full border p-2 rounded disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed" 
-                  value={isSuperAdmin ? dispenseData.clinic_branch : userBranch} 
-                  disabled={!isSuperAdmin}
-                  onChange={e => setDispenseData({...dispenseData, clinic_branch: e.target.value})}
-                >
-                  {isSuperAdmin ? (
-                    <>
-                      <option value="College Clinic">College Clinic</option>
-                      <option value="Basic Education Clinic">Basic Education Clinic</option>
-                      <option value="Power Campus Clinic">Power Campus Clinic</option>
-                    </>
-                  ) : (
-                    <option value={userBranch}>{userBranch}</option>
+      {showDispense && (() => {
+        const selectedDispenseItem = items.find(i => i.id === showDispense);
+        const drawerStock = Number(selectedDispenseItem?.drawer_stock) || 0;
+        const mainStock = Number(selectedDispenseItem?.main_stock) || 0;
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-xl">
+              <h3 className="text-lg font-bold mb-1">Dispense Item (Drawer FEFO)</h3>
+              <p className="text-xs text-slate-500 mb-3">Items will be strictly deducted from Drawer Inventory (earliest expiration first). Stock must be transferred to the drawer before dispensing.</p>
+              
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 text-xs">
+                <div className="font-bold text-slate-800 text-sm">{selectedDispenseItem?.generic_name} {selectedDispenseItem?.brand_name ? `(${selectedDispenseItem.brand_name})` : ''}</div>
+                <div className="flex gap-4 mt-2">
+                  <div>
+                    <span className="text-slate-500">Drawer Stock: </span>
+                    <span className={`font-bold ${drawerStock > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                      {drawerStock} unit(s)
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Main Storage: </span>
+                    <span className="font-bold text-slate-700">{mainStock} unit(s)</span>
+                  </div>
+                </div>
+                {drawerStock <= 0 && (
+                  <div className="mt-2 text-rose-600 font-semibold">
+                    ⚠️ Drawer is empty. Please transfer stock from Main Storage before dispensing.
+                  </div>
+                )}
+              </div>
+
+              <form onSubmit={handleDispense} className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">From Clinic Branch</label>
+                  <select 
+                    className="w-full border p-2 rounded disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed" 
+                    value={isSuperAdmin ? dispenseData.clinic_branch : userBranch} 
+                    disabled={!isSuperAdmin}
+                    onChange={e => setDispenseData({...dispenseData, clinic_branch: e.target.value})}
+                  >
+                    {isSuperAdmin ? (
+                      <>
+                        <option value="College Clinic">College Clinic</option>
+                        <option value="Basic Education Clinic">Basic Education Clinic</option>
+                        <option value="Power Campus Clinic">Power Campus Clinic</option>
+                      </>
+                    ) : (
+                      <option value={userBranch}>{userBranch}</option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quantity to Dispense <span className="text-red-500">*</span></label>
+                  <input required type="number" min="1" max={drawerStock > 0 ? drawerStock : undefined} className="w-full border p-2 rounded" value={dispenseData.quantity} onChange={e => setDispenseData({...dispenseData, quantity: parseInt(e.target.value)})} />
+                  {drawerStock > 0 && dispenseData.quantity > drawerStock && (
+                    <span className="text-xs text-rose-600 font-medium">Exceeds available drawer stock ({drawerStock} units).</span>
                   )}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Quantity to Dispense <span className="text-red-500">*</span></label>
-                <input required type="number" min="1" className="w-full border p-2 rounded" value={dispenseData.quantity} onChange={e => setDispenseData({...dispenseData, quantity: parseInt(e.target.value)})} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Disposed To (Patient Name) <span className="text-red-500">*</span></label>
-                <input required type="text" placeholder="e.g. John Doe" className="w-full border p-2 rounded" value={dispenseData.disposed_to} onChange={e => setDispenseData({...dispenseData, disposed_to: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Reason (Optional)</label>
-                <input type="text" placeholder="e.g. Headache, Fever" className="w-full border p-2 rounded" value={dispenseData.reason} onChange={e => setDispenseData({...dispenseData, reason: e.target.value})} />
-              </div>
-              <div className="flex justify-end space-x-2 mt-4">
-                <button type="button" onClick={() => setShowDispense(null)} className="px-4 py-2 border rounded">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">Dispense</button>
-              </div>
-            </form>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Disposed To (Patient Name) <span className="text-red-500">*</span></label>
+                  <input required type="text" placeholder="e.g. John Doe" className="w-full border p-2 rounded" value={dispenseData.disposed_to} onChange={e => setDispenseData({...dispenseData, disposed_to: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Reason (Optional)</label>
+                  <input type="text" placeholder="e.g. Headache, Fever" className="w-full border p-2 rounded" value={dispenseData.reason} onChange={e => setDispenseData({...dispenseData, reason: e.target.value})} />
+                </div>
+                <div className="flex justify-end space-x-2 mt-4">
+                  <button type="button" onClick={() => setShowDispense(null)} className="px-4 py-2 border rounded">Cancel</button>
+                  <button type="submit" disabled={drawerStock <= 0} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded font-medium">Dispense</button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Edit Batch Modal */}
       {showEditBatch && (
