@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import { Bar, Pie } from 'react-chartjs-2';
 import { useBranch } from '../context/BranchContext';
+import cjcReportHeader from '../assets/cjc_report_header.png';
 
 ChartJS.register(
   CategoryScale,
@@ -1080,9 +1081,9 @@ const Reports: React.FC = () => {
             {/* Header / Letterhead - Using Official CJC Inventory Header */}
             <div className="border-b-2 border-slate-900 pb-3 text-center">
               <img 
-                src="/cjc_report_header.png?v=3" 
+                src={cjcReportHeader} 
                 alt="Cor Jesu College Header" 
-                className="w-full h-auto mb-2 block" 
+                className="w-full h-auto mb-2 block min-h-[45px]" 
               />
               <div className="flex justify-between items-center px-1 text-[11px] font-semibold text-slate-600">
                 <span className="text-[11px] font-bold text-[#A5192D] tracking-wider uppercase">

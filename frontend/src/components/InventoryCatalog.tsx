@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
+import cjcReportHeader from '../assets/cjc_report_header.png';
 import { 
   FiPlus, 
   FiBox, 
@@ -922,14 +923,6 @@ const InventoryCatalog: React.FC = () => {
 
           {/* Export Dropdown / Buttons */}
           <div className="flex items-center gap-1 border-l border-slate-200 pl-2 ml-1">
-            <button
-              onClick={() => setShowExportMedModal(true)}
-              disabled={isExporting}
-              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-2 rounded-lg flex items-center text-xs font-medium shadow-xs transition-colors gap-1"
-              title="Export Official SCRA Medicine Register (Page 5)"
-            >
-              <FiPrinter size={12} /> SCRA Register
-            </button>
             <button
               onClick={() => { setShowExportEquipModal(false); handleExportEquipment(); }}
               disabled={isExporting}
@@ -2690,7 +2683,7 @@ const InventoryCatalog: React.FC = () => {
             <div className="p-8 overflow-y-auto font-sans text-sm print:p-0">
               {/* Official CJC Header - Full Landscape/Folio Width */}
               <div className="text-center mb-3 border-b-2 border-slate-900 pb-2">
-                <img src="/cjc_report_header.png?v=3" alt="Cor Jesu College Header" className="w-full h-auto mb-1.5 block" />
+                <img src={cjcReportHeader} alt="Cor Jesu College Header" className="w-full h-auto mb-1.5 block min-h-[45px]" />
                 <div className="font-black text-base mt-2 uppercase tracking-wide text-slate-900">
                   INVENTORY OF EQUIPMENT/APPARATUS TOOLS AND MATERIALS
                 </div>
@@ -2772,7 +2765,7 @@ const InventoryCatalog: React.FC = () => {
             }
           ` }} />
           <div className="text-center mb-4 border-b-2 border-slate-900 pb-2">
-            <img src="/cjc_report_header.png?v=3" alt="Cor Jesu College Header" className="w-full h-auto mb-1.5 block" />
+            <img src={cjcReportHeader} alt="Cor Jesu College Header" className="w-full h-auto mb-1.5 block min-h-[45px]" />
             <div className="font-bold text-base mt-2 uppercase tracking-wider text-slate-900">
               SCR-9.5 {(selectedBranchFilter !== 'all' ? selectedBranchFilter : (userBranch || 'College Clinic')).toUpperCase()} MEDICINE/SUPPLIES INVENTORY REGISTER
             </div>

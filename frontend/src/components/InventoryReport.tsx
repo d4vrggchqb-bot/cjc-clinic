@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from '../utils/api';
 import { useBranch } from '../context/BranchContext';
+import cjcReportHeader from '../assets/cjc_report_header.png';
 import { 
   FiSearch, 
   FiFilter, 
@@ -1033,9 +1034,9 @@ const InventoryReport: React.FC = () => {
             {/* 1. Official CJC Header Letterhead - Scaled to Full Landscape/Folio Width */}
             <div className="border-b-2 border-slate-900 pb-2 text-center">
               <img
-                src="/cjc_report_header.png?v=3"
+                src={cjcReportHeader}
                 alt="Cor Jesu College Header"
-                className="w-full h-auto mb-1.5 block"
+                className="w-full h-auto mb-1.5 block min-h-[45px]"
               />
               <div className="flex justify-between items-center px-1 text-[11px] font-semibold text-slate-600">
                 <span className="uppercase tracking-wider text-[#A5192D] font-bold">
