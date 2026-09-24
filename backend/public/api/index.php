@@ -66,6 +66,8 @@ switch ($route) {
             $controller->deletePatient();
         } elseif ($action === 'by_program_year') {
             $controller->byProgramYear();
+        } elseif ($action === 'import') {
+            $controller->import();
         }
         break;
 

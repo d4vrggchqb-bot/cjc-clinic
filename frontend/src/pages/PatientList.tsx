@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import { FiSearch, FiEye, FiEdit2, FiPlus, FiActivity, FiTrash2, FiX, FiTag, FiCheckCircle } from 'react-icons/fi';
+import { FiSearch, FiEye, FiEdit2, FiPlus, FiActivity, FiTrash2, FiX, FiTag, FiCheckCircle, FiUpload } from 'react-icons/fi';
 import PatientModal from '../components/PatientModal';
 import PatientViewModal from '../components/PatientViewModal';
+import PatientImportModal from '../components/PatientImportModal';
 import { useConfirm } from '../context/ConfirmContext';
 
 const DEFAULT_CUES = [
@@ -196,6 +197,7 @@ const PatientList: React.FC = () => {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<number | string | null>(null);
 
   const handleOpenAdd = () => {
@@ -344,16 +346,24 @@ const PatientList: React.FC = () => {
   return (
     <div className="px-5 py-5 w-full h-full flex flex-col">
       {/* Header */}
-      {currentUser?.role !== 'Superadmin' && (
-        <div className="flex flex-col sm:flex-row justify-end sm:items-end gap-4 mb-6 sm:mb-8">
+      <div className="flex flex-col sm:flex-row justify-end sm:items-center gap-3 mb-6 sm:mb-8">
+        <button 
+          onClick={() => setIsImportModalOpen(true)}
+          className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-md text-xs sm:text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm w-full sm:w-auto cursor-pointer"
+        >
+          <FiUpload className="w-4 h-4" />
+          Import CSV / Excel
+        </button>
+        {currentUser?.role !== 'Superadmin' && (
           <button 
             onClick={handleOpenAdd}
-            className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-md text-xs sm:text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm w-full sm:w-auto cursor-pointer">
+            className="bg-[#C01D38] hover:bg-[#a0182f] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-md text-xs sm:text-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors shadow-sm w-full sm:w-auto cursor-pointer"
+          >
             <FiPlus className="w-4 h-4" strokeWidth={3} />
             Add New Patient
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Control Bar */}
       <div className="bg-white rounded-t-md border-t border-l border-r border-slate-200 p-4 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
@@ -611,6 +621,12 @@ const PatientList: React.FC = () => {
         isOpen={isViewModalOpen} 
         onClose={() => setIsViewModalOpen(false)} 
         patientId={selectedPatientId} 
+      />
+
+      <PatientImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportSuccess={() => fetchPatients(pagination.page, debouncedSearch, type, filterDept, sort, filterCourse, filterYearLevel)}
       />
 
       {/* Admit Patient Modal */}

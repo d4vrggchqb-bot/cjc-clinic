@@ -243,7 +243,6 @@ export default function Settings() {
           { id: 'clinical', label: 'Clinical Presets', icon: FiActivity },
           { id: 'processes', label: 'Clinic Processes', icon: FiSettings },
           { id: 'users', label: 'User Accounts', icon: FiUsers },
-          { id: 'import', label: 'Data Import', icon: FiUpload },
           { id: 'backup', label: 'Backup', icon: FiHardDrive },
         ].map(tab => (
           <button
@@ -728,41 +727,6 @@ export default function Settings() {
                 </div>
               </div>
             </>
-          )}
-
-          {activeTab === 'import' && (
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-              <h3 className="text-[#8c1526] font-bold text-lg mb-2">Import Enrollee List</h3>
-              <p className="text-slate-500 text-sm mb-4">Import the registrar's enrollment list to automatically add new patients. Existing IDs will be skipped.</p>
-              
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-md mb-6">
-                <h4 className="font-bold text-amber-800 text-sm mb-2 flex items-center gap-2"><FiInfo /> Required Column Order (Row 1 = Headers, data starts Row 2):</h4>
-                <div className="grid grid-cols-2 text-xs text-amber-700 font-mono gap-y-1">
-                  <div>A: Student/Employee ID</div><div>B: Last Name</div>
-                  <div>C: First Name</div><div>D: Middle Initial</div>
-                  <div>E: Gender (M/F)</div><div>F: Birthdate (YYYY-MM-DD)</div>
-                  <div>G: Course</div><div>H: Year Level</div>
-                  <div>I: College/Dept</div><div>J: Contact Number</div>
-                  <div>K: Type (Student/Employee)</div>
-                </div>
-              </div>
-
-              <div className="flex gap-4 items-center">
-                <input 
-                  type="file" 
-                  accept=".csv"
-                  onChange={e => setFile(e.target.files ? e.target.files[0] : null)}
-                  className="text-sm border border-slate-300 p-1.5 rounded w-64"
-                />
-                <button 
-                  onClick={handleImport}
-                  disabled={!file || uploading}
-                  className="bg-[#8c1526] text-white px-4 py-2.5 rounded font-bold text-sm flex items-center gap-2 hover:bg-[#7a1221] disabled:opacity-50"
-                >
-                  <FiUpload /> {uploading ? 'Importing...' : 'Import Now'}
-                </button>
-              </div>
-            </div>
           )}
 
           {activeTab === 'backup' && (

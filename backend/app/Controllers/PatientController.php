@@ -719,4 +719,170 @@ class PatientController extends BaseController {
             $this->jsonResponse(['error' => 'Database error: ' . $e->getMessage()], 500);
         }
     }
+
+    public function import() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        }
+
+        cjcRequireAuth();
+        cjcRequireRole(['Superadmin', 'Admin', 'Doctor', 'Nurse', 'Staff']);
+        cjcCsrfValidate();
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $rows = [];
+
+        if (!empty($input['patients']) && is_array($input['patients'])) {
+            $rows = $input['patients'];
+        } elseif (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
+            $handle = fopen($_FILES['file']['tmp_name'], 'r');
+            if ($handle !== false) {
+                $header = null;
+                while (($data = fgetcsv($handle, 2000, ",")) !== FALSE) {
+                    if (!$header) {
+                        $header = array_map(function($h) {
+                            return strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $h));
+                        }, $data);
+                        continue;
+                    }
+                    if (count($data) >= 2) {
+                        $row = [];
+                        foreach ($header as $idx => $key) {
+                            if (isset($data[$idx])) {
+                                $row[$key] = trim($data[$idx]);
+                            }
+                        }
+                        $rows[] = $row;
+                    }
+                }
+                fclose($handle);
+            }
+        }
+
+        if (empty($rows)) {
+            $this->jsonResponse(['success' => false, 'message' => 'No patient records provided for import.'], 400);
+        }
+
+        $pdo = cjcDatabaseConnection();
+        $pdo->beginTransaction();
+
+        $successCount = 0;
+        $skipCount = 0;
+
+        try {
+            $stmt = $pdo->prepare("
+                INSERT INTO profiles (
+                    profile_type, patient_id_number, school_year, first_name, last_name, middle_initial,
+                    birthdate, gender, height, weight, mother_name, father_name, sub_type, college_dept,
+                    year_level, course, contact, email, address, emergency_contact_name,
+                    emergency_contact_number, emergency_relation, blood_type, health_history, vital_stats
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?
+                )
+            ");
+
+            $checkIdStmt = $pdo->prepare("SELECT id FROM profiles WHERE patient_id_number = ? LIMIT 1");
+            $checkNameStmt = $pdo->prepare("SELECT id FROM profiles WHERE first_name = ? AND last_name = ? AND (patient_id_number IS NULL OR patient_id_number = '') LIMIT 1");
+
+            foreach ($rows as $index => $row) {
+                $fname = trim($row['first_name'] ?? $row['fname'] ?? $row['givenname'] ?? '');
+                $lname = trim($row['last_name'] ?? $row['lname'] ?? $row['surname'] ?? '');
+
+                if (empty($fname) || empty($lname)) {
+                    $skipCount++;
+                    continue;
+                }
+
+                $idNum = trim($row['patient_id_number'] ?? $row['id_number'] ?? $row['id'] ?? '');
+                $type = strtolower(trim($row['profile_type'] ?? $row['type'] ?? 'student'));
+                if (!in_array($type, ['student', 'employee', 'guest'], true)) {
+                    $type = 'student';
+                }
+
+                if ($type === 'guest' && empty($idNum)) {
+                    $year = date('Y');
+                    $countStmt = $pdo->query("SELECT COUNT(*) FROM profiles WHERE profile_type = 'guest'");
+                    $guestCount = (int)$countStmt->fetchColumn() + 1 + $successCount;
+                    $idNum = sprintf('GST-%s-%05d', $year, $guestCount);
+                }
+
+                if (!empty($idNum)) {
+                    $checkIdStmt->execute([$idNum]);
+                    if ($checkIdStmt->fetch()) {
+                        $skipCount++;
+                        continue;
+                    }
+                } else {
+                    $checkNameStmt->execute([$fname, $lname]);
+                    if ($checkNameStmt->fetch()) {
+                        $skipCount++;
+                        continue;
+                    }
+                }
+
+                $dobRaw = trim($row['birthdate'] ?? $row['dob'] ?? '');
+                $dob = null;
+                if (!empty($dobRaw)) {
+                    $ts = strtotime($dobRaw);
+                    if ($ts !== false) {
+                        $dob = date('Y-m-d', $ts);
+                    }
+                }
+
+                $gender = trim($row['gender'] ?? $row['sex'] ?? 'Male');
+                if (!in_array(ucfirst(strtolower($gender)), ['Male', 'Female', 'Other'], true)) {
+                    $gender = 'Male';
+                } else {
+                    $gender = ucfirst(strtolower($gender));
+                }
+
+                $stmt->execute([
+                    $type,
+                    !empty($idNum) ? $idNum : null,
+                    !empty($row['school_year']) ? trim($row['school_year']) : '2026-2027',
+                    $fname,
+                    $lname,
+                    !empty($row['middle_initial']) ? trim($row['middle_initial']) : null,
+                    $dob,
+                    $gender,
+                    !empty($row['height']) ? trim($row['height']) : null,
+                    !empty($row['weight']) ? trim($row['weight']) : null,
+                    !empty($row['mother_name']) ? trim($row['mother_name']) : null,
+                    !empty($row['father_name']) ? trim($row['father_name']) : null,
+                    !empty($row['sub_type']) ? trim($row['sub_type']) : 'College',
+                    !empty($row['college_dept']) ? trim($row['college_dept']) : null,
+                    !empty($row['year_level']) ? trim($row['year_level']) : null,
+                    !empty($row['course']) ? trim($row['course']) : null,
+                    !empty($row['contact']) ? trim($row['contact']) : null,
+                    !empty($row['email']) ? trim($row['email']) : null,
+                    !empty($row['address']) ? trim($row['address']) : null,
+                    !empty($row['emergency_contact_name']) ? trim($row['emergency_contact_name']) : null,
+                    !empty($row['emergency_contact_number']) ? trim($row['emergency_contact_number']) : null,
+                    !empty($row['emergency_relation']) ? trim($row['emergency_relation']) : null,
+                    !empty($row['blood_type']) ? trim($row['blood_type']) : 'Unknown',
+                    !empty($row['health_history']) ? trim($row['health_history']) : null,
+                    !empty($row['vital_stats']) ? trim($row['vital_stats']) : null
+                ]);
+
+                $successCount++;
+            }
+
+            $pdo->commit();
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => "Import complete. $successCount patient(s) added, $skipCount skipped.",
+                'added_count' => $successCount,
+                'skipped_count' => $skipCount,
+                'total_count' => count($rows)
+            ]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            error_log('[CJC-CLINIC] Patient import error: ' . $e->getMessage());
+            $this->jsonResponse(['success' => false, 'message' => 'Import failed: ' . $e->getMessage()], 500);
+        }
+    }
 }
