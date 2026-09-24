@@ -784,8 +784,11 @@ class PatientController extends BaseController {
                 )
             ");
 
-            $checkIdStmt = $pdo->prepare("SELECT id FROM profiles WHERE patient_id_number = ? LIMIT 1");
-            $checkNameStmt = $pdo->prepare("SELECT id FROM profiles WHERE first_name = ? AND last_name = ? AND (patient_id_number IS NULL OR patient_id_number = '') LIMIT 1");
+            $checkIdStmt = $pdo->prepare("SELECT id FROM profiles WHERE LOWER(TRIM(patient_id_number)) = LOWER(TRIM(?)) LIMIT 1");
+            $checkNameStmt = $pdo->prepare("SELECT id FROM profiles WHERE LOWER(TRIM(first_name)) = LOWER(TRIM(?)) AND LOWER(TRIM(last_name)) = LOWER(TRIM(?)) LIMIT 1");
+
+            $batchIds = [];
+            $batchNames = [];
 
             foreach ($rows as $index => $row) {
                 $fname = trim($row['first_name'] ?? $row['fname'] ?? $row['givenname'] ?? '');
@@ -809,18 +812,37 @@ class PatientController extends BaseController {
                     $idNum = sprintf('GST-%s-%05d', $year, $guestCount);
                 }
 
+                $normalizedId = !empty($idNum) ? strtolower($idNum) : '';
+                $normalizedName = strtolower($fname) . '|' . strtolower($lname);
+
+                // 1. Check intra-batch duplicates (already processed in this import file)
+                if (!empty($normalizedId) && in_array($normalizedId, $batchIds, true)) {
+                    $skipCount++;
+                    continue;
+                }
+                if (in_array($normalizedName, $batchNames, true)) {
+                    $skipCount++;
+                    continue;
+                }
+
+                // 2. Check Database Criterion A: Patient ID Number already exists
                 if (!empty($idNum)) {
                     $checkIdStmt->execute([$idNum]);
                     if ($checkIdStmt->fetch()) {
                         $skipCount++;
+                        if (!empty($normalizedId)) $batchIds[] = $normalizedId;
+                        $batchNames[] = $normalizedName;
                         continue;
                     }
-                } else {
-                    $checkNameStmt->execute([$fname, $lname]);
-                    if ($checkNameStmt->fetch()) {
-                        $skipCount++;
-                        continue;
-                    }
+                }
+
+                // 3. Check Database Criterion B: First Name + Last Name already exists in system (regardless of ID)
+                $checkNameStmt->execute([$fname, $lname]);
+                if ($checkNameStmt->fetch()) {
+                    $skipCount++;
+                    if (!empty($normalizedId)) $batchIds[] = $normalizedId;
+                    $batchNames[] = $normalizedName;
+                    continue;
                 }
 
                 $dobRaw = trim($row['birthdate'] ?? $row['dob'] ?? '');
@@ -868,6 +890,8 @@ class PatientController extends BaseController {
                 ]);
 
                 $successCount++;
+                if (!empty($normalizedId)) $batchIds[] = $normalizedId;
+                $batchNames[] = $normalizedName;
             }
 
             $pdo->commit();
