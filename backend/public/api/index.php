@@ -87,6 +87,8 @@ switch ($route) {
             $controller->addBatch();
         } elseif ($action === 'add_medicine') {
             $controller->addMedicine();
+        } elseif ($action === 'import_medicines') {
+            $controller->importMedicines();
         } elseif ($action === 'transfer_to_drawer') {
             $controller->transferToDrawer();
         } elseif ($action === 'expiration_watch') {

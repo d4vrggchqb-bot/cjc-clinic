@@ -22,6 +22,7 @@ import {
   FiActivity,
   FiX,
   FiUploadCloud,
+  FiUpload,
   FiFileText,
   FiDownload,
   FiExternalLink,
@@ -33,6 +34,7 @@ import { useConfirm } from '../context/ConfirmContext';
 import { useBranch } from '../context/BranchContext';
 import TransferToDrawerModal from './TransferToDrawerModal';
 import AddMedicineModal from './AddMedicineModal';
+import MedicineImportModal from './MedicineImportModal';
 
 interface InventoryItem {
   id: number;
@@ -187,11 +189,16 @@ const InventoryCatalog: React.FC = () => {
   // Export States
   const [showExportEquipModal, setShowExportEquipModal] = useState(false);
   const [showExportMedModal, setShowExportMedModal] = useState(false);
-  const [showExportCalibRegModal, setShowExportCalibRegModal] = useState(false);
+  const todayDate = new Date();
+  const currentMonthNum = todayDate.getMonth() + 1;
+  const currentYearNum = todayDate.getFullYear();
+  const currentCalcSY = currentMonthNum >= 8 ? `${currentYearNum}-${currentYearNum + 1}` : `${currentYearNum - 1}-${currentYearNum}`;
+  const currentCalcSem = (currentMonthNum >= 8 && currentMonthNum <= 12) ? '1st' : ((currentMonthNum >= 1 && currentMonthNum <= 5) ? '2nd' : 'Summer');
+
   const [exportMedOptions, setExportMedOptions] = useState({
-    semester: '1st',
-    school_year: '2025-2026',
-    as_of: new Date().toISOString().split('T')[0]
+    semester: currentCalcSem,
+    school_year: currentCalcSY,
+    as_of: todayDate.toISOString().split('T')[0]
   });
   const [exportData, setExportData] = useState<any>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -214,6 +221,7 @@ const InventoryCatalog: React.FC = () => {
   const [disposeForm, setDisposeForm] = useState({ quantity: 1, reason: 'Expired / Unconsumed Disposal', disposed_to: 'CJC Hazardous Medical Waste Bin' });
 
   // Form States
+  const todayDateStr = new Date().toISOString().split('T')[0];
   const [newItem, setNewItem] = useState<{
     category: string;
     customCategory: string;
@@ -227,7 +235,7 @@ const InventoryCatalog: React.FC = () => {
     last_calibrated?: string;
     calibration_due?: string;
     calibration_notes?: string;
-  }>({ category: 'medicine', customCategory: '', brand_name: '', generic_name: '', dosage: '', formulation: '', alert_threshold: 20 });
+  }>({ category: 'medicine', customCategory: '', brand_name: '', generic_name: '', dosage: '', formulation: '', alert_threshold: 20, date_acquired: todayDateStr, date_purchased: todayDateStr });
   const { userBranch, isSuperAdmin, selectedBranch, setSelectedBranch, currentUserName, currentUser } = useBranch();
 
   // Branch filter: Default to user's assigned branch! Non-superadmin is strictly locked to userBranch.
@@ -246,7 +254,7 @@ const InventoryCatalog: React.FC = () => {
   }, [userBranch, selectedBranch, isSuperAdmin]);
 
   const [editItemForm, setEditItemForm] = useState<InventoryItem | null>(null);
-  const [newBatch, setNewBatch] = useState({ item_id: 0, clinic_branch: userBranch || 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
+  const [newBatch, setNewBatch] = useState({ item_id: 0, clinic_branch: userBranch || 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: todayDateStr, expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
   const [editBatchData, setEditBatchData] = useState({ batch_id: 0, batch_number: '', date_arrived: '', expired_on: '', stock_remaining: 0, last_calibrated: '', calibration_due: '', calibration_notes: '' });
 
   const [dispenseData, setDispenseData] = useState({ clinic_branch: userBranch || 'College Clinic', quantity: 1, disposed_to: '', reason: '' });
@@ -255,7 +263,10 @@ const InventoryCatalog: React.FC = () => {
   const [poolTab, setPoolTab] = useState<'all' | 'main' | 'drawer'>('all');
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferBatchId, setTransferBatchId] = useState<number | null>(null);
+  const [transferItemId, setTransferItemId] = useState<number | null>(null);
+  const [transferItemName, setTransferItemName] = useState<string | null>(null);
   const [showAddMedicineModal, setShowAddMedicineModal] = useState(false);
+  const [showMedicineImportModal, setShowMedicineImportModal] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -738,7 +749,7 @@ const InventoryCatalog: React.FC = () => {
       });
       if (res && res.success !== false) {
         setShowAddBatch(null);
-        setNewBatch({ item_id: 0, clinic_branch: userBranch || 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: '', expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
+        setNewBatch({ item_id: 0, clinic_branch: userBranch || 'College Clinic', batch_number: '', stock_remaining: 1, date_arrived: new Date().toISOString().split('T')[0], expired_on: '', last_calibrated: '', calibration_due: '', calibration_notes: '' });
         fetchData();
       } else {
         alert(res?.message || 'Failed to add batch.');
@@ -888,7 +899,12 @@ const InventoryCatalog: React.FC = () => {
               {/* Transfer to Drawer Button (Page 3) */}
               <button
                 type="button"
-                onClick={() => { setTransferBatchId(null); setShowTransferModal(true); }}
+                onClick={() => { 
+                  setTransferBatchId(null); 
+                  setTransferItemId(null);
+                  setTransferItemName(null);
+                  setShowTransferModal(true); 
+                }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl flex items-center text-xs font-semibold shadow-sm transition-all gap-1.5 cursor-pointer"
                 title="Transfer bulk medicine from Main to Drawer"
               >
@@ -903,6 +919,16 @@ const InventoryCatalog: React.FC = () => {
                 title="Add fresh medicine stocks to Main Inventory"
               >
                 <FiPlus className="text-sm" /> Add Medicine
+              </button>
+
+              {/* Import Medicines Button */}
+              <button
+                type="button"
+                onClick={() => setShowMedicineImportModal(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl flex items-center text-xs font-semibold shadow-sm transition-all gap-1.5 cursor-pointer"
+                title="Bulk import medicine stocks from Excel (.xlsx) or CSV"
+              >
+                <FiUpload className="text-sm" /> Import Medicines
               </button>
 
               {/* Catalog Item (Supplies / Equipment) */}
@@ -1142,6 +1168,8 @@ const InventoryCatalog: React.FC = () => {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setTransferBatchId(null);
+                                setTransferItemId(item.id);
+                                setTransferItemName(item.brand_name || item.generic_name);
                                 setShowTransferModal(true);
                               }}
                               className="px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1 cursor-pointer hover:bg-amber-200/80 transition-colors" 
@@ -1155,6 +1183,8 @@ const InventoryCatalog: React.FC = () => {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setTransferBatchId(null);
+                                setTransferItemId(item.id);
+                                setTransferItemName(item.brand_name || item.generic_name);
                                 setShowTransferModal(true);
                               }}
                               className="px-2 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1 cursor-pointer hover:bg-blue-100 transition-colors" 
@@ -1236,10 +1266,12 @@ const InventoryCatalog: React.FC = () => {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setTransferBatchId(null);
+                                  setTransferItemId(item.id);
+                                  setTransferItemName(item.brand_name || item.generic_name);
                                   setShowTransferModal(true);
                                 }}
                                 className="text-blue-600 hover:text-blue-800 p-1 mx-0.5 rounded hover:bg-blue-50 transition-colors inline-flex items-center cursor-pointer"
-                                title="Transfer stock from Main to Drawer"
+                                title={`Transfer ${item.brand_name || item.generic_name} to Drawer`}
                               >
                                 <FiRepeat size={16} />
                               </button>
@@ -1358,6 +1390,8 @@ const InventoryCatalog: React.FC = () => {
                                                   type="button"
                                                   onClick={() => {
                                                     setTransferBatchId(b.id);
+                                                    setTransferItemId(item.id);
+                                                    setTransferItemName(item.brand_name || item.generic_name);
                                                     setShowTransferModal(true);
                                                   }}
                                                   className="bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
@@ -1747,6 +1781,10 @@ const InventoryCatalog: React.FC = () => {
                     <label className="block text-sm font-medium mb-1">Unit / Measurement (e.g. Box, Pcs, Roll)</label>
                     <input type="text" className="w-full border p-2 rounded" value={newItem.formulation} onChange={e => setNewItem({...newItem, formulation: e.target.value})} />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Date Acquired / Received</label>
+                    <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.date_acquired || ''} onChange={e => setNewItem({...newItem, date_acquired: e.target.value})} />
+                  </div>
                 </>
               )}
 
@@ -1782,8 +1820,8 @@ const InventoryCatalog: React.FC = () => {
                       <input type="text" className="w-full border p-2 rounded text-xs" value={(newItem as any).unit || ''} onChange={e => setNewItem({...newItem, ...{unit: e.target.value}} as any)} placeholder="e.g. Pc" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold mb-1">Date Purchased</label>
-                      <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.date_purchased || ''} onChange={e => setNewItem({...newItem, date_purchased: e.target.value})} />
+                      <label className="block text-xs font-semibold mb-1">Date Purchased / Acquired</label>
+                      <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.date_purchased || newItem.date_acquired || ''} onChange={e => setNewItem({...newItem, date_purchased: e.target.value, date_acquired: e.target.value})} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -1816,6 +1854,10 @@ const InventoryCatalog: React.FC = () => {
                   <div>
                     <label className="block text-sm font-medium mb-1">Unit / Measurement (Optional)</label>
                     <input type="text" className="w-full border p-2 rounded" value={newItem.formulation} onChange={e => setNewItem({...newItem, formulation: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Date Acquired / Received</label>
+                    <input type="date" className="w-full border p-2 rounded text-xs" value={newItem.date_acquired || ''} onChange={e => setNewItem({...newItem, date_acquired: e.target.value})} />
                   </div>
                 </>
               )}
@@ -2875,11 +2917,15 @@ const InventoryCatalog: React.FC = () => {
         onClose={() => {
           setShowTransferModal(false);
           setTransferBatchId(null);
+          setTransferItemId(null);
+          setTransferItemName(null);
         }}
         onSuccess={() => {
           fetchData();
         }}
         preselectedBatchId={transferBatchId}
+        preselectedItemId={transferItemId}
+        preselectedItemName={transferItemName}
         clinicBranch={selectedBranchFilter !== 'all' ? selectedBranchFilter : userBranch}
       />
 
@@ -2888,6 +2934,16 @@ const InventoryCatalog: React.FC = () => {
         isOpen={showAddMedicineModal}
         onClose={() => setShowAddMedicineModal(false)}
         onSuccess={() => {
+          fetchData();
+        }}
+        clinicBranch={selectedBranchFilter !== 'all' ? selectedBranchFilter : userBranch}
+      />
+
+      {/* Medicine Bulk Import Modal */}
+      <MedicineImportModal
+        isOpen={showMedicineImportModal}
+        onClose={() => setShowMedicineImportModal(false)}
+        onImportSuccess={() => {
           fetchData();
         }}
         clinicBranch={selectedBranchFilter !== 'all' ? selectedBranchFilter : userBranch}

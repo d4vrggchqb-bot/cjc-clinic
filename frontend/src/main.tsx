@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import GlobalErrorBoundary from './components/GlobalErrorBoundary';
 import './css/app.css';
 
 declare global {
@@ -15,7 +16,9 @@ if (container) {
   const root = createRoot(container);
   root.render(
     <React.StrictMode>
-      <App />
+      <GlobalErrorBoundary>
+        <App />
+      </GlobalErrorBoundary>
     </React.StrictMode>
   );
 } else {

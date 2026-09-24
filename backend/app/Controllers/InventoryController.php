@@ -73,7 +73,7 @@ class InventoryController extends BaseController {
                        (SELECT calibrated_by FROM equipment_calibrations WHERE item_id = i.id ORDER BY id DESC LIMIT 1) as latest_calibrated_by,
                        (SELECT COUNT(*) FROM equipment_calibrations WHERE item_id = i.id) as cert_count
                 FROM inventory_items i
-                LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
+                JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
                 GROUP BY i.id 
                 ORDER BY i.generic_name ASC
             ");
@@ -121,7 +121,7 @@ class InventoryController extends BaseController {
             $input['supplier'] ?? null,
             $input['unit'] ?? null,
             $input['alert_threshold'] ?? 20,
-            !empty($input['date_acquired']) ? $input['date_acquired'] : null,
+            !empty($input['date_acquired']) ? $input['date_acquired'] : (!empty($input['date_purchased']) ? $input['date_purchased'] : date('Y-m-d')),
             !empty($input['date_purchased']) ? $input['date_purchased'] : null,
             !empty($input['last_calibrated']) ? $input['last_calibrated'] : null,
             !empty($input['calibration_due']) ? $input['calibration_due'] : null,
@@ -445,18 +445,32 @@ class InventoryController extends BaseController {
         
         try {
             $pdo->beginTransaction();
+            $dateArrived = !empty($input['date_arrived']) ? trim($input['date_arrived']) : date('Y-m-d');
+            $arrTimestamp = strtotime($dateArrived);
+            $arrYear = (int)date('Y', $arrTimestamp !== false ? $arrTimestamp : time());
+            $arrMonth = (int)date('n', $arrTimestamp !== false ? $arrTimestamp : time());
+            $defaultSY = ($arrMonth >= 8) ? ($arrYear . '-' . ($arrYear + 1)) : (($arrYear - 1) . '-' . $arrYear);
+            $defaultSem = ($arrMonth >= 8 && $arrMonth <= 12) ? '1st Semester' : (($arrMonth >= 1 && $arrMonth <= 5) ? '2nd Semester' : 'Summer');
+
+            $semester = !empty($input['restock_semester']) ? trim($input['restock_semester']) : $defaultSem;
+            $schoolYear = !empty($input['school_year']) ? trim($input['school_year']) : $defaultSY;
+
             $stmt = $pdo->prepare("
                 INSERT INTO inventory_batches 
-                (item_id, clinic_branch, batch_number, stock_remaining, date_arrived, expired_on, last_calibrated, calibration_due, calibration_notes) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (item_id, clinic_branch, batch_number, lot_number, stock_remaining, main_stock, drawer_stock, date_arrived, expired_on, restock_semester, school_year, last_calibrated, calibration_due, calibration_notes, status) 
+                VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'active')
             ");
             $stmt->execute([
                 $input['item_id'],
                 $branch,
-                $input['batch_number'] ?? null,
+                $input['batch_number'] ?? $lotNo,
+                $lotNo,
                 $input['stock_remaining'],
-                $input['date_arrived'] ?? date('Y-m-d'),
+                $input['stock_remaining'],
+                $dateArrived,
                 $input['expired_on'] ?? null,
+                $semester,
+                $schoolYear,
                 !empty($input['last_calibrated']) ? $input['last_calibrated'] : null,
                 !empty($input['calibration_due']) ? $input['calibration_due'] : null,
                 $input['calibration_notes'] ?? null
@@ -577,16 +591,28 @@ class InventoryController extends BaseController {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->jsonResponse(['error' => 'Method not allowed'], 405);
         cjcRequireAuth();
         $pdo = cjcDatabaseConnection();
-        $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : ($_GET['branch'] ?? $this->getUserBranch());
+        $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : ($_GET['branch'] ?? 'all');
         $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
-        $stmt = $pdo->prepare("
-            SELECT i.id, i.category, i.generic_name, i.brand_name, i.dosage, i.formulation, IFNULL(SUM(b.stock_remaining), 0) as total_stock, i.alert_threshold
-            FROM inventory_items i
-            LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = :branch OR b.clinic_branch = :branchAlt)
-            GROUP BY i.id
-            HAVING total_stock <= i.alert_threshold
-        ");
-        $stmt->execute(['branch' => $branch, 'branchAlt' => $branchAlt]);
+        
+        if ($branch === 'all' || $branch === 'All Branches') {
+            $stmt = $pdo->prepare("
+                SELECT i.id, i.category, i.generic_name, i.brand_name, i.dosage, i.formulation, IFNULL(SUM(b.stock_remaining), 0) as total_stock, i.alert_threshold
+                FROM inventory_items i
+                JOIN inventory_batches b ON i.id = b.item_id
+                GROUP BY i.id
+                HAVING total_stock <= i.alert_threshold
+            ");
+            $stmt->execute();
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT i.id, i.category, i.generic_name, i.brand_name, i.dosage, i.formulation, IFNULL(SUM(b.stock_remaining), 0) as total_stock, i.alert_threshold
+                FROM inventory_items i
+                JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = :branch OR b.clinic_branch = :branchAlt)
+                GROUP BY i.id
+                HAVING total_stock <= i.alert_threshold
+            ");
+            $stmt->execute(['branch' => $branch, 'branchAlt' => $branchAlt]);
+        }
         $this->jsonResponse(['low_stock' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     }
 
@@ -1182,7 +1208,7 @@ class InventoryController extends BaseController {
                        (SELECT ec.serial_no FROM equipment_calibrations ec WHERE ec.item_id = i.id AND ec.serial_no IS NOT NULL ORDER BY ec.id DESC LIMIT 1) as latest_calib_serial,
                        i.last_calibrated, i.calibration_due
                 FROM inventory_items i
-                LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
+                JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
                 WHERE i.category = 'equipment'
                 GROUP BY i.id
                 ORDER BY i.generic_name ASC
@@ -1217,7 +1243,7 @@ class InventoryController extends BaseController {
                        COALESCE(SUM(CASE WHEN b.status = 'active' THEN b.stock_remaining ELSE 0 END), 0) as quantity,
                        MIN(CASE WHEN b.status = 'active' AND b.stock_remaining > 0 THEN b.expired_on ELSE NULL END) as earliest_expiry
                 FROM inventory_items i
-                LEFT JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
+                JOIN inventory_batches b ON i.id = b.item_id AND (b.clinic_branch = ? OR b.clinic_branch = ?)
                 WHERE i.category IN ('medicine', 'supply')
                 GROUP BY i.id
                 ORDER BY i.generic_name ASC
@@ -1328,6 +1354,17 @@ class InventoryController extends BaseController {
             $itemParams['search'] = "%$search%";
         }
 
+        if ($branch !== 'all') {
+            $branchAlt = ($branch === 'Basic Education Clinic') ? 'BED Clinic' : (($branch === 'BED Clinic') ? 'Basic Education Clinic' : $branch);
+            $itemWhere[] = "EXISTS (
+                SELECT 1 FROM inventory_batches b_scope 
+                WHERE b_scope.item_id = i.id 
+                  AND (b_scope.clinic_branch = :item_branch OR b_scope.clinic_branch = :item_branch_alt)
+            )";
+            $itemParams['item_branch'] = $branch;
+            $itemParams['item_branch_alt'] = $branchAlt;
+        }
+
         $itemWhereSql = implode(' AND ', $itemWhere);
 
         $itemStmt = $pdo->prepare("
@@ -1351,7 +1388,20 @@ class InventoryController extends BaseController {
             $batchParams['branchAlt'] = $branchAlt;
         }
 
-        if ($semester !== 'all' && !empty($semester)) {
+        $hasDateFilter = (!empty($startDate) || !empty($endDate));
+        if (!empty($startDate) && !empty($endDate)) {
+            $batchWhere[] = "COALESCE(b.date_arrived, DATE(b.created_at)) BETWEEN :start_date AND :end_date";
+            $batchParams['start_date'] = $startDate;
+            $batchParams['end_date'] = $endDate;
+        } elseif (!empty($startDate)) {
+            $batchWhere[] = "COALESCE(b.date_arrived, DATE(b.created_at)) >= :start_date";
+            $batchParams['start_date'] = $startDate;
+        } elseif (!empty($endDate)) {
+            $batchWhere[] = "COALESCE(b.date_arrived, DATE(b.created_at)) <= :end_date";
+            $batchParams['end_date'] = $endDate;
+        }
+
+        if ($semester !== 'all' && !empty($semester) && !$hasDateFilter) {
             if (stripos($semester, '1st') !== false) {
                 $batchWhere[] = "(b.restock_semester LIKE '%1st%')";
             } elseif (stripos($semester, '2nd') !== false) {
@@ -1364,23 +1414,9 @@ class InventoryController extends BaseController {
             }
         }
 
-        if ($schoolYear !== 'all' && !empty($schoolYear)) {
+        if ($schoolYear !== 'all' && !empty($schoolYear) && !$hasDateFilter) {
             $batchWhere[] = "b.school_year = :school_year";
             $batchParams['school_year'] = $schoolYear;
-        }
-
-        if (!empty($startDate) && !empty($endDate)) {
-            $batchWhere[] = "(
-                b.date_arrived BETWEEN :start_date1 AND :end_date1 
-                OR DATE(b.created_at) BETWEEN :start_date2 AND :end_date2
-                OR (b.expired_on IS NOT NULL AND b.expired_on BETWEEN :start_date3 AND :end_date3)
-            )";
-            $batchParams['start_date1'] = $startDate;
-            $batchParams['end_date1'] = $endDate;
-            $batchParams['start_date2'] = $startDate;
-            $batchParams['end_date2'] = $endDate;
-            $batchParams['start_date3'] = $startDate;
-            $batchParams['end_date3'] = $endDate;
         }
 
         $batchWhereSql = implode(' AND ', $batchWhere);
@@ -1421,6 +1457,28 @@ class InventoryController extends BaseController {
 
         foreach ($rawItems as $item) {
             $itemBatches = $batchesByItem[$item['id']] ?? [];
+
+            // If date filter is active, only include items that actually arrived/acquired during this period
+            if ($hasDateFilter) {
+                if ($item['category'] === 'equipment') {
+                    $equipDate = !empty($item['date_purchased']) ? $item['date_purchased'] : (!empty($item['date_acquired']) ? $item['date_acquired'] : (!empty($item['created_at']) ? substr($item['created_at'], 0, 10) : null));
+                    if ($equipDate) {
+                        if (!empty($startDate) && !empty($endDate) && ($equipDate < $startDate || $equipDate > $endDate)) {
+                            continue;
+                        } elseif (!empty($startDate) && $equipDate < $startDate) {
+                            continue;
+                        } elseif (!empty($endDate) && $equipDate > $endDate) {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
+                } else {
+                    if (empty($itemBatches)) {
+                        continue;
+                    }
+                }
+            }
 
             $drawerStock = 0;
             $mainStock = 0;
@@ -1552,7 +1610,7 @@ class InventoryController extends BaseController {
                             'branch' => $b['clinic_branch']
                         ];
                     }
-                } else {
+                } elseif (!$hasDateFilter && ($semester === 'all' || empty($semester))) {
                     $medName = trim($item['generic_name'] . (!empty($item['brand_name']) ? " ({$item['brand_name']})" : ""));
                     $batchesFlat[] = [
                         'item_no' => $batchCounter++,
@@ -1616,6 +1674,7 @@ class InventoryController extends BaseController {
                     'serial_no' => $serialVal,
                     'supplier' => !empty($item['supplier']) ? $item['supplier'] : '----------',
                     'date_purchased' => $datePurchasedVal,
+                    'date_arrived' => !empty($item['date_acquired']) ? $item['date_acquired'] : (!empty($item['date_purchased']) ? $item['date_purchased'] : null),
                     'remarks' => $equipRemarks,
                     'last_calibrated' => $item['last_calibrated'],
                     'calibration_due' => $item['calibration_due'],
@@ -1703,8 +1762,16 @@ class InventoryController extends BaseController {
         $lotNo = trim($input['lot_number'] ?? ($input['batch_number'] ?? ''));
         $quantity = (int)($input['quantity'] ?? 0);
         $expiredOn = !empty($input['expired_on']) ? trim($input['expired_on']) : (!empty($input['expiration_date']) ? trim($input['expiration_date']) : null);
-        $semester = trim($input['restock_semester'] ?? '1st Semester');
-        $schoolYear = trim($input['school_year'] ?? '2025-2026');
+        $dateArrived = !empty($input['date_arrived']) ? trim($input['date_arrived']) : date('Y-m-d');
+        $arrTimestamp = strtotime($dateArrived);
+        $formattedDateArrived = ($arrTimestamp !== false) ? date('Y-m-d', $arrTimestamp) : date('Y-m-d');
+        $arrYear = (int)date('Y', $arrTimestamp !== false ? $arrTimestamp : time());
+        $arrMonth = (int)date('n', $arrTimestamp !== false ? $arrTimestamp : time());
+        $defaultSY = ($arrMonth >= 8) ? ($arrYear . '-' . ($arrYear + 1)) : (($arrYear - 1) . '-' . $arrYear);
+        $defaultSem = ($arrMonth >= 8 && $arrMonth <= 12) ? '1st Semester' : (($arrMonth >= 1 && $arrMonth <= 5) ? '2nd Semester' : 'Summer');
+
+        $semester = !empty($input['restock_semester']) ? trim($input['restock_semester']) : $defaultSem;
+        $schoolYear = !empty($input['school_year']) ? trim($input['school_year']) : $defaultSY;
         $branch = !$this->isSuperAdmin() ? $this->getUserBranch() : trim($input['clinic_branch'] ?? $this->getUserBranch());
 
         if (empty($brand)) {
@@ -1748,12 +1815,12 @@ class InventoryController extends BaseController {
                     item_id, clinic_branch, batch_number, lot_number, 
                     stock_remaining, main_stock, drawer_stock, 
                     date_arrived, expired_on, restock_semester, school_year, status
-                ) VALUES (?, ?, ?, ?, ?, ?, 0, CURDATE(), ?, ?, ?, 'active')
+                ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 'active')
             ");
             $bStmt->execute([
                 $itemId, $branch, $lotNo, $lotNo,
                 $quantity, $quantity,
-                $expiredOn, $semester, $schoolYear
+                $formattedDateArrived, $expiredOn, $semester, $schoolYear
             ]);
             $batchId = (int)$pdo->lastInsertId();
 
@@ -1777,6 +1844,161 @@ class InventoryController extends BaseController {
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             error_log('Add Medicine Error: ' . $e->getMessage());
+            $this->jsonResponse(['success' => false, 'error' => 'Database error: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function importMedicines() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->jsonResponse(['error' => 'Method not allowed'], 405);
+        cjcRequireAuth(); cjcCsrfValidate(); cjcRequireRole(['Admin', 'Superadmin', 'Doctor', 'Nurse', 'Staff']);
+        $this->forbidSuperAdminTransactions();
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $items = $input['items'] ?? [];
+        $targetBranch = !$this->isSuperAdmin() ? $this->getUserBranch() : trim($input['clinic_branch'] ?? $this->getUserBranch());
+
+        if (!is_array($items) || empty($items)) {
+            $this->jsonResponse(['success' => false, 'error' => 'No medicine records provided for import.'], 400);
+        }
+
+        $pdo = cjcDatabaseConnection();
+        $this->ensureSchema($pdo);
+
+        $currentUser = cjcCurrentUser();
+        $userId = $currentUser['id'] ?? null;
+        $userName = $currentUser['name'] ?? ($currentUser['username'] ?? 'Staff');
+
+        $addedCount = 0;
+        $skippedCount = 0;
+        $errors = [];
+
+        try {
+            $pdo->beginTransaction();
+
+            $findItemStmt = $pdo->prepare("SELECT id FROM inventory_items WHERE (brand_name = ? OR generic_name = ?) AND category = 'medicine' AND (dosage = ? OR (dosage IS NULL AND ? IS NULL)) LIMIT 1");
+            $updateItemStmt = $pdo->prepare("UPDATE inventory_items SET brand_name = ?, generic_name = COALESCE(generic_name, ?) WHERE id = ?");
+            $insItemStmt = $pdo->prepare("INSERT INTO inventory_items (category, brand_name, generic_name, dosage, unit, alert_threshold) VALUES ('medicine', ?, ?, ?, 'pieces', 20)");
+
+            $insBatchStmt = $pdo->prepare("
+                INSERT INTO inventory_batches (
+                    item_id, clinic_branch, batch_number, lot_number, 
+                    stock_remaining, main_stock, drawer_stock, 
+                    date_arrived, expired_on, restock_semester, school_year, status
+                ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 'active')
+            ");
+
+            $logStmt = $pdo->prepare("
+                INSERT INTO inventory_logs (
+                    batch_id, action_type, quantity_changed, 
+                    source_location, target_location, disposed_to, processed_by
+                ) VALUES (?, 'restock', ?, 'main', 'main', 'Bulk Imported to Main Inventory', ?)
+            ");
+
+            foreach ($items as $idx => $row) {
+                $brand = trim($row['brand_name'] ?? '');
+                $name = trim($row['generic_name'] ?? ($row['medicine_name'] ?? ''));
+                $dosage = trim($row['dosage'] ?? '');
+                $lotNo = trim($row['lot_number'] ?? ($row['batch_number'] ?? ''));
+                $quantity = (int)($row['quantity'] ?? 0);
+                $expiredOn = !empty($row['expired_on']) ? trim($row['expired_on']) : (!empty($row['expiration_date']) ? trim($row['expiration_date']) : null);
+                $dateArrived = !empty($row['date_arrived']) ? trim($row['date_arrived']) : (!empty($row['arrival_date']) ? trim($row['arrival_date']) : date('Y-m-d'));
+                $arrTimestamp = strtotime($dateArrived);
+                $formattedDateArrived = ($arrTimestamp !== false) ? date('Y-m-d', $arrTimestamp) : date('Y-m-d');
+                $arrYear = (int)date('Y', $arrTimestamp !== false ? $arrTimestamp : time());
+                $arrMonth = (int)date('n', $arrTimestamp !== false ? $arrTimestamp : time());
+                $defaultSY = ($arrMonth >= 8) ? ($arrYear . '-' . ($arrYear + 1)) : (($arrYear - 1) . '-' . $arrYear);
+                $defaultSem = ($arrMonth >= 8 && $arrMonth <= 12) ? '1st Semester' : (($arrMonth >= 1 && $arrMonth <= 5) ? '2nd Semester' : 'Summer');
+
+                $semester = !empty($row['restock_semester']) ? trim($row['restock_semester']) : $defaultSem;
+                $schoolYear = !empty($row['school_year']) ? trim($row['school_year']) : $defaultSY;
+                $branch = !empty($row['clinic_branch']) ? trim($row['clinic_branch']) : $targetBranch;
+
+                // Validation
+                if (empty($brand)) {
+                    $skippedCount++;
+                    $errors[] = "Row " . ($idx + 1) . ": Brand name is missing.";
+                    continue;
+                }
+                if ($quantity <= 0) {
+                    $skippedCount++;
+                    $errors[] = "Row " . ($idx + 1) . ": Quantity must be greater than 0.";
+                    continue;
+                }
+                if (empty($expiredOn)) {
+                    $skippedCount++;
+                    $errors[] = "Row " . ($idx + 1) . ": Expiration date is missing.";
+                    continue;
+                }
+
+                $expTimestamp = strtotime($expiredOn);
+                if ($expTimestamp === false) {
+                    $skippedCount++;
+                    $errors[] = "Row " . ($idx + 1) . ": Invalid expiration date format ({$expiredOn}).";
+                    continue;
+                }
+                $formattedExpiredOn = date('Y-m-d', $expTimestamp);
+
+                if (empty($name)) {
+                    $name = $brand;
+                }
+
+                // 1. Find or create item
+                $dosageParam = !empty($dosage) ? $dosage : null;
+                $findItemStmt->execute([$brand, $name, $dosageParam, $dosageParam]);
+                $existingItem = $findItemStmt->fetch();
+
+                if ($existingItem) {
+                    $itemId = (int)$existingItem['id'];
+                    $updateItemStmt->execute([$brand, $name, $itemId]);
+                } else {
+                    $insItemStmt->execute([$brand, $name, $dosageParam]);
+                    $itemId = (int)$pdo->lastInsertId();
+                }
+
+                // 2. Generate lot number if empty
+                if (empty($lotNo)) {
+                    $lotNo = 'LOT-' . date('Y') . '-' . str_pad((string)$itemId, 4, '0', STR_PAD_LEFT) . '-' . substr(uniqid(), -4);
+                }
+
+                // 3. Insert batch
+                $insBatchStmt->execute([
+                    $itemId, $branch, $lotNo, $lotNo,
+                    $quantity, $quantity,
+                    $formattedDateArrived, $formattedExpiredOn, $semester, $schoolYear
+                ]);
+                $batchId = (int)$pdo->lastInsertId();
+
+                // 4. Log
+                $logStmt->execute([$batchId, $quantity, $userId]);
+                $addedCount++;
+            }
+
+            if ($addedCount > 0) {
+                try {
+                    $auditStmt = $pdo->prepare("INSERT INTO audit_logs (user_id, user_name, action_type, module, details) VALUES (?, ?, 'IMPORT', 'Inventory', ?)");
+                    $auditStmt->execute([
+                        $userId,
+                        $userName,
+                        "Bulk imported {$addedCount} medicine batch(es) to Main Inventory ({$targetBranch})."
+                    ]);
+                } catch (Throwable $at) {
+                    // Ignore audit log error if table differs
+                }
+            }
+
+            $pdo->commit();
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => "Successfully imported {$addedCount} medicine batch(es) to Main Inventory.",
+                'added_count' => $addedCount,
+                'skipped_count' => $skippedCount,
+                'total_count' => count($items),
+                'errors' => $errors
+            ]);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('Import Medicines Error: ' . $e->getMessage());
             $this->jsonResponse(['success' => false, 'error' => 'Database error: ' . $e->getMessage()], 500);
         }
     }

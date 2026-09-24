@@ -363,12 +363,23 @@ class ConsultationController extends BaseController {
 
                 // Auto-complete linked appointment if present
                 try {
-                    $aptStmt = $pdo->prepare("SELECT appointment_id FROM consultations WHERE id = :id");
+                    $aptStmt = $pdo->prepare("SELECT appointment_id, profile_id, created_at FROM consultations WHERE id = :id");
                     $aptStmt->execute(['id' => $id]);
-                    $aptId = (int)$aptStmt->fetchColumn();
-                    if ($aptId > 0) {
-                        $updApt = $pdo->prepare("UPDATE appointments SET status = 'Completed' WHERE id = :aptId");
-                        $updApt->execute(['aptId' => $aptId]);
+                    $cRow = $aptStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($cRow) {
+                        $aptId = (int)($cRow['appointment_id'] ?? 0);
+                        if ($aptId > 0) {
+                            $pdo->prepare("UPDATE appointments SET status = 'Completed' WHERE id = :aptId")->execute(['aptId' => $aptId]);
+                        }
+                        if (!empty($cRow['profile_id'])) {
+                            $pdo->prepare("
+                                UPDATE appointments 
+                                SET status = 'Completed' 
+                                WHERE profile_id = ? 
+                                  AND status = 'In Consultation' 
+                                  AND (appointment_date = DATE(?) OR appointment_date = CURDATE())
+                            ")->execute([$cRow['profile_id'], $cRow['created_at']]);
+                        }
                     }
                 } catch (Exception $e) {}
 
@@ -730,25 +741,46 @@ class ConsultationController extends BaseController {
      */
     private function autoRollOverPastConsultations(PDO $pdo): void {
         try {
-            // 1. Past 'waiting' or 'pending' items auto-transition to 'no-show'
+            // 1. Consultations with time_out or notes should have valid status = 'completed'
             $pdo->exec("
                 UPDATE consultations 
-                SET status = 'no-show', 
+                SET status = 'completed'
+                WHERE (status IS NULL OR status = '' OR status IN ('waiting', 'pending', 'active', 'in-progress'))
+                  AND (time_out IS NOT NULL OR (diagnosis IS NOT NULL AND diagnosis != '') OR (treatment IS NOT NULL AND treatment != ''))
+            ");
+
+            // 2. Unclosed consultations from previous days auto-close as completed and set time_out
+            $pdo->exec("
+                UPDATE consultations 
+                SET status = 'completed', 
                     time_out = COALESCE(time_out, created_at)
-                WHERE status IN ('waiting', 'pending') 
+                WHERE (status IS NULL OR status = '' OR status IN ('waiting', 'pending', 'active', 'in-progress'))
                   AND DATE(created_at) < CURDATE()
             ");
 
-            // 2. Past 'in-progress' or 'active' items with notes auto-complete; without notes auto-transition to 'no-show'
+            // 3. Synchronize linked appointments
             $pdo->exec("
-                UPDATE consultations 
-                SET status = CASE 
-                        WHEN (diagnosis IS NOT NULL AND diagnosis != '') OR (treatment IS NOT NULL AND treatment != '') THEN 'completed' 
-                        ELSE 'no-show' 
-                    END,
-                    time_out = COALESCE(time_out, created_at)
-                WHERE status IN ('active', 'in-progress') 
-                  AND DATE(created_at) < CURDATE()
+                UPDATE appointments a
+                JOIN consultations c ON c.appointment_id = a.id
+                SET a.status = 'Completed'
+                WHERE a.status = 'In Consultation'
+                  AND (c.status = 'completed' OR c.time_out IS NOT NULL)
+            ");
+
+            $pdo->exec("
+                UPDATE appointments a
+                JOIN consultations c ON c.profile_id = a.profile_id AND DATE(c.created_at) = a.appointment_date
+                SET a.status = 'Completed'
+                WHERE a.status = 'In Consultation'
+                  AND (c.status = 'completed' OR c.time_out IS NOT NULL)
+            ");
+
+            // 4. Past appointments in consultation whose date is in the past
+            $pdo->exec("
+                UPDATE appointments
+                SET status = 'Completed'
+                WHERE status = 'In Consultation'
+                  AND appointment_date < CURDATE()
             ");
         } catch (Exception $e) {
             error_log('[CJC-CLINIC] auto roll-over consultations error: ' . $e->getMessage());
@@ -784,17 +816,23 @@ class ConsultationController extends BaseController {
         try {
             $stmt = $pdo->prepare("
                 UPDATE consultations 
-                SET status = CASE 
-                        WHEN (diagnosis IS NOT NULL AND diagnosis != '') OR (treatment IS NOT NULL AND treatment != '') THEN 'completed' 
-                        ELSE 'no-show' 
-                    END,
+                SET status = 'completed',
                     time_out = COALESCE(time_out, created_at)
-                WHERE status IN ('waiting', 'pending', 'active', 'in-progress') 
+                WHERE (status IS NULL OR status = '' OR status IN ('waiting', 'pending', 'active', 'in-progress'))
                   AND DATE(created_at) < CURDATE()
                   $branchSql
             ");
             $stmt->execute($params);
             $affected = $stmt->rowCount();
+
+            // Synchronize linked appointments
+            $pdo->exec("
+                UPDATE appointments a
+                JOIN consultations c ON c.appointment_id = a.id
+                SET a.status = 'Completed'
+                WHERE a.status = 'In Consultation'
+                  AND (c.status = 'completed' OR c.time_out IS NOT NULL)
+            ");
 
             $this->jsonResponse([
                 'success' => true, 

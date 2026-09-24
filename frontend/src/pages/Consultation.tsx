@@ -269,6 +269,7 @@ const Consultation: React.FC = () => {
     issued_by_license: '',
     is_essentially_normal: false,
     reason: '',
+    recommendation: '',
     valid_until: '',
     clinic_branch: 'College Clinic',
     paper_size: 'half_long'
@@ -1918,7 +1919,8 @@ const Consultation: React.FC = () => {
                       age: computedAge,
                       address: profile?.address || activeNoteEntry?.address || medcertData.address || '',
                       is_essentially_normal: false,
-                      reason: '',
+                      reason: activeNoteEntry.diagnosis || '',
+                      recommendation: activeNoteEntry.treatment || '',
                       valid_until: '',
                       clinic_branch: getCertificateBranch(activeNoteEntry),
                       paper_size: medcertPaperSize
@@ -2166,129 +2168,162 @@ const Consultation: React.FC = () => {
 
       {/* Medcert Form Modal */}
       {isMedcertModalOpen && activeNoteEntry && (
-        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
-              <h2 className="text-lg font-bold text-[#8c1526]">Generate Document</h2>
-              <button onClick={() => setIsMedcertModalOpen(false)} className="text-slate-400 hover:text-slate-700 font-bold text-xl">✕</button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[70] flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 px-6 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
+              <div>
+                <h2 className="text-lg font-bold text-[#8c1526]">Generate Document</h2>
+                <p className="text-xs text-slate-500">Official CJC Medical Certificate</p>
+              </div>
+              <button 
+                onClick={() => setIsMedcertModalOpen(false)} 
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 text-lg transition-colors cursor-pointer"
+                title="Close"
+              >
+                ✕
+              </button>
             </div>
-            <form onSubmit={handleGenerateMedcert} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Issued To</label>
-                <input required type="text" value={medcertData.issued_to} onChange={e => setMedcertData({...medcertData, issued_to: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
-              </div>
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-xs font-semibold text-slate-600">Age (Years Old)</label>
-                  <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">
+
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleGenerateMedcert} className="flex flex-col flex-1 overflow-hidden min-h-0">
+              <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 overscroll-contain">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Issued To</label>
+                  <input required type="text" value={medcertData.issued_to} onChange={e => setMedcertData({...medcertData, issued_to: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
+                </div>
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs font-semibold text-slate-600">Age (Years Old)</label>
+                    <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setMedcertData({...medcertData, age: getPatientAge(selectedProfileDetails, activeNoteEntry)});
+                          }
+                        }} 
+                      />
+                      Autofill from profile
+                    </label>
+                  </div>
+                  <input type="text" value={medcertData.age} onChange={e => setMedcertData({...medcertData, age: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" placeholder="e.g. 21" />
+                </div>
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs font-semibold text-slate-600">Address (Optional)</label>
+                    <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setMedcertData({...medcertData, address: selectedProfileDetails?.address || activeNoteEntry?.address || ''});
+                          } else {
+                            setMedcertData({...medcertData, address: ''});
+                          }
+                        }} 
+                      />
+                      Autofill from patient profile
+                    </label>
+                  </div>
+                  <input type="text" value={medcertData.address} onChange={e => setMedcertData({...medcertData, address: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" placeholder="Leave blank for a blank line" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Issued By</label>
+                  <select 
+                    required 
+                    value={medcertData.issued_by} 
+                    onChange={e => {
+                      const selectedName = e.target.value;
+                      const selectedPerson = medcertPersonnel.find(p => p.name === selectedName);
+                      setMedcertData({
+                        ...medcertData, 
+                        issued_by: selectedName,
+                        issued_by_position: selectedPerson?.position || '',
+                        issued_by_license: selectedPerson?.license_no || ''
+                      });
+                    }} 
+                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
+                  >
+                    <option value="" disabled>Select personnel...</option>
+                    {medcertPersonnel.map((person, idx) => (
+                      <option key={idx} value={person.name}>
+                        {person.name} ({person.position})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-1 cursor-pointer p-2 bg-slate-50 border border-slate-200 rounded">
                     <input 
                       type="checkbox" 
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setMedcertData({...medcertData, age: getPatientAge(selectedProfileDetails, activeNoteEntry)});
-                        }
-                      }} 
+                      checked={medcertData.is_essentially_normal}
+                      onChange={e => setMedcertData({...medcertData, is_essentially_normal: e.target.checked})}
+                      className="w-4 h-4 text-[#8c1526] rounded border-slate-300 focus:ring-[#8c1526]"
                     />
-                    Autofill from profile
+                    Essentially Normal
                   </label>
                 </div>
-                <input type="text" value={medcertData.age} onChange={e => setMedcertData({...medcertData, age: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" placeholder="e.g. 21" />
-              </div>
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-xs font-semibold text-slate-600">Address (Optional)</label>
-                  <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setMedcertData({...medcertData, address: selectedProfileDetails?.address || activeNoteEntry?.address || ''});
-                        } else {
-                          setMedcertData({...medcertData, address: ''});
-                        }
-                      }} 
-                    />
-                    Autofill from patient profile
-                  </label>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Reason / Remarks (If with findings)</label>
+                  <textarea value={medcertData.reason} onChange={e => setMedcertData({...medcertData, reason: e.target.value})} rows={2} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] resize-none" placeholder="Medical findings or diagnosis..."></textarea>
                 </div>
-                <input type="text" value={medcertData.address} onChange={e => setMedcertData({...medcertData, address: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" placeholder="Leave blank for a blank line" />
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Recommendations / Remarks (Optional)
+                  </label>
+                  <textarea 
+                    value={medcertData.recommendation} 
+                    onChange={e => setMedcertData({...medcertData, recommendation: e.target.value})} 
+                    rows={2} 
+                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] resize-none"
+                    placeholder="e.g. Fit to resume classes / Recommended home rest / Excused from strenuous activities"
+                  ></textarea>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {Boolean(medcertData.recommendation?.trim() || medcertData.valid_until) 
+                      ? '✓ Recommendations box on the printed certificate will be checked automatically.' 
+                      : 'Checkbox on printed certificate will check automatically once filled.'}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Valid Until (Excuse Date) - Optional</label>
+                  <input type="date" value={medcertData.valid_until} onChange={e => setMedcertData({...medcertData, valid_until: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Paper Size / Layout</label>
+                  <select 
+                    value={medcertPaperSize} 
+                    onChange={e => {
+                      const val = e.target.value as 'half_long' | 'full_long' | 'a4';
+                      setMedcertPaperSize(val);
+                      setMedcertData({...medcertData, paper_size: val});
+                    }} 
+                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] bg-white font-medium"
+                  >
+                    <option value="half_long">1/2 Crosswise Long Bond (8.5" × 6.5") - Recommended</option>
+                    <option value="full_long">Full Page Long Bond (8.5" × 13")</option>
+                    <option value="a4">Standard A4 (210mm × 297mm)</option>
+                  </select>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {medcertPaperSize === 'half_long' 
+                      ? '1/2 crosswise cuts paper in half (2 certs per long bond paper).' 
+                      : 'Full sheet layout for formal hospital or government submission.'}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Clinic Branch</label>
+                  <select required value={medcertData.clinic_branch} onChange={e => setMedcertData({...medcertData, clinic_branch: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]">
+                    <option value="College Clinic">College Clinic</option>
+                    <option value="Power Campus Clinic">Power Campus Clinic</option>
+                    <option value="Basic Education Clinic">Basic Education Clinic</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Issued By</label>
-                <select 
-                  required 
-                  value={medcertData.issued_by} 
-                  onChange={e => {
-                    const selectedName = e.target.value;
-                    const selectedPerson = medcertPersonnel.find(p => p.name === selectedName);
-                    setMedcertData({
-                      ...medcertData, 
-                      issued_by: selectedName,
-                      issued_by_position: selectedPerson?.position || '',
-                      issued_by_license: selectedPerson?.license_no || ''
-                    });
-                  }} 
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]"
-                >
-                  <option value="" disabled>Select personnel...</option>
-                  {medcertPersonnel.map((person, idx) => (
-                    <option key={idx} value={person.name}>
-                      {person.name} ({person.position})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4 cursor-pointer p-2 bg-slate-50 border border-slate-200 rounded">
-                  <input 
-                    type="checkbox" 
-                    checked={medcertData.is_essentially_normal}
-                    onChange={e => setMedcertData({...medcertData, is_essentially_normal: e.target.checked})}
-                    className="w-4 h-4 text-[#8c1526] rounded border-slate-300 focus:ring-[#8c1526]"
-                  />
-                  Essentially Normal
-                </label>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Reason / Remarks (If with findings)</label>
-                <textarea value={medcertData.reason} onChange={e => setMedcertData({...medcertData, reason: e.target.value})} rows={3} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] resize-none"></textarea>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Valid Until (Excuse Date) - Optional</label>
-                <input type="date" value={medcertData.valid_until} onChange={e => setMedcertData({...medcertData, valid_until: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Paper Size / Layout</label>
-                <select 
-                  value={medcertPaperSize} 
-                  onChange={e => {
-                    const val = e.target.value as 'half_long' | 'full_long' | 'a4';
-                    setMedcertPaperSize(val);
-                    setMedcertData({...medcertData, paper_size: val});
-                  }} 
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526] bg-white font-medium"
-                >
-                  <option value="half_long">1/2 Crosswise Long Bond (8.5" × 6.5") - Recommended</option>
-                  <option value="full_long">Full Page Long Bond (8.5" × 13")</option>
-                  <option value="a4">Standard A4 (210mm × 297mm)</option>
-                </select>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {medcertPaperSize === 'half_long' 
-                    ? '1/2 crosswise cuts paper in half (2 certs per long bond paper).' 
-                    : 'Full sheet layout for formal hospital or government submission.'}
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Clinic Branch</label>
-                <select required value={medcertData.clinic_branch} onChange={e => setMedcertData({...medcertData, clinic_branch: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#8c1526]">
-                  <option value="College Clinic">College Clinic</option>
-                  <option value="Power Campus Clinic">Power Campus Clinic</option>
-                  <option value="Basic Education Clinic">Basic Education Clinic</option>
-                </select>
-              </div>
-              <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={() => setIsMedcertModalOpen(false)} disabled={isGeneratingMedcert} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50">Cancel</button>
-                <button type="submit" disabled={isGeneratingMedcert} className="px-4 py-2 text-sm font-bold text-white bg-[#8c1526] hover:bg-[#7a1221] rounded shadow-sm flex items-center gap-2 disabled:opacity-50">
+
+              {/* Pinned Action Buttons Footer */}
+              <div className="p-4 px-6 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 shrink-0">
+                <button type="button" onClick={() => setIsMedcertModalOpen(false)} disabled={isGeneratingMedcert} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50 cursor-pointer">Cancel</button>
+                <button type="submit" disabled={isGeneratingMedcert} className="px-5 py-2 text-sm font-bold text-white bg-[#8c1526] hover:bg-[#7a1221] rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50 transition-colors cursor-pointer">
                   {isGeneratingMedcert ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -2410,9 +2445,13 @@ const Consultation: React.FC = () => {
                       <span className="border-b border-black flex-1 inline-block min-h-[1.15rem] px-1 font-semibold text-[11.5px]">{medcertData.reason}</span>
                     </div>
                     <div className="flex items-end gap-2">
-                      <div className="w-3.5 h-3.5 border-[1.5px] border-transparent shrink-0"></div>
+                      <div className="w-3.5 h-3.5 border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-xs pb-0.5 mb-0.5">
+                        {Boolean(medcertData.recommendation?.trim() || medcertData.valid_until) && <span>✓</span>}
+                      </div>
                       <span className="whitespace-nowrap font-medium text-[11.5px]">Recommendations/Remarks:</span>
-                      <span className="border-b border-black flex-1 inline-block min-h-[1.15rem] px-1 font-semibold text-[11.5px]">{medcertData.valid_until ? `Recommended rest until ${new Date(medcertData.valid_until).toLocaleDateString('en-US')}` : ''}</span>
+                      <span className="border-b border-black flex-1 inline-block min-h-[1.15rem] px-1 font-semibold text-[11.5px]">
+                        {[medcertData.recommendation?.trim(), medcertData.valid_until ? `Recommended rest until ${new Date(medcertData.valid_until + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''].filter(Boolean).join('; ')}
+                      </span>
                     </div>
                   </div>
 
@@ -2473,9 +2512,13 @@ const Consultation: React.FC = () => {
                       <span className="border-b border-black w-full inline-block min-h-[1.5rem] px-2">{medcertData.reason}</span>
                     </div>
                     <div className="flex items-end gap-3">
-                      <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5 mb-1.5"></div>
+                      <div className="w-[18px] h-[18px] border-[1.5px] border-black shrink-0 flex items-center justify-center font-bold text-sm pb-0.5 mb-1.5">
+                        {Boolean(medcertData.recommendation?.trim() || medcertData.valid_until) && <span>✓</span>}
+                      </div>
                       <span className="whitespace-nowrap">Recommendations/Remarks:</span>
-                      <span className="border-b border-black w-full inline-block min-h-[1.5rem] px-2">{medcertData.valid_until ? `Recommended rest until ${new Date(medcertData.valid_until).toLocaleDateString('en-US')}` : ''}</span>
+                      <span className="border-b border-black w-full inline-block min-h-[1.5rem] px-2">
+                        {[medcertData.recommendation?.trim(), medcertData.valid_until ? `Recommended rest until ${new Date(medcertData.valid_until + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''].filter(Boolean).join('; ')}
+                      </span>
                     </div>
                   </div>
                   <p className="indent-12">

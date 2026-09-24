@@ -43,9 +43,37 @@ class AppointmentController extends BaseController {
             $params[] = $this->getUserBranch();
         }
 
-        // 1. Only auto-update past-due scheduled appointments from PREVIOUS days to No-Show.
-        // Today's appointments remain open throughout the operating day so early or late arrivals can be catered.
+        // 1. Auto-complete appointments whose linked consultation has been timed out or marked completed
         try {
+            $pdo->exec("
+                UPDATE appointments a
+                JOIN consultations c ON c.appointment_id = a.id
+                SET a.status = 'Completed'
+                WHERE a.status = 'In Consultation'
+                  AND (c.status = 'completed' OR c.time_out IS NOT NULL)
+            ");
+
+            $pdo->exec("
+                UPDATE appointments a
+                JOIN consultations c ON c.profile_id = a.profile_id AND DATE(c.created_at) = a.appointment_date
+                SET a.status = 'Completed'
+                WHERE a.status = 'In Consultation'
+                  AND (c.status = 'completed' OR c.time_out IS NOT NULL)
+            ");
+
+            // Past appointments that were in consultation from prior dates
+            $pdo->exec("
+                UPDATE appointments a
+                LEFT JOIN consultations c ON c.appointment_id = a.id
+                SET a.status = CASE 
+                    WHEN c.id IS NOT NULL THEN 'Completed'
+                    ELSE 'No-Show'
+                END
+                WHERE a.status = 'In Consultation'
+                  AND a.appointment_date < CURDATE()
+            ");
+
+            // Auto-update past-due scheduled appointments from PREVIOUS days to No-Show
             $pdo->exec("
                 UPDATE appointments 
                 SET status = 'No-Show' 
@@ -53,7 +81,7 @@ class AppointmentController extends BaseController {
                   AND appointment_date < CURDATE()
             ");
         } catch (Exception $e) {
-            error_log('[CJC-CLINIC] auto-update No-Show error: ' . $e->getMessage());
+            error_log('[CJC-CLINIC] auto-update No-Show/Completed error: ' . $e->getMessage());
         }
 
         // 2. Self-heal: If today's appointment was previously prematurely marked 'No-Show' without any consultation, restore to 'Scheduled'

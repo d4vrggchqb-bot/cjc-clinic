@@ -84,6 +84,7 @@ export interface EquipmentFlatReport {
   serial_no: string;
   supplier: string;
   date_purchased: string;
+  date_arrived?: string | null;
   remarks: string;
   last_calibrated: string | null;
   calibration_due: string | null;
@@ -106,11 +107,25 @@ const InventoryReport: React.FC = () => {
   const [reportMode, setReportMode] = useState<'medicines' | 'equipment' | 'all'>('medicines');
 
   // Filters
+  const initialToday = new Date();
+  const initMonth = initialToday.getMonth() + 1;
+  const initYear = initialToday.getFullYear();
+  const initDefaultSY = initMonth >= 8 ? `${initYear}-${initYear + 1}` : `${initYear - 1}-${initYear}`;
+
+  const schoolYearOptions = useMemo(() => {
+    const baseSYStart = initMonth >= 8 ? initYear : initYear - 1;
+    const years: string[] = [];
+    for (let y = baseSYStart - 3; y <= baseSYStart + 3; y++) {
+      years.push(`${y}-${y + 1}`);
+    }
+    return years;
+  }, [initMonth, initYear]);
+
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [semester, setSemester] = useState<string>('all');
-  const [schoolYear, setSchoolYear] = useState<string>('2025-2026');
+  const [schoolYear, setSchoolYear] = useState<string>(initDefaultSY);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
@@ -314,6 +329,53 @@ const InventoryReport: React.FC = () => {
     }
   };
 
+  const getCoverageLabel = () => {
+    if (startDate && endDate) {
+      const s = new Date(startDate + 'T00:00:00');
+      const e = new Date(endDate + 'T00:00:00');
+
+      const sMonth = s.toLocaleDateString('en-US', { month: 'long' });
+      const eMonth = e.toLocaleDateString('en-US', { month: 'long' });
+      const sYear = s.getFullYear();
+      const eYear = e.getFullYear();
+
+      const sFormatted = s.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      const eFormatted = e.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+      // Check if it represents an exact full calendar month
+      const isStartOfMonth = s.getDate() === 1;
+      const lastDayOfEndMonth = new Date(eYear, e.getMonth() + 1, 0).getDate();
+      const isEndOfMonth = e.getDate() === lastDayOfEndMonth;
+
+      if (isStartOfMonth && isEndOfMonth && sMonth === eMonth && sYear === eYear) {
+        return `Report for the Month of ${sMonth} ${sYear} (From ${sFormatted} until ${eFormatted})`;
+      }
+
+      if (semester && semester !== 'all') {
+        return `Report Coverage: From ${sFormatted} until ${eFormatted} (${semester}, S.Y. ${schoolYear})`;
+      }
+
+      return `Report Coverage: From ${sFormatted} until ${eFormatted}`;
+    }
+
+    if (startDate) {
+      const sFormatted = new Date(startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      return `Report Coverage: From ${sFormatted} until Present`;
+    }
+
+    if (endDate) {
+      const eFormatted = new Date(endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      return `Report Coverage: As of ${eFormatted}`;
+    }
+
+    if (semester && semester !== 'all') {
+      return `Report Coverage: ${semester}, S.Y. ${schoolYear}`;
+    }
+
+    const todayFormatted = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    return `Report Coverage: All Cumulative Records (As of ${todayFormatted})`;
+  };
+
   const toggleItemExpand = (id: number) => {
     setExpandedItemIds(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -338,7 +400,7 @@ const InventoryReport: React.FC = () => {
         'Model No.',
         'Serial No.',
         'Supplier',
-        'Date Purchased / Fabricated',
+        'Date Purchased / Acquired',
         'Remarks',
         'Clinic Branch'
       ];
@@ -352,7 +414,7 @@ const InventoryReport: React.FC = () => {
         `"${item.model_no.replace(/"/g, '""')}"`,
         `"${item.serial_no.replace(/"/g, '""')}"`,
         `"${item.supplier.replace(/"/g, '""')}"`,
-        `"${item.date_purchased}"`,
+        `"${item.date_arrived || item.date_purchased}"`,
         `"${item.remarks.replace(/"/g, '""')}"`,
         `"${item.branch}"`
       ]);
@@ -385,6 +447,7 @@ const InventoryReport: React.FC = () => {
       'Total Remaining',
       'Unit',
       'Lot / Batch Number',
+      'Date Arrived',
       'Expiry Date',
       'Remarks',
       'Clinic Branch'
@@ -400,6 +463,7 @@ const InventoryReport: React.FC = () => {
       b.quantity,
       `"${b.unit}"`,
       `"${b.lot_number}"`,
+      `"${b.date_arrived || ''}"`,
       `"${b.expiry_date}"`,
       `"${b.remarks.replace(/"/g, '""')}"`,
       `"${b.branch}"`
@@ -597,9 +661,9 @@ const InventoryReport: React.FC = () => {
               className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#A5192D]/20 focus:border-[#A5192D]"
             >
               <option value="all">All School Years</option>
-              <option value="2024-2025">S.Y. 2024-2025</option>
-              <option value="2025-2026">S.Y. 2025-2026</option>
-              <option value="2026-2027">S.Y. 2026-2027</option>
+              {schoolYearOptions.map((sy) => (
+                <option key={sy} value={sy}>S.Y. {sy}</option>
+              ))}
             </select>
           </div>
 
@@ -769,11 +833,17 @@ const InventoryReport: React.FC = () => {
       <div className="px-5 pb-5">
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
           
-          <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between text-sm">
-            <div className="font-bold text-slate-700 flex items-center gap-2">
-              <span>Previewing Records:</span>
-              <span className="px-2.5 py-1 bg-[#A5192D]/10 text-[#A5192D] rounded-full font-bold text-xs">
-                {reportMode === 'equipment' ? equipmentFlat.length : (reportMode === 'medicines' ? batchesFlat.length : items.length)} entries
+          <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="font-bold text-slate-700 flex items-center gap-2">
+                <span>Previewing Records:</span>
+                <span className="px-2.5 py-1 bg-[#A5192D]/10 text-[#A5192D] rounded-full font-bold text-xs">
+                  {reportMode === 'equipment' ? equipmentFlat.length : (reportMode === 'medicines' ? batchesFlat.length : items.length)} entries
+                </span>
+              </div>
+              <span className="text-xs font-bold text-slate-600 bg-slate-200/80 border border-slate-300/70 px-3 py-1 rounded-lg flex items-center gap-1.5 shadow-2xs">
+                <FiCalendar className="text-[#A5192D] w-3.5 h-3.5" />
+                <span>{getCoverageLabel()}</span>
               </span>
             </div>
             <span className="text-xs text-slate-500">
@@ -851,6 +921,7 @@ const InventoryReport: React.FC = () => {
                       <th className="px-4 py-3.5 text-center min-w-[100px]">Main Stockroom</th>
                       <th className="px-4 py-3.5 text-center min-w-[90px]">Total Quantity</th>
                       <th className="px-4 py-3.5 min-w-[100px]">Lot / Batch No.</th>
+                      <th className="px-4 py-3.5 min-w-[110px]">Date Arrived</th>
                       <th className="px-4 py-3.5 min-w-[90px]">Expiry Date</th>
                       <th className="px-4 py-3.5 min-w-[120px]">Status / Remarks</th>
                     </tr>
@@ -902,6 +973,11 @@ const InventoryReport: React.FC = () => {
 
                           <td className="px-4 py-3 font-mono text-slate-600 font-semibold">{b.lot_number}</td>
                           
+                          {/* Date Arrived */}
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
+                            {b.date_arrived ? new Date(b.date_arrived).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                          </td>
+
                           {/* Expiry Date */}
                           <td className="px-4 py-3">
                             <span className={`inline-block px-2.5 py-1 rounded font-mono font-bold text-xs ${
@@ -1051,31 +1127,31 @@ const InventoryReport: React.FC = () => {
             {/* 2. Official Document Title & Metadata Box */}
             {reportMode === 'equipment' ? (
               /* Equipment Register Title - Exactly Matching Physical Form */
-              <div className="text-center space-y-1 py-1.5 border-b border-slate-300">
+              <div className="text-center space-y-1.5 py-2 border-b border-slate-300">
                 <h1 className="text-base sm:text-lg font-black tracking-wider uppercase text-slate-900">
                   INVENTORY OF EQUIPMENT/APPARATUS TOOLS AND MATERIALS
                 </h1>
+                <p className="text-xs sm:text-sm font-extrabold text-[#A5192D] tracking-wide uppercase">
+                  {getCoverageLabel()}
+                </p>
                 <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 text-xs text-slate-800 font-semibold">
                   <span>S.Y. {schoolYear}</span>
                   <span>•</span>
                   <span>
                     Area: <span className="text-[#A5192D] font-bold uppercase">{effectiveBranch === 'all' ? 'ALL CLINIC BRANCHES' : effectiveBranch}</span>
                   </span>
-                  {startDate && endDate && (
-                    <>
-                      <span>•</span>
-                      <span>Period: {startDate} to {endDate}</span>
-                    </>
-                  )}
                 </div>
               </div>
             ) : reportMode === 'medicines' ? (
               /* SCR-9.5 Medicine & Supplies Register Title */
-              <div className="space-y-2 py-1.5 border-b border-slate-300">
-                <div className="text-center">
+              <div className="space-y-2 py-2 border-b border-slate-300">
+                <div className="text-center space-y-1">
                   <h1 className="text-base sm:text-lg font-black tracking-wide uppercase text-slate-900">
                     SCR-9.5 {effectiveBranch === 'all' ? 'ALL CLINIC BRANCHES' : effectiveBranch.toUpperCase()} MEDICINE/SUPPLIES INVENTORY REGISTER
                   </h1>
+                  <p className="text-xs sm:text-sm font-extrabold text-[#A5192D] tracking-wide uppercase">
+                    {getCoverageLabel()}
+                  </p>
                 </div>
                 
                 {/* Semester & School Year Checkbox row matching physical form */}
@@ -1111,10 +1187,13 @@ const InventoryReport: React.FC = () => {
               </div>
             ) : (
               /* Master Inventory Catalog Title */
-              <div className="text-center space-y-1 py-1.5 border-b border-slate-300">
+              <div className="text-center space-y-1.5 py-2 border-b border-slate-300">
                 <h1 className="text-base sm:text-lg font-black tracking-wider uppercase text-slate-900">
                   MASTER CLINIC INVENTORY CATALOG REGISTER
                 </h1>
+                <p className="text-xs sm:text-sm font-extrabold text-[#A5192D] tracking-wide uppercase">
+                  {getCoverageLabel()}
+                </p>
                 <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 text-xs text-slate-800 font-semibold">
                   <span>S.Y. {schoolYear}</span>
                   <span>•</span>
@@ -1179,6 +1258,7 @@ const InventoryReport: React.FC = () => {
                       <th className="p-2 border border-slate-900 text-center min-w-[110px]">Dosage / Formulation</th>
                       <th className="p-2 border border-slate-900 text-center min-w-[130px]">Quantity (Drawer / Main)</th>
                       <th className="p-2 border border-slate-900 text-center w-24">Lot / Batch No.</th>
+                      <th className="p-2 border border-slate-900 text-center w-24">Date Received</th>
                       <th className="p-2 border border-slate-900 text-center w-24">Expiry Date</th>
                       <th className="p-2 border border-slate-900 text-left min-w-[140px]">Remarks</th>
                     </tr>
@@ -1201,6 +1281,9 @@ const InventoryReport: React.FC = () => {
                           </span>
                         </td>
                         <td className="p-2 border border-slate-900 text-center font-mono">{b.lot_number || '----------'}</td>
+                        <td className="p-2 border border-slate-900 text-center font-mono text-[10px]">
+                          {b.date_arrived ? new Date(b.date_arrived).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '----------'}
+                        </td>
                         <td className="p-2 border border-slate-900 text-center font-bold font-mono">
                           {b.expiry_date}
                         </td>
@@ -1211,7 +1294,7 @@ const InventoryReport: React.FC = () => {
                     ))}
                     {batchesFlat.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="p-4 text-center text-slate-500 italic border border-slate-900">
+                        <td colSpan={9} className="p-4 text-center text-slate-500 italic border border-slate-900">
                           No medicine or supplies records registered for this period.
                         </td>
                       </tr>

@@ -5,6 +5,7 @@ import { useConfirm } from '../context/ConfirmContext';
 
 export interface TransferBatchItem {
   batch_id: number;
+  item_id?: number;
   generic_name: string;
   brand_name?: string | null;
   dosage?: string | null;
@@ -20,6 +21,8 @@ interface TransferToDrawerModalProps {
   onClose: () => void;
   onSuccess: () => void;
   preselectedBatchId?: number | null;
+  preselectedItemId?: number | null;
+  preselectedItemName?: string | null;
   clinicBranch?: string;
 }
 
@@ -54,6 +57,8 @@ const TransferToDrawerModal: React.FC<TransferToDrawerModalProps> = ({
   onClose,
   onSuccess,
   preselectedBatchId,
+  preselectedItemId,
+  preselectedItemName,
   clinicBranch
 }) => {
   const { confirm } = useConfirm();
@@ -61,13 +66,19 @@ const TransferToDrawerModal: React.FC<TransferToDrawerModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [batches, setBatches] = useState<TransferBatchItem[]>([]);
   const [search, setSearch] = useState('');
+  const [filterItemId, setFilterItemId] = useState<number | null>(null);
   const [transferSelections, setTransferSelections] = useState<Record<number, SelectedTransferRow>>({});
 
   useEffect(() => {
     if (isOpen) {
+      setFilterItemId(preselectedItemId || null);
+      setSearch('');
       loadBatches();
+    } else {
+      setFilterItemId(null);
+      setSearch('');
     }
-  }, [isOpen, clinicBranch]);
+  }, [isOpen, clinicBranch, preselectedItemId, preselectedBatchId]);
 
   const loadBatches = async () => {
     setLoading(true);
@@ -79,6 +90,7 @@ const TransferToDrawerModal: React.FC<TransferToDrawerModalProps> = ({
       // Load all batches so staff see active, expired, and out-of-stock items clearly
       const available: TransferBatchItem[] = rawBatches.map((b: any) => ({
         batch_id: b.id,
+        item_id: b.item_id ? Number(b.item_id) : undefined,
         generic_name: b.generic_name || 'Unnamed Item',
         brand_name: b.brand_name,
         dosage: b.dosage,
@@ -93,9 +105,18 @@ const TransferToDrawerModal: React.FC<TransferToDrawerModalProps> = ({
 
       // Initialize transfer rows: only allow preselection if batch is NOT disabled
       const initMap: Record<number, SelectedTransferRow> = {};
+      let autoSelected = false;
       available.forEach(b => {
         const { isDisabled } = getBatchStatus(b);
-        const isPreselected = !isDisabled && preselectedBatchId === b.batch_id;
+        let isPreselected = false;
+        if (!isDisabled) {
+          if (preselectedBatchId && preselectedBatchId === b.batch_id) {
+            isPreselected = true;
+          } else if (preselectedItemId && b.item_id === preselectedItemId && !autoSelected) {
+            isPreselected = true;
+            autoSelected = true;
+          }
+        }
         initMap[b.batch_id] = {
           selected: isPreselected,
           qty: isPreselected ? Math.min(10, b.main_stock) : 0
@@ -112,6 +133,9 @@ const TransferToDrawerModal: React.FC<TransferToDrawerModalProps> = ({
   if (!isOpen) return null;
 
   const filteredBatches = batches.filter(b => {
+    if (filterItemId && b.item_id !== filterItemId) {
+      return false;
+    }
     const term = search.toLowerCase();
     return (
       b.generic_name.toLowerCase().includes(term) ||
@@ -211,19 +235,39 @@ const TransferToDrawerModal: React.FC<TransferToDrawerModalProps> = ({
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <FiInbox className="text-[#A5192D]" /> Transfer to Drawer Inventory
+              <FiInbox className="text-[#A5192D]" /> 
+              {filterItemId && preselectedItemName ? `Transfer ${preselectedItemName} to Drawer` : 'Transfer to Drawer Inventory'}
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Select medicines and enter quantities to transfer from Main Inventory to Drawer Inventory.
+              {filterItemId && preselectedItemName 
+                ? `Transfer available stock of ${preselectedItemName} from Main Inventory to Drawer.`
+                : 'Select medicines and enter quantities to transfer from Main Inventory to Drawer Inventory.'}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <FiX className="text-lg" />
           </button>
         </div>
+
+        {/* Filter Indicator when specific item is chosen */}
+        {filterItemId && (
+          <div className="px-6 py-2.5 bg-blue-50 border-b border-blue-100 flex items-center justify-between text-xs text-blue-900">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+              <span>Showing batches for: <strong className="font-bold text-blue-900">{preselectedItemName || 'Selected Item'}</strong></span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFilterItemId(null)}
+              className="text-blue-700 hover:text-blue-900 hover:underline font-semibold text-xs cursor-pointer"
+            >
+              Show all items &rarr;
+            </button>
+          </div>
+        )}
 
         {/* Search Toolbar */}
         <div className="p-4 border-b border-slate-100 bg-white">
@@ -233,7 +277,7 @@ const TransferToDrawerModal: React.FC<TransferToDrawerModalProps> = ({
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Filter available main stock by medicine name, dosage, or lot number..."
+              placeholder={filterItemId ? `Filter ${preselectedItemName || 'item'} batches by lot or dosage...` : "Filter available main stock by medicine name, dosage, or lot number..."}
               className="w-full pl-10 pr-4 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:bg-white focus:border-[#A5192D] transition-all"
             />
           </div>
@@ -249,8 +293,21 @@ const TransferToDrawerModal: React.FC<TransferToDrawerModalProps> = ({
           ) : filteredBatches.length === 0 ? (
             <div className="py-16 text-center text-slate-400">
               <FiCheckCircle className="text-3xl text-slate-400 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-700">No inventory batches found</p>
-              <p className="text-xs text-slate-400 mt-1">No batches match the current filter or search criteria.</p>
+              <p className="text-sm font-semibold text-slate-700">
+                {filterItemId ? `No available batches for ${preselectedItemName || 'this item'}` : 'No inventory batches found'}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {filterItemId ? 'This item might have 0 stock in Main Inventory or all batches are expired.' : 'No batches match the current filter or search criteria.'}
+              </p>
+              {filterItemId && (
+                <button
+                  type="button"
+                  onClick={() => setFilterItemId(null)}
+                  className="mt-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                >
+                  Show All Batches
+                </button>
+              )}
             </div>
           ) : (
             <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">

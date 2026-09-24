@@ -22,6 +22,7 @@ class MedcertController extends BaseController {
             'issued_by'     => trim($input['issued_by']  ?? ''),
             'reason'        => trim($input['reason']     ?? ''),
             'valid_until'   => trim($input['valid_until']?? ''),
+            'recommendation'=> trim($input['recommendation'] ?? ''),
             'clinic_branch' => trim($input['clinic_branch'] ?? 'College Clinic'),
             'paper_size'    => trim($input['paper_size'] ?? 'half_long'),
         ];
@@ -60,6 +61,7 @@ class MedcertController extends BaseController {
             try {
                 @$pdo->exec("ALTER TABLE medcerts ADD COLUMN issued_by_position VARCHAR(150) DEFAULT NULL");
                 @$pdo->exec("ALTER TABLE medcerts ADD COLUMN issued_by_license VARCHAR(100) DEFAULT NULL");
+                @$pdo->exec("ALTER TABLE medcerts ADD COLUMN recommendation TEXT DEFAULT NULL");
             } catch (Exception $e) {
                 // Ignore if column already exists
             }
@@ -72,8 +74,8 @@ class MedcertController extends BaseController {
 
             try {
                 $stmt = $pdo->prepare(
-                    'INSERT INTO medcerts (profile_id, clinic_branch, issued_to, issued_by, issued_by_position, issued_by_license, reason, valid_until)
-                     VALUES (:profile_id, :clinic_branch, :issued_to, :issued_by, :issued_by_position, :issued_by_license, :reason, :valid_until)'
+                    'INSERT INTO medcerts (profile_id, clinic_branch, issued_to, issued_by, issued_by_position, issued_by_license, reason, recommendation, valid_until)
+                     VALUES (:profile_id, :clinic_branch, :issued_to, :issued_by, :issued_by_position, :issued_by_license, :reason, :recommendation, :valid_until)'
                 );
                 $stmt->execute([
                     'profile_id' => $data['profile_id'],
@@ -83,10 +85,11 @@ class MedcertController extends BaseController {
                     'issued_by_position' => $data['issued_by_position'] ?? null,
                     'issued_by_license' => $data['issued_by_license'] ?? null,
                     'reason' => $data['reason'],
+                    'recommendation' => !empty($data['recommendation']) ? $data['recommendation'] : null,
                     'valid_until' => $data['valid_until']
                 ]);
             } catch (PDOException $e) {
-                // Fallback if clinic_branch column fails
+                // Fallback if schema differs
                 $stmt = $pdo->prepare(
                     'INSERT INTO medcerts (profile_id, issued_to, issued_by, issued_by_position, issued_by_license, reason, valid_until)
                      VALUES (:profile_id, :issued_to, :issued_by, :issued_by_position, :issued_by_license, :reason, :valid_until)'
