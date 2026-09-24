@@ -825,20 +825,66 @@ class PatientController extends BaseController {
                     continue;
                 }
 
-                // 2. Check Database Criterion A: Patient ID Number already exists
+                // 2. Check existing record in DB by ID or Name
+                $existingId = null;
                 if (!empty($idNum)) {
                     $checkIdStmt->execute([$idNum]);
-                    if ($checkIdStmt->fetch()) {
-                        $skipCount++;
-                        if (!empty($normalizedId)) $batchIds[] = $normalizedId;
-                        $batchNames[] = $normalizedName;
-                        continue;
+                    $existing = $checkIdStmt->fetch();
+                    if ($existing) {
+                        $existingId = $existing['id'];
+                    }
+                }
+                if (!$existingId) {
+                    $checkNameStmt->execute([$fname, $lname]);
+                    $existing = $checkNameStmt->fetch();
+                    if ($existing) {
+                        $existingId = $existing['id'];
                     }
                 }
 
-                // 3. Check Database Criterion B: First Name + Last Name already exists in system (regardless of ID)
-                $checkNameStmt->execute([$fname, $lname]);
-                if ($checkNameStmt->fetch()) {
+                if ($existingId) {
+                    // Update non-empty fields from import file on existing record
+                    $updateFields = [];
+                    $updateParams = [];
+
+                    $deptVal = trim($row['college_dept'] ?? $row['department'] ?? $row['office'] ?? '');
+                    if (!empty($deptVal)) {
+                        $updateFields[] = "college_dept = ?";
+                        $updateParams[] = $deptVal;
+                    }
+                    $courseVal = trim($row['course'] ?? $row['program'] ?? '');
+                    if (!empty($courseVal)) {
+                        $updateFields[] = "course = ?";
+                        $updateParams[] = $courseVal;
+                    }
+                    $yearVal = trim($row['year_level'] ?? $row['year'] ?? '');
+                    if (!empty($yearVal)) {
+                        $updateFields[] = "year_level = ?";
+                        $updateParams[] = $yearVal;
+                    }
+                    $subTypeVal = trim($row['sub_type'] ?? '');
+                    if (!empty($subTypeVal)) {
+                        $updateFields[] = "sub_type = ?";
+                        $updateParams[] = $subTypeVal;
+                    }
+                    $contactVal = trim($row['contact'] ?? $row['phone'] ?? '');
+                    if (!empty($contactVal)) {
+                        $updateFields[] = "contact = ?";
+                        $updateParams[] = $contactVal;
+                    }
+                    $emailVal = trim($row['email'] ?? '');
+                    if (!empty($emailVal)) {
+                        $updateFields[] = "email = ?";
+                        $updateParams[] = $emailVal;
+                    }
+
+                    if (!empty($updateFields)) {
+                        $updateParams[] = $existingId;
+                        $updateSql = "UPDATE profiles SET " . implode(", ", $updateFields) . " WHERE id = ?";
+                        $upStmt = $pdo->prepare($updateSql);
+                        $upStmt->execute($updateParams);
+                    }
+
                     $skipCount++;
                     if (!empty($normalizedId)) $batchIds[] = $normalizedId;
                     $batchNames[] = $normalizedName;

@@ -54,9 +54,9 @@ const PatientImportModal: React.FC<PatientImportModalProps> = ({ isOpen, onClose
         mapped['gender'] = val;
       } else if (['studentcategory', 'subtype', 'category'].includes(norm)) {
         mapped['sub_type'] = val;
-      } else if (['department', 'collegedept', 'office', 'school', 'collegedepartment', 'dept'].includes(norm)) {
+      } else if (['department', 'collegedept', 'office', 'school', 'collegedepartment', 'dept', 'departmentoffice', 'departmentoroffice'].includes(norm)) {
         mapped['college_dept'] = val;
-      } else if (['course', 'program', 'degree'].includes(norm)) {
+      } else if (['course', 'program', 'degree', 'courseprogram', 'courseorprogram'].includes(norm)) {
         mapped['course'] = val;
       } else if (['yearlevel', 'year', 'grade', 'gradelevel'].includes(norm)) {
         mapped['year_level'] = val;
@@ -84,9 +84,9 @@ const PatientImportModal: React.FC<PatientImportModalProps> = ({ isOpen, onClose
         mapped['emergency_contact_number'] = val;
       } else if (['emergencyrelation', 'emergencyrelationship', 'relationship', 'relation'].includes(norm)) {
         mapped['emergency_relation'] = val;
-      } else if (['healthhistory', 'allergies', 'medicalhistory'].includes(norm)) {
+      } else if (['healthhistory', 'allergies', 'medicalhistory', 'healthhistoryallergies', 'healthhistoryorallergies'].includes(norm)) {
         mapped['health_history'] = val;
-      } else if (['vitalstats', 'vitals', 'vitalstatistics', 'remarks'].includes(norm)) {
+      } else if (['vitalstats', 'vitals', 'vitalstatistics', 'remarks', 'vitalstatsremarks', 'vitalstatsorremarks'].includes(norm)) {
         mapped['vital_stats'] = val;
       }
     });
@@ -273,7 +273,7 @@ const PatientImportModal: React.FC<PatientImportModalProps> = ({ isOpen, onClose
         });
         onImportSuccess();
       } else {
-        setError(res?.message || 'Failed to import patients.');
+        setError(res?.error || res?.message || 'Failed to import patients.');
       }
     } catch (err: any) {
       console.error(err);
